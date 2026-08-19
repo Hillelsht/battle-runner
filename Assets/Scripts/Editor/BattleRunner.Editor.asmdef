@@ -1,0 +1,21 @@
+{
+    "name": "BattleRunner.Editor",
+    "rootNamespace": "BattleRunner.Editor",
+    "references": [
+        "BattleRunner.Core",
+        "BattleRunner.Data",
+        "BattleRunner.Gameplay",
+        "BattleRunner.Meta"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

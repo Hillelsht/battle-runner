@@ -1,0 +1,201 @@
+using BattleRunner.Core.Flow;
+using BattleRunner.Data.Channels;
+using BattleRunner.Data.Definitions;
+using BattleRunner.Gameplay.Combat;
+using BattleRunner.Gameplay.Crowd;
+using BattleRunner.Gameplay.Input;
+using BattleRunner.Gameplay.States;
+using BattleRunner.Gameplay.Track;
+using BattleRunner.Meta.Services;
+using BattleRunner.Meta.UI;
+using UnityEngine;
+using UnityEngine.EventSystems;
+
+namespace BattleRunner.Gameplay
+{
+    /// <summary>
+    /// The only component in Main.unity. Everything else — camera, light, UI, track,
+    /// crowd, services, flow — is constructed here at runtime (plan decision 1), so
+    /// the project has exactly one hand-written serialized scene object to break.
+    /// </summary>
+    public sealed class GameBootstrap : MonoBehaviour
+    {
+        private void Awake()
+        {
+            Application.targetFrameRate = 60;
+            Time.fixedDeltaTime = 1f / 30f;
+
+            if (UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline == null)
+                Debug.LogWarning("[Bootstrap] No render pipeline asset assigned. In the editor, the URP " +
+                                 "auto-setup runs on first load — if this persists, run BattleRunner > Setup Project.");
+
+            SetupEnvironmentLook();
+
+            var ctx = new GameContext
+            {
+                Config = LoadConfig(),
+                SaveService = new FileSaveService(),
+                Ads = new MockAdService(),
+                Iap = new MockIapService(),
+                BattlePass = new DisabledBattlePassService()
+            };
+            ctx.Profile = ctx.SaveService.Load();
+            ctx.TierCap = DetectTierCap(ctx.Config.Balance);
+
+            CreateChannels(ctx);
+            CreateArena(ctx);
+            CreateUi(ctx);
+            CreateInput(ctx);
+            CreateFlow(ctx);
+
+            Debug.Log($"[Bootstrap] Ready. Tier cap {ctx.TierCap}, level {ctx.Profile.CurrentLevelIndex + 1}.");
+        }
+
+        private static GameConfig LoadConfig()
+        {
+            var config = Resources.Load<GameConfig>("GameConfig");
+            if (config != null && config.Balance != null && config.Levels != null && config.Levels.Length > 0)
+                return config;
+
+            Debug.Log("[Bootstrap] Resources/GameConfig missing — using built-in default content.");
+            return ContentFactory.BuildConfig();
+        }
+
+        private static void SetupEnvironmentLook()
+        {
+            RenderSettings.fog = true;
+            RenderSettings.fogMode = FogMode.Exponential;
+            RenderSettings.fogDensity = 0.016f;
+            RenderSettings.fogColor = new Color(0.06f, 0.05f, 0.09f);
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+            RenderSettings.ambientLight = new Color(0.28f, 0.26f, 0.34f);
+
+            var lightGo = new GameObject("Moonlight");
+            var light = lightGo.AddComponent<Light>();
+            light.type = LightType.Directional;
+            light.color = new Color(0.75f, 0.78f, 0.95f);
+            light.intensity = 1.1f;
+            light.shadows = LightShadows.None; // no realtime shadows on mobile (doc 04)
+            lightGo.transform.rotation = Quaternion.Euler(55f, -35f, 0f);
+        }
+
+        private static int DetectTierCap(BalanceSettings balance)
+        {
+            int memoryMb = SystemInfo.systemMemorySize;
+            if (memoryMb > 0 && memoryMb < 3000) return balance.TierCapLow;
+            if (memoryMb < 5000) return balance.TierCapMid;
+            return balance.TierCapHigh;
+        }
+
+        private static void CreateChannels(GameContext ctx)
+        {
+            ctx.LaneTargetChannel = ScriptableObject.CreateInstance<FloatEventChannel>();
+            ctx.FlickUpChannel = ScriptableObject.CreateInstance<VoidEventChannel>();
+            ctx.FlickDownChannel = ScriptableObject.CreateInstance<VoidEventChannel>();
+            ctx.ForceChangedChannel = ScriptableObject.CreateInstance<LongEventChannel>();
+        }
+
+        private static Material LoadCrowdMaterial()
+        {
+            var material = Resources.Load<Material>("Crowd");
+            if (material != null) return material;
+
+            Debug.LogWarning("[Bootstrap] Resources/Crowd.mat missing; building material from shader lookup.");
+            Shader shader = Shader.Find("BattleRunner/CrowdInstanced");
+            var fallback = new Material(shader != null ? shader : Shader.Find("Universal Render Pipeline/Lit"));
+            fallback.enableInstancing = true;
+            return fallback;
+        }
+
+        private void CreateArena(GameContext ctx)
+        {
+            ctx.ArenaRoot = new GameObject("Arena");
+
+            ctx.CrowdMaterial = LoadCrowdMaterial();
+
+            var enemyMaterial = new Material(ctx.CrowdMaterial);
+            enemyMaterial.SetColor("_BaseColor", new Color(0.35f, 0.08f, 0.08f));
+            enemyMaterial.SetColor("_EmissionColor", new Color(0.6f, 0.08f, 0.05f));
+            enemyMaterial.SetFloat("_BobAmount", 0f);
+
+            var heroMaterial = new Material(ctx.CrowdMaterial);
+            heroMaterial.SetColor("_BaseColor", new Color(0.6f, 0.45f, 0.15f));
+            heroMaterial.SetColor("_EmissionColor", new Color(1.1f, 0.75f, 0.2f));
+
+            var crowdGo = new GameObject("Crowd");
+            crowdGo.transform.SetParent(ctx.ArenaRoot.transform, false);
+            ctx.Crowd = crowdGo.AddComponent<CrowdController>();
+            ctx.Crowd.Initialize(ctx.ForceChangedChannel, ctx.TierCap, ctx.Config.Balance.LaneWidthMeters * 1.15f);
+            var crowdRenderer = crowdGo.AddComponent<CrowdRenderer>();
+            crowdRenderer.Initialize(ctx.Crowd, ProceduralMeshes.Unit, ctx.CrowdMaterial);
+
+            var heroGo = new GameObject("Hero");
+            heroGo.transform.SetParent(ctx.ArenaRoot.transform, false);
+            ctx.Hero = heroGo.AddComponent<HeroVisual>();
+            ctx.Hero.Initialize(ctx.Crowd, ProceduralMeshes.Unit, heroMaterial, ctx.TierCap);
+
+            var trackGo = new GameObject("Track");
+            trackGo.transform.SetParent(ctx.ArenaRoot.transform, false);
+            ctx.TrackController = trackGo.AddComponent<TrackController>();
+            ctx.TrackController.Initialize(ctx.CrowdMaterial, enemyMaterial, ProceduralMeshes.Unit,
+                UiFactory.Font, ctx.Config.Balance.LaneWidthMeters);
+
+            var bossGo = new GameObject("Boss");
+            bossGo.transform.SetParent(ctx.ArenaRoot.transform, false);
+            ctx.BossView = bossGo.AddComponent<BossView>();
+            ctx.BossView.Initialize(ProceduralMeshes.Unit, ctx.CrowdMaterial);
+
+            var cameraGo = new GameObject("GameCamera");
+            ctx.CameraRig = cameraGo.AddComponent<CameraRig>();
+            ctx.CameraRig.Initialize(ctx.Crowd);
+
+            var overlayGo = new GameObject("DebugOverlay");
+            overlayGo.AddComponent<DebugOverlay>().Initialize(ctx.Crowd);
+
+            ctx.Spell = new SpellSystem(ctx.Config.Spells);
+            ctx.Shield = new ShieldSystem(ctx.Config.Spells);
+
+            ctx.ArenaRoot.SetActive(false);
+        }
+
+        private static void CreateUi(GameContext ctx)
+        {
+            if (Object.FindFirstObjectByType<EventSystem>() == null)
+                new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+
+            Canvas canvas = UiFactory.CreateCanvas("UiCanvas");
+            Transform root = canvas.transform;
+
+            ctx.MenuScreen = new MainMenuScreen(root, () => ctx.MenuState.OnPlayPressed());
+            ctx.Hud = new HudScreen(root);
+            ctx.LootScreen = new LootScreen(root);
+            ctx.StatScreen = new StatUpgradeScreen(root);
+            ctx.Resurrect = new ResurrectPrompt(root);
+        }
+
+        private void CreateInput(GameContext ctx)
+        {
+            var inputGo = new GameObject("InputRouter");
+            var router = inputGo.AddComponent<InputRouter>();
+            router.Initialize(ctx.Config.Input != null ? ctx.Config.Input.Gestures
+                    : BattleRunner.Core.Gestures.GestureSettings.Default,
+                ctx.LaneTargetChannel, ctx.FlickUpChannel, ctx.FlickDownChannel);
+        }
+
+        private void CreateFlow(GameContext ctx)
+        {
+            ctx.Machine = new GameStateMachine();
+            ctx.BootState = new BootState(ctx);
+            ctx.MenuState = new MainMenuState(ctx);
+            ctx.RunLoadingState = new RunLoadingState(ctx);
+            ctx.RunnerState = new RunnerLoopState(ctx);
+            ctx.BossState = new BossEncounterState(ctx);
+            ctx.LootState = new LootPhaseState(ctx);
+            ctx.UpgradeState = new StatUpgradeState(ctx);
+
+            var flowGo = new GameObject("GameFlow");
+            flowGo.AddComponent<GameFlowController>().Initialize(ctx);
+            ctx.Machine.TransitionTo(ctx.BootState);
+        }
+    }
+}

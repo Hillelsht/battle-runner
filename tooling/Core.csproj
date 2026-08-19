@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Mirror build of Assets/Scripts/Core for container-side testing without Unity.
+       netstandard2.1 + C# 9.0 match Unity 6's compilation profile exactly, so code
+       that builds here builds in the editor. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>BattleRunner.Core</AssemblyName>
+    <RootNamespace>BattleRunner.Core</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="../Assets/Scripts/Core/**/*.cs" />
+  </ItemGroup>
+
+</Project>

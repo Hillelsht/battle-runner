@@ -1,0 +1,10 @@
+# Keep Unity text-serialized files LF so git diffs match what Unity rewrites
+*.unity text eol=lf
+*.meta text eol=lf
+*.asset text eol=lf
+*.asmdef text eol=lf
+*.mat text eol=lf
+*.prefab text eol=lf
+*.shader text eol=lf
+*.cs text eol=lf
+*.json text eol=lf

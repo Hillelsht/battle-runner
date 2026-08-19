@@ -1,0 +1,93 @@
+name: Unity CI
+
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+jobs:
+  core-tests:
+    name: Core logic tests (dotnet, no Unity needed)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Run core test suite
+        run: dotnet test tooling/CoreTests/CoreTests.csproj
+
+  yaml-lint:
+    name: Unity YAML lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint hand-written serialized files
+        run: python3 tooling/lint_unity_yaml.py
+
+  # The two jobs below need a Unity license added once as a repo secret:
+  #   Settings -> Secrets and variables -> Actions -> new secret UNITY_LICENSE
+  #   (contents of your .ulf — see https://game.ci/docs/github/activation)
+  # Optionally UNITY_EMAIL + UNITY_PASSWORD instead. Until a license is present,
+  # these jobs skip themselves and report green.
+  unity-tests:
+    name: EditMode tests (headless Unity editor)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for Unity license secret
+        id: license
+        run: echo "present=${{ secrets.UNITY_LICENSE != '' || secrets.UNITY_EMAIL != '' }}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        if: steps.license.outputs.present == 'true'
+      - uses: actions/cache@v4
+        if: steps.license.outputs.present == 'true'
+        with:
+          path: Library
+          key: unity-library-tests-${{ hashFiles('Packages/manifest.json') }}
+          restore-keys: unity-library-tests-
+      - uses: game-ci/unity-test-runner@v4
+        if: steps.license.outputs.present == 'true'
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: 6000.0.23f1
+          testMode: EditMode
+      - name: License missing notice
+        if: steps.license.outputs.present != 'true'
+        run: echo "UNITY_LICENSE secret not set — skipping headless Unity tests. See workflow comments."
+
+  android-build:
+    name: Android APK (headless Unity build)
+    runs-on: ubuntu-latest
+    needs: [core-tests, yaml-lint]
+    steps:
+      - name: Check for Unity license secret
+        id: license
+        run: echo "present=${{ secrets.UNITY_LICENSE != '' || secrets.UNITY_EMAIL != '' }}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        if: steps.license.outputs.present == 'true'
+      - uses: actions/cache@v4
+        if: steps.license.outputs.present == 'true'
+        with:
+          path: Library
+          key: unity-library-android-${{ hashFiles('Packages/manifest.json') }}
+          restore-keys: unity-library-android-
+      - uses: game-ci/unity-builder@v4
+        if: steps.license.outputs.present == 'true'
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: 6000.0.23f1
+          targetPlatform: Android
+      - uses: actions/upload-artifact@v4
+        if: steps.license.outputs.present == 'true'
+        with:
+          name: battle-runner-android
+          path: build/Android
+      - name: License missing notice
+        if: steps.license.outputs.present != 'true'
+        run: echo "UNITY_LICENSE secret not set — skipping Android build. See workflow comments."
