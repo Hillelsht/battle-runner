@@ -5,7 +5,8 @@
         "BattleRunner.Core",
         "BattleRunner.Data",
         "BattleRunner.Gameplay",
-        "BattleRunner.Meta"
+        "BattleRunner.Meta",
+        "Unity.RenderPipelines.Universal.Runtime"
     ],
     "includePlatforms": [
         "Editor"

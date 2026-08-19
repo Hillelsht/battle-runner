@@ -62,8 +62,8 @@ namespace BattleRunner.Meta.Services
                 string json = JsonUtility.ToJson(profile);
                 string payload = Checksum.Compute(json) + "\n" + json;
                 File.WriteAllText(_tempPath, payload);
-                if (File.Exists(_path)) File.Delete(_path);
-                File.Move(_tempPath, _path);
+                if (File.Exists(_path)) File.Replace(_tempPath, _path, null);
+                else File.Move(_tempPath, _path);
             }
             catch (Exception e)
             {

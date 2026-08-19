@@ -51,10 +51,12 @@ namespace BattleRunner.Gameplay.Track
             _groundMaterial = new Material(baseMaterial);
             _groundMaterial.SetColor("_BaseColor", new Color(0.10f, 0.09f, 0.12f));
             _groundMaterial.SetColor("_EmissionColor", Color.black);
+            _groundMaterial.SetFloat("_BobAmount", 0f); // static geometry must not run-bob
 
             _finishMaterial = new Material(baseMaterial);
             _finishMaterial.SetColor("_BaseColor", new Color(0.9f, 0.65f, 0.2f) * 0.5f);
             _finishMaterial.SetColor("_EmissionColor", new Color(1.2f, 0.85f, 0.25f));
+            _finishMaterial.SetFloat("_BobAmount", 0f);
         }
 
         public void BuildLevel(LevelDefinition level)

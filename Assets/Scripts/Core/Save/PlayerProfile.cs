@@ -35,7 +35,9 @@ namespace BattleRunner.Core.Save
     [Serializable]
     public class PlayerProfile
     {
-        public int SchemaVersion = SaveMigrator.CurrentVersion;
+        // Defaults to 1, not CurrentVersion: a JSON payload that lacks the field must
+        // deserialize as OLD so every migration (and its null-healing) still runs.
+        public int SchemaVersion = 1;
         public List<GearItemInstance> Inventory = new List<GearItemInstance>();
         public List<EquippedSlot> Equipped = new List<EquippedSlot>();
         public List<StatSpend> StatPoints = new List<StatSpend>();

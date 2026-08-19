@@ -102,7 +102,13 @@ namespace BattleRunner.Gameplay
 
             Debug.LogWarning("[Bootstrap] Resources/Crowd.mat missing; building material from shader lookup.");
             Shader shader = Shader.Find("BattleRunner/CrowdInstanced");
-            var fallback = new Material(shader != null ? shader : Shader.Find("Universal Render Pipeline/Lit"));
+            if (shader == null) shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null)
+            {
+                Debug.LogError("[Bootstrap] No usable shader found; falling back to the error shader.");
+                shader = Shader.Find("Hidden/InternalErrorShader");
+            }
+            var fallback = new Material(shader);
             fallback.enableInstancing = true;
             return fallback;
         }

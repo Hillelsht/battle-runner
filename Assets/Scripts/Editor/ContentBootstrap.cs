@@ -39,6 +39,12 @@ namespace BattleRunner.Editor
 
         private static void Generate()
         {
+            // Always regenerate from a clean slate: a surviving Assets/Content with a
+            // missing GameConfig would otherwise leave the new config referencing
+            // fresh in-memory objects that never get persisted (review C3).
+            AssetDatabase.DeleteAsset(ContentRoot);
+            AssetDatabase.DeleteAsset(ConfigPath);
+
             EnsureFolder("Assets", "Resources");
             EnsureFolder("Assets", "Content");
             EnsureFolder(ContentRoot, "Gear");
@@ -62,12 +68,14 @@ namespace BattleRunner.Editor
                     Save(gear, $"{ContentRoot}/Gear/{gear.name}.asset");
 
                 // Shared across levels: the loot table and boss definitions come from
-                // the first level's references.
+                // the first level's references. Tracked in code — AssetDatabase paths
+                // are not reliable inside a StartAssetEditing batch (review C3).
                 if (config.Levels.Length > 0)
                 {
                     Save(config.Levels[0].LootTable, $"{ContentRoot}/LootTable.asset");
+                    var savedBosses = new System.Collections.Generic.HashSet<BossDefinition>();
                     foreach (LevelDefinition level in config.Levels)
-                        if (AssetDatabase.GetAssetPath(level.Boss) == string.Empty)
+                        if (level.Boss != null && savedBosses.Add(level.Boss))
                             Save(level.Boss, $"{ContentRoot}/{level.Boss.name}.asset");
                 }
 

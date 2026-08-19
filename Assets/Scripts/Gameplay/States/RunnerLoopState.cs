@@ -108,27 +108,33 @@ namespace BattleRunner.Gameplay.States
             _awaitingPrompt = true;
             _ctx.Resurrect.Show(
                 _ctx.Ads.IsRewardedReady(AdPlacement.Resurrect),
-                onResurrect: () => _ctx.Ads.ShowRewarded(AdPlacement.Resurrect, granted =>
+                onResurrect: () =>
                 {
-                    _ctx.Resurrect.Hide();
-                    if (granted)
-                    {
-                        long revived = System.Math.Max(10L, _ctx.CurrentLevel.ParForceAtFinish / 4);
-                        _ctx.Run.ForceCount = revived;
-                        _ctx.Crowd.SetForce(revived);
-                        _ctx.Hud.SetForce(revived);
-                        _awaitingPrompt = false;
-                    }
-                    else
-                    {
-                        GiveUp();
-                    }
-                }),
+                    _ctx.Resurrect.Hide(); // no re-taps while the ad plays (review C2)
+                    _ctx.Ads.ShowRewarded(AdPlacement.Resurrect, granted => OnResurrectResult(granted));
+                },
                 onGiveUp: () =>
                 {
                     _ctx.Resurrect.Hide();
                     GiveUp();
                 });
+        }
+
+        private void OnResurrectResult(bool granted)
+        {
+            if (!ReferenceEquals(_ctx.Machine.Current, this)) return;
+            if (granted)
+            {
+                long revived = System.Math.Max(10L, _ctx.CurrentLevel.ParForceAtFinish / 4);
+                _ctx.Run.ForceCount = revived;
+                _ctx.Crowd.SetForce(revived);
+                _ctx.Hud.SetForce(revived);
+                _awaitingPrompt = false;
+            }
+            else
+            {
+                GiveUp();
+            }
         }
 
         private void GiveUp()

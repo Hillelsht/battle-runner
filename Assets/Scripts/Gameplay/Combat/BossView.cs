@@ -23,6 +23,7 @@ namespace BattleRunner.Gameplay.Combat
             body.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
             body.GetComponent<MeshFilter>().sharedMesh = unitMesh;
             _material = new Material(baseMaterial);
+            _material.SetFloat("_BobAmount", 0f); // at 6x scale the run-bob would look absurd
             var renderer = body.GetComponent<MeshRenderer>();
             renderer.sharedMaterial = _material;
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;

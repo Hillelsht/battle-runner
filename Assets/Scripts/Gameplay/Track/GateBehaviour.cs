@@ -32,6 +32,7 @@ namespace BattleRunner.Gameplay.Track
             var mat = new Material(baseMaterial);
             mat.SetColor("_BaseColor", emissive * 0.35f);
             mat.SetColor("_EmissionColor", emissive);
+            mat.SetFloat("_BobAmount", 0f); // gate frames must not run-bob
             return mat;
         }
 

@@ -102,6 +102,9 @@ namespace BattleRunner.Gameplay.States
 
             _ctx.Ads.ShowRewarded(AdPlacement.LootDouble, granted =>
             {
+                // The player may have tapped Continue while the ad played; a reward
+                // landing on an exited state must not resurrect this screen (review C1).
+                if (!ReferenceEquals(_ctx.Machine.Current, this)) return;
                 if (!granted) return;
                 GearItemModel bonus = RollAndStore();
                 bool equipped = RunAutoEquip();
