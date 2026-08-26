@@ -46,7 +46,18 @@ Android Build Support module); the first IL2CPP build is noticeably slower than 
 
 **In CI:** `.github/workflows/unity-ci.yml` runs on every push:
 - core `dotnet test` + YAML lint — always;
-- headless Unity EditMode tests + an Android APK artifact — once you add a Unity license secret (one-time): repo **Settings → Secrets and variables → Actions** → add `UNITY_LICENSE` (the contents of your `.ulf` file — see [game.ci activation docs](https://game.ci/docs/github/activation)), or `UNITY_EMAIL` + `UNITY_PASSWORD`. Until then those two jobs skip themselves and stay green.
+- headless Unity EditMode tests + an Android APK artifact — once a **complete** Unity
+  activation strategy is configured under repo **Settings → Secrets and variables → Actions**.
+  GameCI accepts exactly two, and mixing them fails:
+
+  | Licence | Secrets to set | Must NOT be set |
+  |---|---|---|
+  | Personal (free) | `UNITY_LICENSE` = entire contents of your `.ulf` file | `UNITY_SERIAL` |
+  | Pro / Plus | `UNITY_SERIAL` **and** `UNITY_EMAIL` **and** `UNITY_PASSWORD` | — |
+
+  See the [game.ci activation docs](https://game.ci/docs/github/activation). The
+  `licence-check` job prints which secrets are present (never their values) and fails with
+  instructions if the set is incomplete; with no secrets at all, the Unity jobs simply skip.
 
 ## Architecture
 
