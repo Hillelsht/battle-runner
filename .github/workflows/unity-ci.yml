@@ -26,10 +26,11 @@ jobs:
         run: python3 tooling/lint_unity_yaml.py
 
   # Decides whether a COMPLETE Unity activation strategy is configured.
-  # GameCI accepts either a Personal licence (UNITY_LICENSE = full .ulf contents)
-  # or a Pro/Plus serial (UNITY_SERIAL + UNITY_EMAIL + UNITY_PASSWORD together).
-  # A partial set is a misconfiguration and fails loudly here rather than dying
-  # deep inside the Unity container with an opaque message.
+  # GameCI ALWAYS needs the Unity account credentials to reach the licensing
+  # servers, plus proof of licence:
+  #   UNITY_EMAIL + UNITY_PASSWORD + (UNITY_LICENSE for Personal, or UNITY_SERIAL for Pro)
+  # A .ulf on its own is NOT sufficient. A partial set fails loudly here rather
+  # than dying deep inside the Unity container with an opaque message.
   licence-check:
     name: Unity licence configuration
     runs-on: ubuntu-latest
@@ -50,16 +51,17 @@ jobs:
           echo "  UNITY_EMAIL    : $HAS_EMAIL"
           echo "  UNITY_PASSWORD : $HAS_PASSWORD"
 
-          # Personal licence: the .ulf alone is enough, but a stray UNITY_SERIAL
-          # makes GameCI pick the professional path and demand email + password.
-          if [ "$HAS_ULF" = "true" ] && [ "$HAS_SERIAL" != "true" ]; then
-            echo "Strategy: Personal licence (UNITY_LICENSE)."
-            echo "usable=true" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-
-          if [ "$HAS_SERIAL" = "true" ] && [ "$HAS_EMAIL" = "true" ] && [ "$HAS_PASSWORD" = "true" ]; then
-            echo "Strategy: Professional licence (serial + account)."
-            echo "usable=true" >> "$GITHUB_OUTPUT"; exit 0
+          # Account credentials are required for BOTH strategies — GameCI has to
+          # talk to Unity's licensing servers regardless of licence type.
+          if [ "$HAS_EMAIL" = "true" ] && [ "$HAS_PASSWORD" = "true" ]; then
+            if [ "$HAS_ULF" = "true" ]; then
+              echo "Strategy: Personal licence (.ulf + account)."
+              echo "usable=true" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+            if [ "$HAS_SERIAL" = "true" ]; then
+              echo "Strategy: Professional licence (serial + account)."
+              echo "usable=true" >> "$GITHUB_OUTPUT"; exit 0
+            fi
           fi
 
           if [ "$HAS_ULF" != "true" ] && [ "$HAS_SERIAL" != "true" ] \
@@ -71,14 +73,13 @@ jobs:
           echo "usable=false" >> "$GITHUB_OUTPUT"
           echo "::error::Unity licence secrets are incomplete."
           echo ""
-          echo "Fix one of these two ways in Settings -> Secrets and variables -> Actions:"
+          echo "Add these in Settings -> Secrets and variables -> Actions."
+          echo "UNITY_EMAIL and UNITY_PASSWORD are required for EVERY licence type:"
           echo ""
-          echo "  A) Free Personal licence (most likely):"
-          echo "     - set UNITY_LICENSE to the ENTIRE contents of your .ulf file"
-          echo "     - DELETE UNITY_SERIAL if it exists (it forces the professional path)"
+          echo "  Free Personal licence:  UNITY_EMAIL + UNITY_PASSWORD + UNITY_LICENSE"
+          echo "                          (UNITY_LICENSE = entire contents of your .ulf file)"
           echo ""
-          echo "  B) Paid Pro/Plus licence:"
-          echo "     - set all three of UNITY_SERIAL, UNITY_EMAIL, UNITY_PASSWORD"
+          echo "  Paid Pro/Plus licence:  UNITY_EMAIL + UNITY_PASSWORD + UNITY_SERIAL"
           echo ""
           echo "See https://game.ci/docs/github/activation"
           exit 1

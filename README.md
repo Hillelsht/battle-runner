@@ -50,10 +50,13 @@ Android Build Support module); the first IL2CPP build is noticeably slower than 
   activation strategy is configured under repo **Settings → Secrets and variables → Actions**.
   GameCI accepts exactly two, and mixing them fails:
 
-  | Licence | Secrets to set | Must NOT be set |
-  |---|---|---|
-  | Personal (free) | `UNITY_LICENSE` = entire contents of your `.ulf` file | `UNITY_SERIAL` |
-  | Pro / Plus | `UNITY_SERIAL` **and** `UNITY_EMAIL` **and** `UNITY_PASSWORD` | — |
+  `UNITY_EMAIL` and `UNITY_PASSWORD` (your Unity account) are required for **every**
+  licence type — GameCI must reach Unity's licensing servers. The `.ulf` alone is not enough.
+
+  | Licence | Secrets to set |
+  |---|---|
+  | Personal (free) | `UNITY_EMAIL` + `UNITY_PASSWORD` + `UNITY_LICENSE` (entire `.ulf` contents) |
+  | Pro / Plus | `UNITY_EMAIL` + `UNITY_PASSWORD` + `UNITY_SERIAL` |
 
   See the [game.ci activation docs](https://game.ci/docs/github/activation). The
   `licence-check` job prints which secrets are present (never their values) and fails with
