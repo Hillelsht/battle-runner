@@ -12,7 +12,8 @@ namespace BattleRunner.Gameplay.Input
     /// The only class in the project that polls input devices (doc 02). Touch samples
     /// are density-normalized to centimeters and fed to the pure GestureClassifier;
     /// resulting intents go out through event channels — gameplay never reads touches.
-    /// In the editor / on desktop: mouse drag steers lanes, W casts, S shields.
+    /// In the editor / on desktop: mouse drag or arrow keys / WASD steer lanes,
+    /// up-arrow or W casts, down-arrow or S shields.
     /// </summary>
     public sealed class InputRouter : MonoBehaviour
     {
@@ -24,6 +25,9 @@ namespace BattleRunner.Gameplay.Input
         private float _dotsPerCm;
         private bool _touchWasDown;
         private bool _mouseWasDown;
+
+        private const float KeyboardSteerSpeed = 1.4f; // screen-widths per second
+        private float _keyboardLaneX = 0.5f;
 
         public void Initialize(GestureSettings settings,
             FloatEventChannel laneTarget, VoidEventChannel flickUp, VoidEventChannel flickDown)
@@ -121,14 +125,27 @@ namespace BattleRunner.Gameplay.Input
             }
         }
 
+        /// <summary>
+        /// Editor/desktop convenience so the game is playable without a touchscreen.
+        /// Arrow keys and WASD both work: left/right steer smoothly, up casts, down shields.
+        /// </summary>
         private void PollKeyboardShortcuts()
         {
             Keyboard keyboard = Keyboard.current;
             if (keyboard == null) return;
-            if (keyboard.wKey.wasPressedThisFrame) _flickUp?.Raise();
-            if (keyboard.sKey.wasPressedThisFrame) _flickDown?.Raise();
-            if (keyboard.aKey.isPressed) _laneTarget?.Raise(0.2f);
-            if (keyboard.dKey.isPressed) _laneTarget?.Raise(0.8f);
+
+            if (keyboard.wKey.wasPressedThisFrame || keyboard.upArrowKey.wasPressedThisFrame)
+                _flickUp?.Raise();
+            if (keyboard.sKey.wasPressedThisFrame || keyboard.downArrowKey.wasPressedThisFrame)
+                _flickDown?.Raise();
+
+            float axis = 0f;
+            if (keyboard.aKey.isPressed || keyboard.leftArrowKey.isPressed) axis -= 1f;
+            if (keyboard.dKey.isPressed || keyboard.rightArrowKey.isPressed) axis += 1f;
+            if (axis == 0f) return;
+
+            _keyboardLaneX = Mathf.Clamp01(_keyboardLaneX + axis * KeyboardSteerSpeed * Time.deltaTime);
+            _laneTarget?.Raise(_keyboardLaneX);
         }
 
         private TouchSample MakeSample(Vector2 screenPosition)

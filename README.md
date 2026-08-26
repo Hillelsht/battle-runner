@@ -18,15 +18,15 @@ The scene contains a single `Bootstrap` object; the camera, lighting, UI, track,
 
 | Input | On device | In the editor |
 |---|---|---|
-| Steer lanes | horizontal drag (positional) | hold left mouse + drag, or A / D |
-| Cast spell | flick **up** (fast) | W (or fast upward mouse flick) |
-| Raise shield | flick **down** (fast) | S (or fast downward mouse flick) |
+| Steer lanes | horizontal drag (positional) | hold left mouse + drag, or **←/→** (or A/D) |
+| Cast spell | flick **up** (fast) | **↑** or W (or a fast upward mouse flick) |
+| Raise shield | flick **down** (fast) | **↓** or S (or a fast downward mouse flick) |
 | Perf overlay | 3-finger tap | F1 |
 
 ### Expected first-open behaviors (not bugs)
 
 - `Assets/UniversalRenderPipelineGlobalSettings.asset` appears on its own — URP creates it.
-- The Game view shows a "No cameras rendering" placeholder in **edit** mode — the camera is built at runtime; press Play.
+- The Game view shows a "No cameras rendering" placeholder in **edit** mode, and the Scene view shows only an empty ground plane with a lone `Bootstrap` object. Everything — camera, lighting, UI, track, crowd — is created when you press **Play**, so switch to the **Game** tab to actually see the game.
 - A `Library/` folder and `packages-lock.json` are generated locally (both git-ignored).
 
 ## Tests
@@ -38,6 +38,11 @@ The scene contains a single `Bootstrap` object; the camera, lighting, UI, track,
 ## Android build
 
 **Locally:** File → Build Profiles → Android → Switch Platform → Build. Package id `com.hillelsht.battlerunner`, portrait, min SDK 23.
+
+The player targets **ARM64 with the IL2CPP backend** — required because current Android
+devices are 64-bit and refuse to install ARMv7-only packages ("App not installed"), and
+because Google Play mandates 64-bit. IL2CPP needs the **Android NDK** (installed with the
+Android Build Support module); the first IL2CPP build is noticeably slower than Mono.
 
 **In CI:** `.github/workflows/unity-ci.yml` runs on every push:
 - core `dotnet test` + YAML lint — always;
