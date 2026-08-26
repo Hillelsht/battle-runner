@@ -44,14 +44,21 @@ devices are 64-bit and refuse to install ARMv7-only packages ("App not installed
 because Google Play mandates 64-bit. IL2CPP needs the **Android NDK** (installed with the
 Android Build Support module); the first IL2CPP build is noticeably slower than Mono.
 
-**In CI:** `.github/workflows/unity-ci.yml` runs on every push:
-- core `dotnet test` + YAML lint — always;
-- headless Unity EditMode tests + an Android APK artifact — once a **complete** Unity
-  activation strategy is configured under repo **Settings → Secrets and variables → Actions**.
-  GameCI accepts exactly two, and mixing them fails:
+**In CI:** `.github/workflows/unity-ci.yml` runs on every push (core `dotnet test` +
+YAML lint always; headless Unity EditMode tests when activation is configured).
+`.github/workflows/release-apk.yml` builds the APK and publishes it to **Releases** —
+run it from the Actions tab ("Release APK" → Run workflow → enter a tag like `v0.1.0`),
+or by pushing a `v*` tag. It is deliberately not on every push: an IL2CPP Android build
+takes 30–40 minutes of Actions quota.
 
-  `UNITY_EMAIL` and `UNITY_PASSWORD` (your Unity account) are required for **every**
-  licence type — GameCI must reach Unity's licensing servers. The `.ulf` alone is not enough.
+Both need a **complete** Unity activation strategy under repo
+**Settings → Secrets and variables → Actions**:
+
+  `UNITY_EMAIL` and `UNITY_PASSWORD` are required for **every** licence type. This is not a
+  configuration choice: GameCI's `activate.sh` only branches on
+  `UNITY_SERIAL && UNITY_EMAIL && UNITY_PASSWORD` or on `UNITY_LICENSING_SERVER`, and
+  `UNITY_LICENSE` is never even passed into the build container — it is parsed on the host
+  purely to derive the serial. A `.ulf` on its own therefore cannot activate anything.
 
   | Licence | Secrets to set |
   |---|---|

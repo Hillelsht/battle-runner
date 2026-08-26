@@ -1,0 +1,161 @@
+name: Release APK
+
+# Builds a sideloadable Android APK and publishes it to GitHub Releases.
+#
+# Primary trigger is workflow_dispatch: it is the only trigger GitHub guarantees
+# always creates a run (push events are silently dropped when >3 tags are pushed
+# at once, when the tagged commit predates this file, or when the push came from
+# GITHUB_TOKEN). Tag pushes are kept as a convenience for `git tag v0.2.0 && git push --tags`.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag, e.g. v0.1.0'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as a prerelease'
+        type: boolean
+        default: true
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build APK and publish release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # create the tag + release and upload the APK
+    steps:
+      - name: Verify Unity activation secrets
+        env:
+          HAS_ULF: ${{ secrets.UNITY_LICENSE != '' }}
+          HAS_SERIAL: ${{ secrets.UNITY_SERIAL != '' }}
+          HAS_EMAIL: ${{ secrets.UNITY_EMAIL != '' }}
+          HAS_PASSWORD: ${{ secrets.UNITY_PASSWORD != '' }}
+        run: |
+          echo "Secret presence (values are never printed):"
+          echo "  UNITY_LICENSE  : $HAS_ULF"
+          echo "  UNITY_SERIAL   : $HAS_SERIAL"
+          echo "  UNITY_EMAIL    : $HAS_EMAIL"
+          echo "  UNITY_PASSWORD : $HAS_PASSWORD"
+          if [ "$HAS_EMAIL" = "true" ] && [ "$HAS_PASSWORD" = "true" ] \
+             && { [ "$HAS_ULF" = "true" ] || [ "$HAS_SERIAL" = "true" ]; }; then
+            echo "Activation strategy OK."; exit 0
+          fi
+          echo "::error::Cannot build — Unity activation secrets are incomplete."
+          echo ""
+          echo "GameCI's activate.sh only accepts (UNITY_SERIAL + UNITY_EMAIL + UNITY_PASSWORD)"
+          echo "or UNITY_LICENSING_SERVER. A .ulf alone is never read inside the container —"
+          echo "UNITY_LICENSE is parsed on the host purely to derive the serial."
+          echo ""
+          echo "Add under Settings -> Secrets and variables -> Actions:"
+          echo "  UNITY_EMAIL     your Unity account email"
+          echo "  UNITY_PASSWORD  that account's password"
+          echo "(UNITY_LICENSE is already set and stays.)"
+          exit 1
+
+      # The android editor image is ~8.6 GB compressed / 20+ GB extracted, which
+      # does not fit alongside the runner's preinstalled toolchains.
+      - name: Free runner disk space
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: true
+          large-packages: false   # slow, and we already have enough headroom
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # unity-builder's versioning needs real history
+          lfs: true
+
+      - name: Resolve version
+        id: ver
+        run: |
+          set -euo pipefail
+          TAG="${{ inputs.tag || github.ref_name }}"
+          case "$TAG" in
+            v*) SEMVER="${TAG#v}" ;;
+            *)  SEMVER="$TAG" ;;
+          esac
+          # Unity requires a numeric dotted bundleVersion; fall back if the tag isn't one.
+          if ! printf '%s' "$SEMVER" | grep -Eq '^[0-9]+(\.[0-9]+)*$'; then
+            echo "::warning::Tag '$TAG' is not a numeric version; using 0.0.${{ github.run_number }}"
+            SEMVER="0.0.${{ github.run_number }}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "semver=$SEMVER" >> "$GITHUB_OUTPUT"
+          echo "Tag $TAG -> bundleVersion $SEMVER"
+
+      - uses: actions/cache@v4
+        with:
+          path: Library
+          key: unity-library-android-${{ hashFiles('Packages/manifest.json', 'ProjectSettings/ProjectSettings.asset') }}
+          restore-keys: unity-library-android-
+
+      - name: Build Android player
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: 6000.3.22f1
+          targetPlatform: Android
+          buildName: BattleRunner
+          # Explicit even though it is the default: an .aab cannot be sideloaded.
+          androidExportType: androidPackage
+          # ProjectSettings has AndroidTargetSdkVersion: 0 (Auto), which makes the
+          # entrypoint run `sdkmanager "platforms;android-0"`. Pin it instead.
+          androidTargetSdkVersion: AndroidApiLevel35
+          allowDirtyBuild: true
+          versioning: Custom
+          version: ${{ steps.ver.outputs.semver }}
+          # No androidKeystore* inputs on purpose: the APK is then debug-signed,
+          # which is installable by sideloading. A PARTIAL keystore set is the one
+          # configuration that hard-fails ("Unable to sign the application").
+
+      - name: Stage APK under a versioned name
+        id: apk
+        run: |
+          set -euo pipefail
+          ls -la build/Android || true
+          SRC="build/Android/BattleRunner.apk"
+          if [ ! -f "$SRC" ]; then
+            SRC="$(find build -name '*.apk' -print -quit || true)"
+          fi
+          [ -n "${SRC:-}" ] && [ -f "$SRC" ] || { echo "::error::no APK produced"; exit 1; }
+          mkdir -p dist
+          OUT="dist/battle-runner-${{ steps.ver.outputs.tag }}.apk"
+          cp "$SRC" "$OUT"
+          echo "path=$OUT" >> "$GITHUB_OUTPUT"
+          echo "size=$(du -h "$OUT" | cut -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Battle Runner ${{ steps.ver.outputs.tag }}
+          body: |
+            **Sideloadable Android build** (${{ steps.apk.outputs.size }}), ARM64 / IL2CPP.
+
+            Download the `.apk` below, then on your phone enable *Install unknown apps*
+            for your browser or file manager and tap the file.
+
+            If Android refuses with a signature error, uninstall any previous build
+            first — CI APKs are debug-signed and the key can differ between runs.
+
+            - Commit: `${{ github.sha }}`
+            - Version: `${{ steps.ver.outputs.semver }}`
+            - Min Android: 6.0 (API 23)
+          files: ${{ steps.apk.outputs.path }}
+          fail_on_unmatched_files: true
+          prerelease: ${{ inputs.prerelease || false }}
