@@ -52,7 +52,7 @@ jobs:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
-          unityVersion: 6000.0.23f1
+          unityVersion: 6000.3.22f1
           testMode: EditMode
       - name: License missing notice
         if: steps.license.outputs.present != 'true'
@@ -81,7 +81,7 @@ jobs:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
-          unityVersion: 6000.0.23f1
+          unityVersion: 6000.3.22f1
           targetPlatform: Android
       - uses: actions/upload-artifact@v4
         if: steps.license.outputs.present == 'true'

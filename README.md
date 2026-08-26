@@ -6,7 +6,7 @@ This repo contains the **playable greybox MVP**: the full loop (run → gates �
 
 ## Getting Started
 
-**Requirements:** Unity **6** with the **Android Build Support** module (project authored at `6000.0.23f1`; any newer Unity 6 stream — 6.3 LTS recommended — auto-upgrades the project on open, which is expected and safe).
+**Requirements:** Unity **6.3 LTS** (`6000.3.22f1` or newer) with the **Android Build Support** module. Do not use Unity 6000.0.x below `6000.0.58f2` — those releases are affected by [CVE-2025-59489](https://unity.com/security/sept-2025-01). Any newer Unity 6 stream also works; the project upgrades forward on open, which is expected and safe.
 
 1. Open Unity Hub → **Add project from disk** → select this repo folder.
 2. First open: packages resolve, then the project **configures itself** — a URP pipeline asset is created and assigned (`Assets/Settings/`), and the content set is generated (`Assets/Content/` + `Assets/Resources/GameConfig.asset`). If anything looks unconfigured, run **BattleRunner → Setup Project (URP + Content)** from the menu bar.
