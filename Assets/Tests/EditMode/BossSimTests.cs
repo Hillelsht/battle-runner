@@ -94,6 +94,31 @@ namespace BattleRunner.Tests
         }
 
         [Test]
+        public void BossHit_CleanPercentageRemovesWholeUnits_AtAnyScale()
+        {
+            // Regression: float 0.4f is 0.40000000596, so Ceiling used to remove one
+            // extra unit — and the error grew with force. Caught only under Unity's
+            // Mono runtime, where the intermediate keeps the excess.
+            Assert.AreEqual(600, BossSim.ApplyBossHit(1000, 0.4f, 0f, false));
+            Assert.AreEqual(60_000, BossSim.ApplyBossHit(100_000, 0.4f, 0f, false));
+            Assert.AreEqual(500, BossSim.ApplyBossHit(1000, 0.5f, 0f, false));
+            Assert.AreEqual(900, BossSim.ApplyBossHit(1000, 0.1f, 0f, false));
+        }
+
+        [Test]
+        public void BossHit_FractionalLossStillRoundsUp()
+        {
+            // 7 * 0.4 = 2.8 -> 3 removed. The epsilon must not swallow real fractions.
+            Assert.AreEqual(4, BossSim.ApplyBossHit(7, 0.4f, 0f, false));
+        }
+
+        [Test]
+        public void BossHit_ZeroFractionRemovesNothing()
+        {
+            Assert.AreEqual(1000, BossSim.ApplyBossHit(1000, 0f, 0f, false));
+        }
+
+        [Test]
         public void BossHit_NeverGoesNegative()
         {
             Assert.AreEqual(0, BossSim.ApplyBossHit(1, 1f, 0f, false));

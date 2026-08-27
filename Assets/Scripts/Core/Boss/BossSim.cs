@@ -45,8 +45,18 @@ namespace BattleRunner.Core.Boss
         {
             if (hitFraction < 0f || hitFraction > 1f) throw new ArgumentOutOfRangeException(nameof(hitFraction));
             if (shieldActive || force <= 0) return Math.Max(0L, force);
-            float mitigation = 1f / (1f + Math.Max(0f, heroHealth) / 100f);
-            long losses = (long)Math.Ceiling(force * hitFraction * mitigation);
+
+            // Everything in double: float intermediates round differently across
+            // runtimes (.NET collapses 1000 * 0.4f to exactly 400f, Mono keeps
+            // 400.0000059), which silently changed how much force a hit removed.
+            double mitigation = 1.0 / (1.0 + Math.Max(0f, heroHealth) / 100.0);
+            double raw = force * (double)hitFraction * mitigation;
+
+            // A float fraction puts an exact result a hair ABOVE itself, so a naive
+            // Ceiling turns a clean 40% of 1000 into 401. Nudge down by a relative
+            // epsilon so whole results stay whole, while genuine fractions still
+            // round up (a hit that lands always costs at least one unit).
+            long losses = (long)Math.Ceiling(raw - Math.Abs(raw) * 1e-6);
             return Math.Max(0L, force - losses);
         }
     }
