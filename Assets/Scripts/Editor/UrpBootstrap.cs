@@ -15,7 +15,9 @@ namespace BattleRunner.Editor
     {
         static UrpBootstrap()
         {
-            EditorApplication.delayCall += EnsurePipeline;
+            // delayCall never fires under -batchmode -quit, which is how CI builds run.
+            if (Application.isBatchMode) EnsurePipeline();
+            else EditorApplication.delayCall += EnsurePipeline;
         }
 
         [MenuItem("BattleRunner/Setup Project (URP + Content)")]

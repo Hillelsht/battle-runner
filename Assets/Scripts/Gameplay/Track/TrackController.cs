@@ -29,6 +29,8 @@ namespace BattleRunner.Gameplay.Track
         private bool _finishRaised;
         private Material _groundMaterial;
         private Material _finishMaterial;
+        private Material _markingMaterial;
+        private Material _railMaterial;
 
         public float FinishZ => _finishZ;
 
@@ -48,15 +50,25 @@ namespace BattleRunner.Gameplay.Track
             _gatePool.Prewarm(14);
             _enemyPool.Prewarm(20);
 
-            _groundMaterial = new Material(baseMaterial);
-            _groundMaterial.SetColor("_BaseColor", new Color(0.10f, 0.09f, 0.12f));
-            _groundMaterial.SetColor("_EmissionColor", Color.black);
-            _groundMaterial.SetFloat("_BobAmount", 0f); // static geometry must not run-bob
+            _groundMaterial = ShaderSafety.CreateMaterial(baseMaterial);
+            _groundMaterial.SetColorSafe("_BaseColor", new Color(0.10f, 0.09f, 0.12f));
+            _groundMaterial.SetColorSafe("_EmissionColor", Color.black);
+            _groundMaterial.SetFloatSafe("_BobAmount", 0f); // static geometry must not run-bob
 
-            _finishMaterial = new Material(baseMaterial);
-            _finishMaterial.SetColor("_BaseColor", new Color(0.9f, 0.65f, 0.2f) * 0.5f);
-            _finishMaterial.SetColor("_EmissionColor", new Color(1.2f, 0.85f, 0.25f));
-            _finishMaterial.SetFloat("_BobAmount", 0f);
+            _finishMaterial = ShaderSafety.CreateMaterial(baseMaterial);
+            _finishMaterial.SetColorSafe("_BaseColor", new Color(0.9f, 0.65f, 0.2f) * 0.5f);
+            _finishMaterial.SetColorSafe("_EmissionColor", new Color(1.2f, 0.85f, 0.25f));
+            _finishMaterial.SetFloatSafe("_BobAmount", 0f);
+
+            _markingMaterial = ShaderSafety.CreateMaterial(baseMaterial);
+            _markingMaterial.SetColorSafe("_BaseColor", new Color(0.14f, 0.16f, 0.22f));
+            _markingMaterial.SetColorSafe("_EmissionColor", new Color(0.30f, 0.34f, 0.45f));
+            _markingMaterial.SetFloatSafe("_BobAmount", 0f);
+
+            _railMaterial = ShaderSafety.CreateMaterial(baseMaterial);
+            _railMaterial.SetColorSafe("_BaseColor", new Color(0.12f, 0.14f, 0.26f));
+            _railMaterial.SetColorSafe("_EmissionColor", new Color(0.25f, 0.30f, 0.55f));
+            _railMaterial.SetFloatSafe("_BobAmount", 0f);
         }
 
         public void BuildLevel(LevelDefinition level)
@@ -107,16 +119,42 @@ namespace BattleRunner.Gameplay.Track
 
         private void SpawnGroundStrip(float fromZ, float toZ)
         {
-            var ground = new GameObject("Ground", typeof(MeshFilter), typeof(MeshRenderer));
-            ground.transform.SetParent(_trackRoot, false);
             float length = toZ - fromZ;
-            ground.transform.position = new Vector3(0f, -0.1f, fromZ + length * 0.5f);
-            ground.GetComponent<MeshFilter>().sharedMesh =
-                ProceduralMeshes.BuildBox(Vector3.zero, new Vector3(_laneWidth * 3.6f, 0.2f, length));
-            var renderer = ground.GetComponent<MeshRenderer>();
-            renderer.sharedMaterial = _groundMaterial;
+            float midZ = fromZ + length * 0.5f;
+
+            // Wide enough that a steered crowd never floats over the void.
+            SpawnStatic("Ground", new Vector3(0f, -0.1f, midZ),
+                new Vector3(_laneWidth * 4.8f, 0.2f, length), _groundMaterial);
+
+            // Lane dividers, side rails and transverse rungs: without them the road is a
+            // single flat colour and nothing conveys 10 m/s of forward motion.
+            SpawnStatic("LaneLineL", new Vector3(-_laneWidth * 0.5f, 0.005f, midZ),
+                new Vector3(0.10f, 0.02f, length), _markingMaterial);
+            SpawnStatic("LaneLineR", new Vector3(_laneWidth * 0.5f, 0.005f, midZ),
+                new Vector3(0.10f, 0.02f, length), _markingMaterial);
+
+            SpawnStatic("RailL", new Vector3(-_laneWidth * 2.3f, 0.45f, midZ),
+                new Vector3(0.30f, 0.9f, length), _railMaterial);
+            SpawnStatic("RailR", new Vector3(_laneWidth * 2.3f, 0.45f, midZ),
+                new Vector3(0.30f, 0.9f, length), _railMaterial);
+
+            for (float z = fromZ; z < toZ; z += 6f)
+            {
+                SpawnStatic("Rung", new Vector3(0f, 0.006f, z),
+                    new Vector3(_laneWidth * 4.4f, 0.02f, 0.35f), _markingMaterial);
+            }
+        }
+
+        private void SpawnStatic(string name, Vector3 position, Vector3 size, Material material)
+        {
+            var go = new GameObject(name, typeof(MeshFilter), typeof(MeshRenderer));
+            go.transform.SetParent(_trackRoot, false);
+            go.transform.position = position;
+            go.GetComponent<MeshFilter>().sharedMesh = ProceduralMeshes.BuildBox(Vector3.zero, size);
+            var renderer = go.GetComponent<MeshRenderer>();
+            renderer.sharedMaterial = material;
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            _groundStrips.Add(ground);
+            _groundStrips.Add(go);
         }
 
         private void SpawnFinishLine(float z)

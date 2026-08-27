@@ -39,14 +39,17 @@ namespace BattleRunner.Gameplay.Track
             var labelGo = new GameObject("Label", typeof(TextMesh));
             labelGo.transform.SetParent(go.transform, false);
             labelGo.transform.localPosition = new Vector3(0f, 1.8f, 0f);
-            labelGo.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+            // Readable face is -Z, which is where the camera already is (see GateBehaviour).
+            labelGo.transform.localRotation = Quaternion.Euler(12f, 0f, 0f);
             pack._label = labelGo.GetComponent<TextMesh>();
             pack._label.font = font;
             pack._label.fontSize = 56;
-            pack._label.characterSize = 0.04f;
+            pack._label.characterSize = 0.18f;
             pack._label.anchor = TextAnchor.MiddleCenter;
             pack._label.color = new Color(1f, 0.35f, 0.3f);
-            pack._label.GetComponent<MeshRenderer>().sharedMaterial = font.material;
+            MeshRenderer labelRenderer = pack._label.GetComponent<MeshRenderer>();
+            labelRenderer.sharedMaterial = font.material;
+            labelRenderer.sortingOrder = 1;
             return pack;
         }
 

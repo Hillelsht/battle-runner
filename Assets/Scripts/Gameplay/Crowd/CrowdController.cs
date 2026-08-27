@@ -77,24 +77,38 @@ namespace BattleRunner.Gameplay.Crowd
             // classifier's commit window so control feels instant (doc 02).
             _centerX = CrowdMath.SpringDamperStep(_centerX, ref _centerVelX, _targetX, 12f, dt);
 
+            float spacing = CurrentSpacing();
+            float zBlend = Mathf.Exp(-10f * dt);
+
             for (int i = 0; i < _visibleUnits; i++)
             {
-                System.Numerics.Vector2 slot = CrowdMath.PhyllotaxisSlot(i, _spacing);
+                System.Numerics.Vector2 slot = CrowdMath.PhyllotaxisSlot(i, spacing);
                 float targetX = _centerX + slot.X;
                 float targetZ = _centerZ + slot.Y;
 
                 Vector2 velocity = _velocities[i];
                 float x = CrowdMath.SpringDamperStep(_positions[i].x, ref velocity.x, targetX, 10f, dt);
-                float z = CrowdMath.SpringDamperStep(_positions[i].z, ref velocity.y, targetZ, 10f, dt);
                 _velocities[i] = velocity;
+
+                // Z is driven kinematically, not sprung: a critically damped spring
+                // tracking a 10 m/s ramp sits a constant 2 m behind, so bodies rendered
+                // two metres short of the gate that had already consumed them.
+                float z = targetZ + (_positions[i].z - targetZ) * zBlend;
                 _positions[i] = new Vector3(x, 0f, z);
             }
         }
 
+        /// <summary>
+        /// Formation spacing compresses past ~40 bodies so the disc radius saturates.
+        /// At 0.55 spacing, 200 units spanned 15.5 m on a 7.9 m road.
+        /// </summary>
+        private float CurrentSpacing() =>
+            _visibleUnits <= 40 ? _spacing : _spacing * Mathf.Sqrt(40f / _visibleUnits);
+
         /// <summary>World AABB of the visible crowd — instanced draws are culled against zero bounds otherwise (doc 04).</summary>
         public Bounds ComputeBounds()
         {
-            float radius = _spacing * Mathf.Sqrt(Mathf.Max(1, _visibleUnits)) + 2f;
+            float radius = CurrentSpacing() * Mathf.Sqrt(Mathf.Max(1, _visibleUnits)) + 2f;
             return new Bounds(new Vector3(_centerX, 0.8f, _centerZ), new Vector3(radius * 2f, 3f, radius * 2f));
         }
 

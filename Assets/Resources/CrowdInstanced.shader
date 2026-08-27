@@ -28,6 +28,9 @@ Shader "BattleRunner/CrowdInstanced"
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+            // GPU instancing requires shader model 3.0; the default 2.5 silently
+            // drops the instancing variants on some mobile targets.
+            #pragma target 3.0
             #pragma multi_compile_instancing
             #pragma instancing_options assumeuniformscaling
             #pragma multi_compile_fog
@@ -100,5 +103,7 @@ Shader "BattleRunner/CrowdInstanced"
         }
     }
 
-    Fallback Off
+    // Never "Off": if this SubShader is ever ineligible (no SRP active, variants
+    // stripped), an explicit fallback renders dull grey instead of error magenta.
+    Fallback "Diffuse"
 }

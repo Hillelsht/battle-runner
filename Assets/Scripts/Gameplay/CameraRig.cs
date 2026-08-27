@@ -15,7 +15,7 @@ namespace BattleRunner.Gameplay
         {
             _crowd = crowd;
             _camera = gameObject.AddComponent<UnityEngine.Camera>();
-            _camera.fieldOfView = 65f;
+            _camera.fieldOfView = 60f;
             _camera.nearClipPlane = 0.3f;
             _camera.farClipPlane = 220f;
             _camera.clearFlags = CameraClearFlags.SolidColor;
@@ -38,10 +38,13 @@ namespace BattleRunner.Gameplay
             transform.rotation = Quaternion.Slerp(transform.rotation, look, Time.deltaTime * 5f);
         }
 
+        // Portrait chase framing: ~11 degrees of pitch, not 25. At 8.5m height the
+        // ground filled 86% of a 1080x1920 frame and units were seen almost from
+        // overhead; this puts sky behind the crowd's heads and gates mid-screen.
         private Vector3 TargetPosition() =>
-            new Vector3(_crowd.CenterX * 0.35f, 8.5f, _crowd.CenterZ - 10.5f);
+            new Vector3(_crowd.CenterX * 0.85f, 5.5f, _crowd.CenterZ - 10f);
 
         private Vector3 LookTarget() =>
-            new Vector3(_crowd.CenterX * 0.6f, 0.8f, _crowd.CenterZ + 6f);
+            new Vector3(_crowd.CenterX * 0.85f, 1.5f, _crowd.CenterZ + 10f);
     }
 }

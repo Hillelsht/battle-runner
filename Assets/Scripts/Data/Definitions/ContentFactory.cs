@@ -200,8 +200,10 @@ namespace BattleRunner.Data.Definitions
             {
                 var chunk = ScriptableObject.CreateInstance<ChunkDefinition>();
                 chunk.name = $"Chunk_L{levelIndex + 1:00}_{c + 1:00}";
-                chunk.LengthMeters = 30f;
+                chunk.LengthMeters = 45f;
 
+                // 45 m chunks at 10 m/s space decisions ~1.5 s apart. At 30 m the enemy
+                // at 22 and the gate pair at 24 arrived 0.2 s apart - unreadable.
                 var gates = new List<ChunkDefinition.GateSpec>();
                 var enemies = new List<ChunkDefinition.EnemySpec>();
                 int addValue = 4 + levelIndex * 2 + c;
@@ -209,11 +211,11 @@ namespace BattleRunner.Data.Definitions
                 // Two add gates in different lanes — steering earns force.
                 gates.Add(new ChunkDefinition.GateSpec
                 {
-                    Op = GateOp.Add, Value = addValue, Lane = (c % 3) - 1, Position = 8f
+                    Op = GateOp.Add, Value = addValue, Lane = (c % 3) - 1, Position = 12f
                 });
                 gates.Add(new ChunkDefinition.GateSpec
                 {
-                    Op = GateOp.Add, Value = addValue + 2, Lane = ((c + 1) % 3) - 1, Position = 16f
+                    Op = GateOp.Add, Value = addValue + 2, Lane = ((c + 1) % 3) - 1, Position = 28f
                 });
 
                 // Every third chunk offers one multiplier opposite a subtract trap.
@@ -222,11 +224,11 @@ namespace BattleRunner.Data.Definitions
                     int lane = (c % 2 == 0) ? -1 : 1;
                     gates.Add(new ChunkDefinition.GateSpec
                     {
-                        Op = GateOp.Multiply, Value = 2, Lane = lane, Position = 24f
+                        Op = GateOp.Multiply, Value = 2, Lane = lane, Position = 40f
                     });
                     gates.Add(new ChunkDefinition.GateSpec
                     {
-                        Op = GateOp.Subtract, Value = addValue * 2, Lane = -lane, Position = 24f
+                        Op = GateOp.Subtract, Value = addValue * 2, Lane = -lane, Position = 40f
                     });
                 }
 
@@ -235,7 +237,7 @@ namespace BattleRunner.Data.Definitions
                 {
                     enemies.Add(new ChunkDefinition.EnemySpec
                     {
-                        ForceCost = 3 + levelIndex * 2 + c * 2, Lane = 0, Position = 22f
+                        ForceCost = 3 + levelIndex * 2 + c * 2, Lane = 0, Position = 20f
                     });
                 }
 

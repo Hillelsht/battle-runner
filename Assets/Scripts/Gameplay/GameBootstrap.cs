@@ -97,18 +97,21 @@ namespace BattleRunner.Gameplay
 
         private static Material LoadCrowdMaterial()
         {
+            // Trusting Resources.Load unconditionally is how a magenta material reached
+            // the screen in v0.1.0 — validate against the ACTIVE pipeline before using it.
+            Shader resolved = ShaderSafety.Resolve();
             var material = Resources.Load<Material>("Crowd");
-            if (material != null) return material;
-
-            Debug.LogWarning("[Bootstrap] Resources/Crowd.mat missing; building material from shader lookup.");
-            Shader shader = Shader.Find("BattleRunner/CrowdInstanced");
-            if (shader == null) shader = Shader.Find("Universal Render Pipeline/Lit");
-            if (shader == null)
+            if (material != null && !ShaderSafety.UsingFallback && material.shader != null && material.shader.isSupported)
             {
-                Debug.LogError("[Bootstrap] No usable shader found; falling back to the error shader.");
-                shader = Shader.Find("Hidden/InternalErrorShader");
+                material.enableInstancing = true;
+                return material;
             }
-            var fallback = new Material(shader);
+
+            Debug.LogWarning("[Bootstrap] Resources/Crowd.mat unusable here; rebuilding from the resolved shader.");
+            var fallback = new Material(resolved);
+            fallback.SetColorSafe("_BaseColor", new Color(0.25f, 0.28f, 0.38f));
+            fallback.SetColorSafe("_EmissionColor", new Color(0.35f, 0.5f, 0.9f));
+            fallback.SetFloatSafe("_BobAmount", 0.12f);
             fallback.enableInstancing = true;
             return fallback;
         }
@@ -119,21 +122,25 @@ namespace BattleRunner.Gameplay
 
             ctx.CrowdMaterial = LoadCrowdMaterial();
 
-            var enemyMaterial = new Material(ctx.CrowdMaterial);
-            enemyMaterial.SetColor("_BaseColor", new Color(0.35f, 0.08f, 0.08f));
-            enemyMaterial.SetColor("_EmissionColor", new Color(0.6f, 0.08f, 0.05f));
-            enemyMaterial.SetFloat("_BobAmount", 0f);
+            var enemyMaterial = ShaderSafety.CreateMaterial(ctx.CrowdMaterial);
+            enemyMaterial.SetColorSafe("_BaseColor", new Color(0.35f, 0.08f, 0.08f));
+            enemyMaterial.SetColorSafe("_EmissionColor", new Color(0.6f, 0.08f, 0.05f));
+            enemyMaterial.SetFloatSafe("_BobAmount", 0f);
 
-            var heroMaterial = new Material(ctx.CrowdMaterial);
-            heroMaterial.SetColor("_BaseColor", new Color(0.6f, 0.45f, 0.15f));
-            heroMaterial.SetColor("_EmissionColor", new Color(1.1f, 0.75f, 0.2f));
+            var heroMaterial = ShaderSafety.CreateMaterial(ctx.CrowdMaterial);
+            heroMaterial.SetColorSafe("_BaseColor", new Color(0.6f, 0.45f, 0.15f));
+            heroMaterial.SetColorSafe("_EmissionColor", new Color(1.1f, 0.75f, 0.2f));
+
+            // The crowd gets a cool rim so blue-lit bodies pop against the dark ground.
+            var crowdMaterial = ShaderSafety.CreateMaterial(ctx.CrowdMaterial);
+            crowdMaterial.SetColorSafe("_EmissionColor", new Color(0.45f, 0.75f, 1.4f));
 
             var crowdGo = new GameObject("Crowd");
             crowdGo.transform.SetParent(ctx.ArenaRoot.transform, false);
             ctx.Crowd = crowdGo.AddComponent<CrowdController>();
-            ctx.Crowd.Initialize(ctx.ForceChangedChannel, ctx.TierCap, ctx.Config.Balance.LaneWidthMeters * 1.15f);
+            ctx.Crowd.Initialize(ctx.ForceChangedChannel, ctx.TierCap, ctx.Config.Balance.LaneWidthMeters);
             var crowdRenderer = crowdGo.AddComponent<CrowdRenderer>();
-            crowdRenderer.Initialize(ctx.Crowd, ProceduralMeshes.Unit, ctx.CrowdMaterial);
+            crowdRenderer.Initialize(ctx.Crowd, ProceduralMeshes.Unit, crowdMaterial);
 
             var heroGo = new GameObject("Hero");
             heroGo.transform.SetParent(ctx.ArenaRoot.transform, false);

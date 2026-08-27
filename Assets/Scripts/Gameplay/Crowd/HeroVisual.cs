@@ -30,8 +30,9 @@ namespace BattleRunner.Gameplay.Crowd
         private void LateUpdate()
         {
             if (_crowd == null) return;
-            float scale = 1.6f * CrowdMath.HeroScaleFor(_crowd.ForceCount, _tierCap);
-            transform.position = new Vector3(_crowd.CenterX, 0f, _crowd.CenterZ + 1.2f);
+            // 1.2x reads as "the leader"; 1.6x read as a separate boss figure.
+            float scale = 1.2f * CrowdMath.HeroScaleFor(_crowd.ForceCount, _tierCap);
+            transform.position = new Vector3(_crowd.CenterX, 0f, _crowd.CenterZ + 0.6f);
             _visual.localScale = new Vector3(scale, scale, scale);
         }
     }

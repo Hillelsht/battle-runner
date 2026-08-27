@@ -22,8 +22,8 @@ namespace BattleRunner.Gameplay.Combat
             body.transform.SetParent(transform, false);
             body.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
             body.GetComponent<MeshFilter>().sharedMesh = unitMesh;
-            _material = new Material(baseMaterial);
-            _material.SetFloat("_BobAmount", 0f); // at 6x scale the run-bob would look absurd
+            _material = ShaderSafety.CreateMaterial(baseMaterial);
+            _material.SetFloatSafe("_BobAmount", 0f); // at 6x scale the run-bob would look absurd
             var renderer = body.GetComponent<MeshRenderer>();
             renderer.sharedMaterial = _material;
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -34,9 +34,9 @@ namespace BattleRunner.Gameplay.Combat
         public void Show(BossDefinition def, Vector3 position)
         {
             Color tint = def.TintColor;
-            _material.SetColor("_BaseColor", tint * 0.5f);
+            _material.SetColorSafe("_BaseColor", tint * 0.5f);
             _baseEmission = tint * 0.9f;
-            _material.SetColor("_EmissionColor", _baseEmission);
+            _material.SetColorSafe("_EmissionColor", _baseEmission);
             transform.position = position;
             _body.localScale = Vector3.one * _baseScale;
             _telegraphPulse = 0f;
@@ -62,7 +62,7 @@ namespace BattleRunner.Gameplay.Combat
             float pulse = 1f + _telegraphPulse * 0.12f * Mathf.Sin(Time.time * 22f);
             float recover = Mathf.MoveTowards(_body.localScale.x, _baseScale * pulse, Time.deltaTime * 6f);
             _body.localScale = Vector3.one * recover;
-            _material.SetColor("_EmissionColor",
+            _material.SetColorSafe("_EmissionColor",
                 Color.Lerp(_baseEmission, new Color(1.4f, 0.5f, 0.2f), _telegraphPulse));
         }
     }

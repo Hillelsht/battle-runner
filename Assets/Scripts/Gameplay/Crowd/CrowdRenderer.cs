@@ -22,22 +22,42 @@ namespace BattleRunner.Gameplay.Crowd
             _crowd = crowd;
             _mesh = unitMesh;
             _material = crowdMaterial;
-            _instancingSupported = SystemInfo.supportsInstancing;
-            if (!_instancingSupported)
-                Debug.LogWarning("[Crowd] GPU instancing unsupported on this device; crowd rendering disabled (greybox fallback).");
             if (_material != null && !_material.enableInstancing)
                 _material.enableInstancing = true;
+
+            // SystemInfo.supportsInstancing alone was not enough: if the MATERIAL's shader
+            // has no instancing variants (stripped, or no SRP active), RenderMeshInstanced
+            // silently draws nothing and the crowd vanishes entirely.
+            _instancingSupported = SystemInfo.supportsInstancing
+                                   && _material != null
+                                   && _material.enableInstancing
+                                   && _material.shader != null
+                                   && _material.shader.isSupported;
+
+            if (!_instancingSupported)
+                Debug.LogError("[Crowd] GPU instancing unavailable (shader '" +
+                               (_material != null && _material.shader != null ? _material.shader.name : "null") +
+                               "'); falling back to individual draws.");
         }
 
         private void LateUpdate()
         {
-            if (!_instancingSupported || _crowd == null || _material == null || _mesh == null) return;
+            if (_crowd == null || _material == null || _mesh == null) return;
 
             int count = Mathf.Min(_crowd.VisibleUnits, MaxInstances);
             if (count <= 0) return;
 
+            // Per-instance yaw and scale: identical boxes in a regular lattice read as a
+            // texture, not a crowd. The phase was already computed and never used.
             for (int i = 0; i < count; i++)
-                _matrices[i] = Matrix4x4.TRS(_crowd.UnitPosition(i), Quaternion.identity, Vector3.one);
+            {
+                float phase = _crowd.UnitPhase(i);
+                float scale = 0.94f + phase * 0.12f;
+                _matrices[i] = Matrix4x4.TRS(
+                    _crowd.UnitPosition(i),
+                    Quaternion.Euler(0f, (phase - 0.5f) * 24f, 0f),
+                    new Vector3(scale, scale, scale));
+            }
 
             var rp = new RenderParams(_material)
             {
@@ -45,7 +65,17 @@ namespace BattleRunner.Gameplay.Crowd
                 shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off,
                 receiveShadows = false
             };
-            Graphics.RenderMeshInstanced(rp, _mesh, 0, _matrices, count);
+
+            if (_instancingSupported)
+            {
+                Graphics.RenderMeshInstanced(rp, _mesh, 0, _matrices, count);
+                return;
+            }
+
+            // A few hundred individual draws is affordable at greybox scale, and an
+            // ugly-but-visible crowd beats an invisible one.
+            for (int i = 0; i < count; i++)
+                Graphics.RenderMesh(rp, _mesh, 0, _matrices[i]);
         }
     }
 }
