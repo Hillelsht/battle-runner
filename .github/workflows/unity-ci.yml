@@ -31,6 +31,26 @@ jobs:
   #   UNITY_EMAIL + UNITY_PASSWORD + (UNITY_LICENSE for Personal, or UNITY_SERIAL for Pro)
   # A .ulf on its own is NOT sufficient. A partial set fails loudly here rather
   # than dying deep inside the Unity container with an opaque message.
+  # Docs rot silently, so the same checker the pre-push hook runs also runs here —
+  # a contributor who never enabled core.hooksPath still cannot land stale docs.
+  docs-check:
+    name: Docs match the code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify documented facts
+        run: python3 tooling/check_docs.py
+      - name: Verify docs moved with the code
+        if: github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000'
+        run: |
+          if git cat-file -e '${{ github.event.before }}^{commit}' 2>/dev/null; then
+            python3 tooling/check_docs.py --range '${{ github.event.before }}..${{ github.sha }}'
+          else
+            echo "::notice::Previous commit unavailable (force-push or new branch); staleness check skipped."
+          fi
+
   licence-check:
     name: Unity licence configuration
     runs-on: ubuntu-latest

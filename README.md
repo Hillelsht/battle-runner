@@ -4,6 +4,16 @@ A hybrid-casual Android game built in Unity: a 3-lane **gate-multiplier runner**
 
 This repo contains the **playable greybox MVP**: the full loop (run → gates → boss → loot → stat points → save → next level) with procedural greybox art, a GPU-instanced crowd, and mock ad/IAP services behind the real monetization seams.
 
+## Status
+
+**Latest build: [v0.1.1](https://github.com/Hillelsht/battle-runner/releases/tag/v0.1.1)** —
+[download the APK](https://github.com/Hillelsht/battle-runner/releases/download/v0.1.1/battle-runner-v0.1.1.apk)
+(~30 MB, ARM64 / IL2CPP, debug-signed, sideloadable).
+
+[CHANGELOG.md](CHANGELOG.md) is the live status page: what stage the project is at,
+what each release changed, and what is still open. Keep it current — `tooling/check_docs.py`
+enforces that docs move whenever code does (see [Keeping docs honest](#keeping-docs-honest)).
+
 ## Getting Started
 
 **Requirements:** Unity **6.3 LTS** (`6000.3.22f1` or newer) with the **Android Build Support** module. Do not use Unity 6000.0.x below `6000.0.58f2` — those releases are affected by [CVE-2025-59489](https://unity.com/security/sept-2025-01). Any newer Unity 6 stream also works; the project upgrades forward on open, which is expected and safe.
@@ -31,7 +41,7 @@ The scene contains a single `Bootstrap` object; the camera, lighting, UI, track,
 
 ## Tests
 
-- **In Unity:** Window → General → **Test Runner** → EditMode → Run All (64 tests: gate math incl. soft-cap overflow, the gesture confusion suite, loot distribution + pity, save migration + checksum, crowd math, boss sim, state machine).
+- **In Unity:** Window → General → **Test Runner** → EditMode → Run All (67 tests: gate math incl. soft-cap overflow, the gesture confusion suite, loot distribution + pity, save migration + checksum, crowd math, boss sim, state machine).
 - **Without Unity:** `dotnet test tooling/CoreTests/CoreTests.csproj` runs the identical test sources against the same core code (the core assembly is engine-free by design).
 - **Serialized-file lint:** `python3 tooling/lint_unity_yaml.py` validates the hand-written scene/material/meta files.
 
@@ -89,10 +99,66 @@ Assets/Scripts/Core      engine-free game logic (gestures, gate math, stats, loo
 Assets/Scripts/Data      ScriptableObject definitions + event channels + ContentFactory
 Assets/Scripts/Gameplay  MonoBehaviours: bootstrap, states, input router, track, crowd, combat
 Assets/Scripts/Meta      services (save, mock ads/IAP, battle-pass seam) + code-built uGUI screens
-Assets/Scripts/Editor    URP auto-setup + content generation
+Assets/Scripts/Editor    URP auto-setup, content generation, and build guards
+                         (PipelineGuard, ShippedShaderCheck) that fail a build rather
+                         than let it ship an unrenderable player
 Assets/Tests/EditMode    NUnit suite (runs in Unity Test Runner AND under plain dotnet)
-tooling/                 mirrored csprojs for Unity-less testing, meta generator, YAML lint
+tooling/                 mirrored csprojs for Unity-less testing, meta generator,
+                         YAML lint, the docs checker, and its Claude Code gate
+.githooks/               versioned git hooks (pre-push docs check)
 ```
+
+### Build guards
+
+Two failures shipped silently before these existed, so both now fail the build loudly:
+
+| Guard | Prevents |
+|---|---|
+| `PipelineGuard` | Building with no render pipeline assigned, which strips every URP shader variant and renders the whole game magenta |
+| `ShippedShaderCheck` | The crowd shader packing as an empty stub (< 2 KB) even when the build reports `Errors: 0` |
+| `ShaderSafety` (runtime) | A shader unusable on the active pipeline — substitutes a stock shader and logs, instead of drawing magenta |
+
+## Keeping docs honest
+
+Docs rot quietly: a test count drifts, a Unity version moves in `ProjectSettings`
+but not here, a new doc lands that nothing links to. `tooling/check_docs.py`
+cross-checks the facts that are machine-verifiable and refuses a push when code
+changed without any docs change.
+
+```bash
+python3 tooling/check_docs.py                      # facts only
+python3 tooling/check_docs.py --range HEAD~3..HEAD # + staleness for a commit range
+```
+
+It verifies the documented test count matches the real `[Test]` count, the README
+names the pinned Unity version, every file in `docs/` is linked from the README (and
+every README link resolves), every `Assets/Scripts/*` directory appears in the code
+layout, and the README's newest version reference matches the newest `CHANGELOG.md`
+release.
+
+### Three places it runs
+
+| Layer | File | Fires | Skippable? |
+|---|---|---|---|
+| Claude Code | `.claude/settings.json` → `tooling/hook_docs_gate.sh` | when an agent proposes a `git push` | yes, and only affects Claude Code |
+| Git | `.githooks/pre-push` | on any real `git push` | `git push --no-verify` |
+| CI | `docs-check` job in `unity-ci.yml` | on every push and PR | no |
+
+The first two are conveniences that fail fast on your machine; CI is the one that
+actually holds the line, so forgetting to enable a local hook cannot let stale docs
+through.
+
+**Enable the git hook once per clone** (the Claude Code hook needs no setup — it
+lives in the repo and loads with the project):
+
+```bash
+git config core.hooksPath .githooks
+```
+
+For a change that genuinely needs no docs — a pure rename, say — put `[skip-docs]`
+**on its own line** in a commit message and the staleness rule stands down (the fact
+checks still run). It has to stand alone, git-trailer style: matched as a substring,
+any commit that merely discusses the escape hatch would disarm it.
 
 ## Monetization status
 
