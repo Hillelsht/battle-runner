@@ -110,13 +110,15 @@ tooling/                 mirrored csprojs for Unity-less testing, meta generator
 
 ### Build guards
 
-Two failures shipped silently before these existed, so both now fail the build loudly:
+v0.1.0 shipped an entirely magenta player while the build reported `Errors: 0`.
+Nothing was going to catch that except a person installing the APK, so two guards
+now fail the build outright and a third degrades safely at runtime:
 
-| Guard | Prevents |
-|---|---|
-| `PipelineGuard` | Building with no render pipeline assigned, which strips every URP shader variant and renders the whole game magenta |
-| `ShippedShaderCheck` | The crowd shader packing as an empty stub (< 2 KB) even when the build reports `Errors: 0` |
-| `ShaderSafety` (runtime) | A shader unusable on the active pipeline — substitutes a stock shader and logs, instead of drawing magenta |
+| Guard | When | Prevents |
+|---|---|---|
+| `PipelineGuard` | pre-build | Building with no render pipeline assigned, which strips every URP shader variant and renders the whole game magenta |
+| `ShippedShaderCheck` | post-build | The crowd shader packing as an empty stub (< 2 KB) even when the build reports `Errors: 0` |
+| `ShaderSafety` | runtime | A shader unusable on the active pipeline — substitutes a stock shader and logs, instead of drawing magenta |
 
 ## Keeping docs honest
 
