@@ -126,26 +126,39 @@ namespace BattleRunner.Gameplay.Track
             float length = toZ - fromZ;
             float midZ = fromZ + length * 0.5f;
 
-            // Wide enough that a steered crowd never floats over the void.
+            // Every dimension below comes off the lane pitch, so the road the player reads
+            // is exactly the partition CrowdMath.LaneIndex scores against. The old version
+            // used loose multiples of lane width (ground 4.8w, rails 2.3w) and drew lane
+            // lines only at +/-0.5w, which left the outer lanes bounded by the rails at
+            // 2.3w: the centre lane rendered 2.20 m and the outer two 3.96 m each.
+            float roadHalf = CrowdMath.RoadHalfWidth(_laneWidth);   // 3.30 at a 2.2 m lane
+            float shoulder = _laneWidth * 0.14f;                    // visible verge
+            float railHalfThickness = 0.15f;
+            float railCentre = roadHalf + shoulder + railHalfThickness;
+            float groundHalf = railCentre + railHalfThickness + 0.25f;
+
             SpawnStatic("Ground", new Vector3(0f, -0.1f, midZ),
-                new Vector3(_laneWidth * 4.8f, 0.2f, length), _groundMaterial);
+                new Vector3(groundHalf * 2f, 0.2f, length), _groundMaterial);
 
-            // Lane dividers, side rails and transverse rungs: without them the road is a
-            // single flat colour and nothing conveys 10 m/s of forward motion.
-            SpawnStatic("LaneLineL", new Vector3(-_laneWidth * 0.5f, 0.005f, midZ),
-                new Vector3(0.10f, 0.02f, length), _markingMaterial);
-            SpawnStatic("LaneLineR", new Vector3(_laneWidth * 0.5f, 0.005f, midZ),
-                new Vector3(0.10f, 0.02f, length), _markingMaterial);
+            // All FOUR lane edges, so each of the three lanes is bounded by a real line and
+            // they read as equal. Without the outer pair the road has no visible edge and
+            // the eye takes the rails as the boundary instead.
+            for (int edge = -1; edge <= 1; edge += 2)
+            {
+                SpawnStatic("LaneLineInner", new Vector3(edge * _laneWidth * 0.5f, 0.005f, midZ),
+                    new Vector3(0.10f, 0.02f, length), _markingMaterial);
+                SpawnStatic("LaneLineOuter", new Vector3(edge * roadHalf, 0.005f, midZ),
+                    new Vector3(0.10f, 0.02f, length), _markingMaterial);
 
-            SpawnStatic("RailL", new Vector3(-_laneWidth * 2.3f, 0.45f, midZ),
-                new Vector3(0.30f, 0.9f, length), _railMaterial);
-            SpawnStatic("RailR", new Vector3(_laneWidth * 2.3f, 0.45f, midZ),
-                new Vector3(0.30f, 0.9f, length), _railMaterial);
+                SpawnStatic("Rail", new Vector3(edge * railCentre, 0.45f, midZ),
+                    new Vector3(railHalfThickness * 2f, 0.9f, length), _railMaterial);
+            }
 
+            // Speed rungs span the road itself, not the verge.
             for (float z = fromZ; z < toZ; z += 6f)
             {
                 SpawnStatic("Rung", new Vector3(0f, 0.006f, z),
-                    new Vector3(_laneWidth * 4.4f, 0.02f, 0.35f), _markingMaterial);
+                    new Vector3(roadHalf * 2f, 0.02f, 0.35f), _markingMaterial);
             }
         }
 

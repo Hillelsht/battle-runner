@@ -118,6 +118,22 @@ namespace BattleRunner.Core.Crowd
         }
 
         /// <summary>
+        /// Half the drivable road: the outer edge of the outer lanes. Three lanes of
+        /// laneWidth each, so the road spans [-1.5w, +1.5w] and its four edges sit at
+        /// -1.5w, -0.5w, +0.5w, +1.5w.
+        ///
+        /// The road USED to be drawn 4.8w wide with lane lines only at +/-0.5w, so the
+        /// centre lane read as 2.2 m while the outer two ran all the way to the rails at
+        /// 2.3w and read as 3.96 m -- 1.8x the centre. Whatever draws the road must derive
+        /// its edges from here, so what the player sees is the partition that scores.
+        /// </summary>
+        public static float RoadHalfWidth(float laneWidth)
+        {
+            if (laneWidth <= 0f) throw new ArgumentOutOfRangeException(nameof(laneWidth));
+            return laneWidth * 1.5f;
+        }
+
+        /// <summary>
         /// Which of the three lanes a world X sits in: -1, 0 or +1.
         ///
         /// A radius test cannot do this job. With lane centres one laneWidth apart, the

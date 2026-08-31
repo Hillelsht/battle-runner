@@ -17,23 +17,23 @@ points → save → next level.
 | Game loop | Complete end to end |
 | Content | 5 levels, 2 bosses, 15 gear items, 4 rarities |
 | Art | Greybox — procedural meshes, code-built uGUI, no imported assets |
-| Tests | 75, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 76, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
 | Not started | Real ad SDK, FTUE, analytics, battle pass, art pass |
 
-**Known open item:** v0.1.2's on-device feel has not been confirmed by a human.
-v0.1.1 rendered correctly but did not play as a lane game; v0.1.2 fixes that and
-needs a look.
+**Confirmed on device:** v0.1.2 plays as a lane game. The crowd stays in its lane at
+any size and the army reads as a column reaching up the road.
 
-**Unreleased since v0.1.1:** documentation is now enforced rather than trusted.
-`tooling/check_docs.py` cross-checks the facts embedded in the docs (test count,
-pinned Unity version, doc index, code layout, newest release) and requires a docs
-change whenever code changes. It runs in three places — a Claude Code `PreToolUse`
-gate, the `.githooks/pre-push` git hook, and the `docs-check` CI job — so this file
-cannot silently fall behind the code again. See
-[Keeping docs honest](README.md#keeping-docs-honest).
+**Unreleased since v0.1.2:** the three lanes now render equal. Reported from device:
+*"the central lane is smaller than 2 others."* It was — the road was drawn
+`4.8 × laneWidth` wide with lane lines only at `±0.5 × laneWidth`, so nothing marked
+the outer lanes' outer edge and the eye took the rails at `2.3 × laneWidth` as the
+boundary. The centre lane measured 2.20 m and the outer two 3.96 m each, **1.8× wider**.
+Every road dimension now derives from `CrowdMath.RoadHalfWidth`, all four lane edges are
+drawn, and a test sweeps the road asserting each lane claims exactly a third — so what
+the player sees is the same partition `LaneIndex` scores against.
 
 ---
 

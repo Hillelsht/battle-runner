@@ -174,6 +174,30 @@ namespace BattleRunner.Tests
         }
 
         [Test]
+        public void Road_GivesAllThreeLanesEqualWidth()
+        {
+            // The drawn road and the scoring partition must be the same object. The road
+            // used to be drawn 4.8*laneWidth wide with lane lines only at +/-0.5*laneWidth,
+            // so the centre lane read 2.20 m and the outer two 3.96 m each -- 1.8x wider.
+            float roadHalf = CrowdMath.RoadHalfWidth(LaneWidth);
+            Assert.AreEqual(3f * LaneWidth, roadHalf * 2f, 1e-4f, "the road is exactly three lanes");
+
+            // Sweep the road and measure how much of it each lane claims.
+            var claimed = new System.Collections.Generic.Dictionary<int, int> { { -1, 0 }, { 0, 0 }, { 1, 0 } };
+            const int samples = 30000;
+            for (int i = 0; i < samples; i++)
+            {
+                float x = -roadHalf + (2f * roadHalf) * (i + 0.5f) / samples;
+                claimed[CrowdMath.LaneIndex(x, LaneWidth)]++;
+            }
+
+            float expected = samples / 3f;
+            foreach (var lane in claimed)
+                Assert.AreEqual(expected, lane.Value, samples * 0.01f,
+                    $"lane {lane.Key} claims {lane.Value / (float)samples:P1} of the road, not a third");
+        }
+
+        [Test]
         public void LaneIndex_CoversEveryPositionExactlyOnce()
         {
             for (int step = -330; step <= 330; step++)
