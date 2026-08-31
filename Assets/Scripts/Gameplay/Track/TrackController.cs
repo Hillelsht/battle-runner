@@ -253,6 +253,35 @@ namespace BattleRunner.Gameplay.Track
             }
         }
 
+        /// <summary>
+        /// Metres from <paramref name="fromZ"/> to the nearest enemy pack still ahead, for the
+        /// tutorial to time its prompt. Negative when nothing is ahead.
+        /// </summary>
+        public float DistanceToNextEnemy(float fromZ)
+        {
+            float best = -1f;
+            foreach (EnemyPackBehaviour pack in _activeEnemies)
+            {
+                float ahead = pack.transform.position.z - fromZ;
+                if (ahead <= 0f) continue;
+                if (best < 0f || ahead < best) best = ahead;
+            }
+            return best;
+        }
+
+        /// <summary>Metres to the nearest unconsumed gate still ahead; negative when none.</summary>
+        public float DistanceToNextGate(float fromZ)
+        {
+            float best = -1f;
+            foreach (GateBehaviour gate in _activeGates)
+            {
+                float ahead = gate.transform.position.z - fromZ;
+                if (ahead <= 0f) continue;
+                if (best < 0f || ahead < best) best = ahead;
+            }
+            return best;
+        }
+
         /// <summary>Spell effect in the runner phase: destroys enemy packs within range ahead.</summary>
         public int ClearEnemiesAhead(float fromZ, float rangeMeters)
         {

@@ -46,6 +46,9 @@ namespace BattleRunner.Gameplay
             CreateArena(ctx);
             CreateUi(ctx);
             CreateInput(ctx);
+            // Needs the loaded profile (for what has already been taught) and the systems it
+            // listens to, so it is built after the arena, UI and input exist.
+            ctx.Tutorial = new TutorialCoach(ctx, ctx.TutorialOverlay, ctx.Profile.TutorialMask);
             CreateFlow(ctx);
 
             Debug.Log($"[Bootstrap] Ready. Tier cap {ctx.TierCap}, level {ctx.Profile.CurrentLevelIndex + 1}.");
@@ -183,6 +186,9 @@ namespace BattleRunner.Gameplay
             ctx.Hud = new HudScreen(root);
             ctx.LootScreen = new LootScreen(root);
             ctx.StatScreen = new StatUpgradeScreen(root);
+            // Above the HUD, below the resurrect modal: the canvas never sets sortingOrder,
+            // so draw order is sibling order.
+            ctx.TutorialOverlay = new TutorialOverlay(root);
             ctx.Resurrect = new ResurrectPrompt(root);
         }
 

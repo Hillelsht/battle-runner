@@ -17,16 +17,31 @@ points → save → next level.
 | Game loop | Complete end to end |
 | Content | 5 levels, 2 bosses, 15 gear items, 4 rarities |
 | Art | Greybox — procedural meshes, code-built uGUI, no imported assets |
-| Tests | 76, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 94, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
-| Not started | Real ad SDK, FTUE, analytics, battle pass, art pass |
+| Not started | Real ad SDK, analytics, battle pass, art pass |
 
 **Confirmed on device:** v0.1.2 plays as a lane game. The crowd stays in its lane at
 any size and the army reads as a column reaching up the road.
 
-**Unreleased since v0.1.2:** the three lanes now render equal. Reported from device:
+**Unreleased since v0.1.2:** a first-time user experience, and the three lanes now
+render equal.
+
+The FTUE closes a measurable cliff, not a polish gap: a player who never learns to steer
+is reduced to zero force by the enemy pack at **16.7 s** of their first run. Four
+coaching beats now introduce steering, gate vocabulary, the spell flick and the shield
+flick, each the moment it first matters. Both flick prompts say *"lift your thumb"* —
+`GestureClassifier` is one gesture per contact, so a player steering with their thumb
+down physically cannot cast, and an un-worded prompt reads as broken input. A held
+prompt zeroes the run's forward speed rather than touching `Time.timeScale`, so
+cooldowns, input and the ad service keep running. Every beat times out after six
+seconds and is then marked taught, which the tests prove by ticking ten seconds of
+frames with no input and asserting the run is released. See
+[docs/07-ftue.md](docs/07-ftue.md).
+
+Three lanes now render equal. Reported from device:
 *"the central lane is smaller than 2 others."* It was — the road was drawn
 `4.8 × laneWidth` wide with lane lines only at `±0.5 × laneWidth`, so nothing marked
 the outer lanes' outer edge and the eye took the rails at `2.3 × laneWidth` as the

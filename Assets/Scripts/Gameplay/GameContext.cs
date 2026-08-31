@@ -51,6 +51,8 @@ namespace BattleRunner.Gameplay
         public LootScreen LootScreen;
         public StatUpgradeScreen StatScreen;
         public ResurrectPrompt Resurrect;
+        public TutorialOverlay TutorialOverlay;
+        public TutorialCoach Tutorial;
 
         // Flow
         public GameStateMachine Machine;

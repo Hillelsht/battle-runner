@@ -46,6 +46,8 @@ namespace BattleRunner.Core.Save
         public long SoftCurrency;
         public int Keys;
         public int PityCounter;
+        /// <summary>Bitmask of TutorialStep values already taught. 0 = brand new player.</summary>
+        public int TutorialMask;
 
         public string GetEquipped(GearSlot slot)
         {

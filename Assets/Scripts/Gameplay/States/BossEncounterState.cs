@@ -22,6 +22,9 @@ namespace BattleRunner.Gameplay.States
 
         public BossEncounterState(GameContext ctx) => _ctx = ctx;
 
+        /// <summary>True while the boss is winding up — the window a shield must land in.</summary>
+        public bool TelegraphActive => _boss != null && _attackTimer <= _boss.TelegraphSeconds;
+
         public void Enter()
         {
             _boss = _ctx.CurrentLevel.Boss;
@@ -43,6 +46,10 @@ namespace BattleRunner.Gameplay.States
             _ctx.FlickUpChannel.Subscribe(OnFlickUp);
             _ctx.FlickDownChannel.Subscribe(OnFlickDown);
             _ctx.Spell.Cast += OnSpellCast;
+
+            // RunnerLoopState.Exit unsubscribed the coach before we got here, so the shield
+            // lesson would never hear Shield.Raised without this.
+            _ctx.Tutorial.Subscribe();
         }
 
         public void Exit()
@@ -51,6 +58,9 @@ namespace BattleRunner.Gameplay.States
             _ctx.FlickUpChannel.Unsubscribe(OnFlickUp);
             _ctx.FlickDownChannel.Unsubscribe(OnFlickDown);
             _ctx.Spell.Cast -= OnSpellCast;
+
+            _ctx.Tutorial.Unsubscribe();
+            _ctx.Tutorial.EndPhase();
 
             _ctx.BossView.Hide();
             _ctx.Hud.HideBossBar();
@@ -69,6 +79,8 @@ namespace BattleRunner.Gameplay.States
             float dps = BossSim.PlayerDps(_ctx.LastResult, _ctx.Config.Balance.SoftCap);
             ApplyBossDamage(dps * dt);
             if (_resolved) return;
+
+            _ctx.Tutorial.TickBoss(dt, TelegraphActive);
 
             // Attack cycle with telegraph — the shield-timing game.
             _attackTimer -= dt;

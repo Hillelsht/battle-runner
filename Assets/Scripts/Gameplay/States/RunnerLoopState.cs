@@ -36,6 +36,8 @@ namespace BattleRunner.Gameplay.States
             _ctx.TrackController.GateApplied += OnGateApplied;
             _ctx.TrackController.EnemyContact += OnEnemyContact;
             _ctx.TrackController.FinishReached += OnFinishReached;
+
+            _ctx.Tutorial.Subscribe();
         }
 
         public void Exit()
@@ -48,14 +50,25 @@ namespace BattleRunner.Gameplay.States
             _ctx.TrackController.GateApplied -= OnGateApplied;
             _ctx.TrackController.EnemyContact -= OnEnemyContact;
             _ctx.TrackController.FinishReached -= OnFinishReached;
+
+            _ctx.Tutorial.Unsubscribe();
+            _ctx.Tutorial.EndPhase();
         }
 
         public void Tick(float dt)
         {
             if (_awaitingPrompt || _finished) return;
 
+            // The coach runs on unscaled time so a held prompt still times out even while
+            // the world is standing still for it.
+            _ctx.Tutorial.TickRunner(dt);
+
             RunState run = _ctx.Run;
-            float speed = _ctx.Config.Balance.RunSpeedMetersPerSec;
+
+            // A held prompt stops the road, not the game: cooldowns, the HUD, input and the
+            // ad service all keep ticking below. Time.timeScale would freeze those too, and
+            // a stalled rewarded-ad callback is the one failure that can wedge a run.
+            float speed = _ctx.Tutorial.HoldsRun ? 0f : _ctx.Config.Balance.RunSpeedMetersPerSec;
 
             _ctx.Crowd.AdvanceZ(speed * dt);
             run.Distance += speed * dt;
@@ -106,6 +119,9 @@ namespace BattleRunner.Gameplay.States
         private void OnForceDepleted()
         {
             _awaitingPrompt = true;
+            // Tick() stops here, so a live coaching prompt would sit frozen behind the
+            // resurrect modal. Drop it; an un-taught step re-arms if the player revives.
+            _ctx.Tutorial.EndPhase();
             _ctx.Resurrect.Show(
                 _ctx.Ads.IsRewardedReady(AdPlacement.Resurrect),
                 onResurrect: () =>

@@ -10,7 +10,7 @@ namespace BattleRunner.Core.Save
     /// </summary>
     public static class SaveMigrator
     {
-        public const int CurrentVersion = 2;
+        public const int CurrentVersion = 3;
 
         private static readonly Dictionary<int, Action<PlayerProfile>> Steps = new Dictionary<int, Action<PlayerProfile>>
         {
@@ -23,8 +23,17 @@ namespace BattleRunner.Core.Save
                 profile.StatPoints ??= new List<StatSpend>();
                 if (profile.PityCounter < 0) profile.PityCounter = 0;
                 if (profile.Keys < 0) profile.Keys = 0;
-            }
+            },
+
+            // v2 -> v3: TutorialMask introduced. An existing save belongs to someone who has
+            // already played, so mark every step taught rather than coaching a veteran. A
+            // genuinely new profile starts at 0 and gets the tutorial.
+            [2] = profile => profile.TutorialMask = AllTutorialStepsTaught
         };
+
+        /// <summary>Four steps: Steer, Gate, Spell, Shield. Kept here so Core has no
+        /// dependency direction problem between Save and Tutorial.</summary>
+        public const int AllTutorialStepsTaught = 0b1111;
 
         /// <summary>Runs every migration from the profile's version up to CurrentVersion.</summary>
         public static PlayerProfile Migrate(PlayerProfile profile)

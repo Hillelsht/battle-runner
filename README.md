@@ -33,6 +33,8 @@ The scene contains a single `Bootstrap` object; the camera, lighting, UI, track,
 | Raise shield | flick **down** (fast) | **↓** or S (or a fast downward mouse flick) |
 | Perf overlay | 3-finger tap | F1 |
 
+On a first run a coaching prompt introduces each control the moment it first matters. Every prompt times out on its own — nothing ever waits on you.
+
 ### Expected first-open behaviors (not bugs)
 
 - `Assets/UniversalRenderPipelineGlobalSettings.asset` appears on its own — URP creates it.
@@ -41,7 +43,7 @@ The scene contains a single `Bootstrap` object; the camera, lighting, UI, track,
 
 ## Tests
 
-- **In Unity:** Window → General → **Test Runner** → EditMode → Run All (76 tests: gate math incl. soft-cap overflow, the gesture confusion suite, loot distribution + pity, save migration + checksum, crowd math incl. the formation envelope and lane partition, boss sim, state machine).
+- **In Unity:** Window → General → **Test Runner** → EditMode → Run All (94 tests: gate math incl. soft-cap overflow, the gesture confusion suite, loot distribution + pity, save migration + checksum, crowd math incl. the formation envelope and lane partition, boss sim, state machine).
 - **Without Unity:** `dotnet test tooling/CoreTests/CoreTests.csproj` runs the identical test sources against the same core code (the core assembly is engine-free by design).
 - **Serialized-file lint:** `python3 tooling/lint_unity_yaml.py` validates the hand-written scene/material/meta files.
 
@@ -91,6 +93,7 @@ Read in order — the risk critique deliberately comes first:
 | [04 — Performance & Mobile Optimization](docs/04-performance-strategy.md) | Instanced crowd, pooling, device-tier budgets |
 | [05 — MVP Roadmap](docs/05-mvp-roadmap.md) | The four-sprint plan this build implements the core of |
 | [06 — Greybox Implementation Notes](docs/06-greybox-implementation-notes.md) | What this build ships, conscious deviations, and what's next |
+| [07 — First-Time User Experience](docs/07-ftue.md) | The four coaching beats, why the run holds instead of pausing, and the proof it cannot strand a player |
 
 ### Code layout
 

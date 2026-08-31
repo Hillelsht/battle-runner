@@ -71,7 +71,13 @@ namespace BattleRunner.Meta.Services
             }
         }
 
+        // Stamped at the CURRENT schema so no migration runs. A fresh profile is not an
+        // ancient save, and treating it as one is actively harmful: the v2->v3 step marks
+        // the tutorial already taught (correct for a returning player, since their save
+        // predates the feature), which would have silently skipped the tutorial for every
+        // new player -- the exact people it exists for. PlayerProfile initialises its
+        // lists inline, so nothing here needs the migrations' null-healing.
         private static PlayerProfile NewProfile() =>
-            SaveMigrator.Migrate(new PlayerProfile { SchemaVersion = 1 });
+            new PlayerProfile { SchemaVersion = SaveMigrator.CurrentVersion };
     }
 }
