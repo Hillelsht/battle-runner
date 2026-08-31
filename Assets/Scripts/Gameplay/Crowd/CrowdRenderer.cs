@@ -9,7 +9,8 @@ namespace BattleRunner.Gameplay.Crowd
     /// </summary>
     public sealed class CrowdRenderer : MonoBehaviour
     {
-        private const int MaxInstances = 512;
+        // One number governs the array length, the draw count and the tier clamp.
+        private const int MaxInstances = CrowdController.MaxSimulated;
 
         private readonly Matrix4x4[] _matrices = new Matrix4x4[MaxInstances];
         private CrowdController _crowd;
@@ -51,6 +52,8 @@ namespace BattleRunner.Gameplay.Crowd
             // texture, not a crowd. The phase was already computed and never used.
             for (int i = 0; i < count; i++)
             {
+                // Scale carries the bob phase into the shader (see CrowdInstanced.shader):
+                // keep 0.94 + phase*0.12 in step with the decode there.
                 float phase = _crowd.UnitPhase(i);
                 float scale = 0.94f + phase * 0.12f;
                 _matrices[i] = Matrix4x4.TRS(

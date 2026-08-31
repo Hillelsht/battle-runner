@@ -64,10 +64,16 @@ Shader "BattleRunner/CrowdInstanced"
                 Varyings output;
                 UNITY_SETUP_INSTANCE_ID(input);
 
-                // Per-instance bob phase hashed from the instance's world translation:
-                // zero extra CPU data, and no two units march in lockstep.
-                float3 instancePos = float3(UNITY_MATRIX_M._m03, UNITY_MATRIX_M._m13, UNITY_MATRIX_M._m23);
-                float phase = frac(sin(dot(instancePos.xz, float2(12.9898, 78.233))) * 43758.5453);
+                // Per-instance bob phase recovered from the instance's uniform SCALE, which
+                // CrowdRenderer bakes as 0.94 + phase*0.12 from a stable per-slot value.
+                //
+                // It used to be hashed from the instance's world translation. That runs at
+                // 10 m/s, so the hash argument moved dot(dz, 78.233) = 13 rad every frame and
+                // each unit's phase was re-randomised per frame: the "run bob" was vertical
+                // white noise, a shimmer, not a walk cycle. Scale is constant per slot, so
+                // the phase now holds still and the units actually march.
+                float scale = length(float3(UNITY_MATRIX_M._m00, UNITY_MATRIX_M._m10, UNITY_MATRIX_M._m20));
+                float phase = saturate((scale - 0.94) / 0.12);
 
                 float3 positionOS = input.positionOS.xyz;
                 float bob = abs(sin(_Time.y * 9.0 + phase * 6.2831)) * _BobAmount;

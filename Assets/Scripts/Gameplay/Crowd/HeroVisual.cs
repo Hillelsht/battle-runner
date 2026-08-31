@@ -30,9 +30,12 @@ namespace BattleRunner.Gameplay.Crowd
         private void LateUpdate()
         {
             if (_crowd == null) return;
-            // 1.2x reads as "the leader"; 1.6x read as a separate boss figure.
-            float scale = 1.2f * CrowdMath.HeroScaleFor(_crowd.ForceCount, _tierCap);
-            transform.position = new Vector3(_crowd.CenterX, 0f, _crowd.CenterZ + 0.6f);
+            // 1.35x reads as "the leader"; 1.6x read as a separate boss figure.
+            float scale = 1.35f * CrowdMath.HeroScaleFor(_crowd.ForceCount, _tierCap);
+            // Stand on the crowd's leading plane rather than a fixed 0.6 m. With the old
+            // disc reaching 3.48 m ahead of the centroid, a hero pinned at +0.6 was 2.9 m
+            // INSIDE the crowd with ~120 of 200 bodies drawn in front of it.
+            transform.position = new Vector3(_crowd.CenterX, 0f, _crowd.FrontZ);
             _visual.localScale = new Vector3(scale, scale, scale);
         }
     }

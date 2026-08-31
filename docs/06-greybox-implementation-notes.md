@@ -6,7 +6,7 @@ What the current build implements, where it consciously deviates from docs 01–
 
 - **Full closed loop:** Menu → RunLoading → RunnerLoop → BossEncounter → LootPhase → StatUpgrade → Menu, as a plain-C# state machine (`GameStateMachine`, states in `Assets/Scripts/Gameplay/States/`).
 - **Input:** positional lane drag + velocity flicks via the pure-C# `GestureClassifier` (doc 02), driven by `InputRouter` (EnhancedTouch + editor mouse/keyboard sim). Intents flow through ScriptableObject event channels.
-- **Crowd:** array-based `CrowdController` (phyllotaxis formation, spring-damper steering) rendered with `Graphics.RenderMeshInstanced` and a hand-written URP shader; per-tier render caps with display-count inflation; hero scale expresses over-cap growth.
+- **Crowd:** array-based `CrowdController` (lane-bounded golden-angle formation, spring-damper steering) rendered with `Graphics.RenderMeshInstanced` and a hand-written URP shader; per-tier render caps with display-count inflation; hero scale expresses over-cap growth.
 - **Gates/enemies:** trigger-free lane-space checks against the crowd centroid; all force math through the tested `GateMath` (soft cap → overflow bonus).
 - **Boss:** logic in `BossEncounterState` via pure `BossSim`, consuming the `RunResult` contract; view-only `BossView` with telegraphed attacks (the shield window).
 - **Meta:** loot rolls (weights + pity + overflow luck), Item-Power Auto-Equip, stat points, versioned checksummed save with atomic writes.

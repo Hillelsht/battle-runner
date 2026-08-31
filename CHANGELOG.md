@@ -17,15 +17,15 @@ points → save → next level.
 | Game loop | Complete end to end |
 | Content | 5 levels, 2 bosses, 15 gear items, 4 rarities |
 | Art | Greybox — procedural meshes, code-built uGUI, no imported assets |
-| Tests | 67, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 75, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
 | Not started | Real ad SDK, FTUE, analytics, battle pass, art pass |
 
-**Known open item:** v0.1.1's on-device appearance has not been confirmed by a
-human. The build is verified correct (URP active, shader variants shipped, tests
-green) but nobody has looked at a frame since the fixes.
+**Known open item:** v0.1.2's on-device feel has not been confirmed by a human.
+v0.1.1 rendered correctly but did not play as a lane game; v0.1.2 fixes that and
+needs a look.
 
 **Unreleased since v0.1.1:** documentation is now enforced rather than trusted.
 `tooling/check_docs.py` cross-checks the facts embedded in the docs (test count,
@@ -34,6 +34,82 @@ change whenever code changes. It runs in three places — a Claude Code `PreTool
 gate, the `.githooks/pre-push` git hook, and the `docs-check` CI job — so this file
 cannot silently fall behind the code again. See
 [Keeping docs honest](README.md#keeping-docs-honest).
+
+---
+
+## v0.1.2
+
+Makes it a lane game again. Reported from device: *"when a team becomes big, it
+occupies all 3 lanes, so the physics of moving to another lane doesn't work."*
+
+**The formation covered the whole road.** `CurrentSpacing()` compressed spacing by
+`sqrt(40/n)` while the phyllotaxis radius grew by `sqrt(n)`. Those cancel exactly, so
+the disc pinned at `0.55 * sqrt(40) = 3.48 m` — a **6.96 m blob, wider than all three
+2.2 m lanes combined (6.60 m)** — from 40 bodies upward and never changed again. At
+the camera's true horizontal FOV (35.98°, not the 60° vertical) the visible frame at
+crowd depth is 7.07 m, so the crowd filled **98% of the screen**. Steering moved it
+within its own silhouette and nothing appeared to happen.
+
+Width is now a property of the **road**, not the count: it saturates at 0.355 of a
+lane (1.54 m, 22% of frame) and never grows again. Growth goes into **depth, forward**.
+
+The two depth directions cost very different amounts of screen, which is the whole
+trick. The rig is pitched 11.31° down with a 30° half-FOV, so the bottom-of-frame ray
+meets the ground just **3.742 m behind** the anchor — a longer tail is simply invisible
+— while the top-of-frame ray points 18.69° *above* horizontal and never meets the
+ground at all. Reaching up the road is therefore nearly free, and that is where the
+army grows.
+
+| bodies | width | reach ahead | tail | footprint |
+|---|---|---|---|---|
+| 40 | 1.46 m | +2.42 m | −1.82 m | 6.2 m² |
+| 100 | 1.48 m | +3.61 m | −2.18 m | 8.6 m² |
+| 300 | 1.52 m | +5.08 m | −2.47 m | 11.5 m² |
+| 512 (sim cap) | 1.54 m | +5.71 m | −2.55 m | 12.7 m² |
+
+An earlier cut of this fix bounded depth symmetrically and was right about the lane but
+wrong about the reward: the footprint grew only 30% while the army grew 650%, so a ×2
+gate changed the count and nothing else. Spending the free forward direction takes that
+to +68%, and the army visibly reaches further up the road as it grows.
+
+**Lane collision was ambiguous.** Gates were claimed by `|crowdX - gateX| <= laneWidth
+* 0.75` = 1.65 m against lane centres 2.2 m apart, so the three acceptance windows
+overlapped by 1.1 m each: a crowd half a lane off centre satisfied **two lanes at
+once** and could collect a `+` gate and a `−` gate on the same frame. Lanes are now
+assigned by index (`CrowdMath.LaneIndex`), which partitions the road with no overlap
+and no gap, and steering snaps to lane centres rather than a continuum.
+
+**Also fixed, all found by auditing the screenshots against the code:**
+
+- gates were **2.34 m wide on a 2.20 m lane pitch**, so adjacent frames overlapped by
+  0.14 m and a three-lane row spanned 6.74 m of a 7.07 m frame — a solid wall, not
+  three choices. Now 1.92 m with a 1.60 m aperture the crowd visibly passes through
+- every gate label in the level drew at once through all geometry (built-in font
+  material, `ZTest Always`), stacking into the unreadable pile on the horizon; labels
+  beyond 34 m are now hidden
+- the crowd's **run-bob was per-frame noise**, not a walk cycle: the shader hashed each
+  unit's phase from its *world* position, which advances 0.167 m per frame at 10 m/s,
+  moving the hash argument 13 rad and re-randomising every phase every frame. Phase now
+  rides in the per-instance scale, which is stable
+- growing the crowd never seeded the newly visible slots, so on the first `+` gate they
+  drew from the run's start Z and **streaked the length of the level** to catch up
+- world-Z smoothing left a permanent `v·dt·b/(1-b)` = **0.92 m lag**, so every body
+  rendered a metre behind where the game scored it. Smoothing the local offset instead
+  puts the 10 m/s ramp entirely in the exact anchor term and removes it
+- gates and enemies resolved at a fixed offset from the centroid while the crowd's
+  leading edge was 3.48 m further on; the hero, gates, enemies and the render bounds now
+  all read one number, `CrowdController.FrontZ`
+- the hero stood 0.6 m ahead of the centroid — 2.9 m *inside* a disc that reached
+  3.48 m, with ~120 of 200 bodies drawn in front of it. It now stands on the leading
+  plane at 1.35×
+- render bounds were a second, independent copy of the formation model; they are now
+  derived from the real asymmetric extent
+- the build allowed all four screen orientations (defaulting to 1280×720 landscape)
+  while every layout constant is tuned for portrait. Locked to portrait
+
+8 regression tests added (67 → 75), including one that pins the original defect: the
+old disc really was the same size at 40 and 300 bodies, and that size really was wider
+than the whole road.
 
 ---
 

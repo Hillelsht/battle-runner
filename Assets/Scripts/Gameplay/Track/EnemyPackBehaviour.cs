@@ -6,9 +6,11 @@ namespace BattleRunner.Gameplay.Track
     public sealed class EnemyPackBehaviour : MonoBehaviour, IPoolable
     {
         public int ForceCost { get; private set; }
+        public int Lane { get; private set; }
         public bool Defeated { get; private set; }
 
         private TextMesh _label;
+        private MeshRenderer _labelRenderer;
 
         private static readonly Vector3[] ClusterOffsets =
         {
@@ -47,24 +49,32 @@ namespace BattleRunner.Gameplay.Track
             pack._label.characterSize = 0.18f;
             pack._label.anchor = TextAnchor.MiddleCenter;
             pack._label.color = new Color(1f, 0.35f, 0.3f);
-            MeshRenderer labelRenderer = pack._label.GetComponent<MeshRenderer>();
-            labelRenderer.sharedMaterial = font.material;
-            labelRenderer.sortingOrder = 1;
+            pack._labelRenderer = pack._label.GetComponent<MeshRenderer>();
+            pack._labelRenderer.sharedMaterial = font.material;
+            pack._labelRenderer.sortingOrder = 1;
             return pack;
         }
 
-        public void Setup(int forceCost, Vector3 worldPosition)
+        public void Setup(int forceCost, int lane, Vector3 worldPosition)
         {
             ForceCost = forceCost;
+            Lane = lane;
             Defeated = false;
             transform.position = worldPosition;
             _label.text = $"-{forceCost}";
         }
 
+        /// <summary>See GateBehaviour.SetLabelVisible — labels draw through geometry and must be culled.</summary>
+        public void SetLabelVisible(bool visible)
+        {
+            if (_labelRenderer != null && _labelRenderer.enabled != visible)
+                _labelRenderer.enabled = visible;
+        }
+
         /// <summary>Consumed by contact or destroyed by a spell.</summary>
         public void Defeat() => Defeated = true;
 
-        public void OnSpawned() { }
+        public void OnSpawned() => SetLabelVisible(true);
         public void OnDespawned() { }
     }
 }

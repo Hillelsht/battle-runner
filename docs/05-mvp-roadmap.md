@@ -15,7 +15,7 @@ Art is greybox until Sprint 4. If the game is not fun in grey capsules, better a
 - `InputRouter` + `GestureClassifier` — **lane drag only** (vertical branch stubbed but wired).
 - `LaneTargetChannel` event channel; keyboard simulation path for the editor.
 - Treadmill track from pooled `ChunkDefinition` prefabs; generic `ObjectPool<T>`; floating-origin or scrolling world.
-- `CrowdController`: instanced rendering with VAT, phyllotaxis formation, spring-damper steering, tier caps.
+- `CrowdController`: instanced rendering with VAT, lane-bounded formation, spring-damper steering, tier caps.
 - Gate system: `+`, `×`, `−` evaluated against the crowd centroid; `RunState.forceCount` as `long`; soft cap + overflow rule (R4).
 - Data contracts defined and frozen: `RunState`, `RunResult`, `StatSheet` (R9).
 - Debug overlay (fps, draw calls, unit count, GC allocs).

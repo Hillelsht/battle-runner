@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using BattleRunner.Core.Crowd;
 using BattleRunner.Core.Run;
 using BattleRunner.Data.Definitions;
 using BattleRunner.Gameplay.Crowd;
@@ -22,6 +23,9 @@ namespace BattleRunner.Gameplay.Track
         private readonly List<GateBehaviour> _activeGates = new List<GateBehaviour>();
         private readonly List<EnemyPackBehaviour> _activeEnemies = new List<EnemyPackBehaviour>();
         private readonly List<GameObject> _groundStrips = new List<GameObject>();
+
+        /// <summary>Gates beyond this hide their label; 45 m chunks put the next decision well inside it.</summary>
+        private const float LabelVisibleMeters = 34f;
 
         private Transform _trackRoot;
         private float _laneWidth = 2.2f;
@@ -110,7 +114,7 @@ namespace BattleRunner.Gameplay.Track
                 foreach (ChunkDefinition.EnemySpec spec in chunk.Enemies)
                 {
                     EnemyPackBehaviour pack = _enemyPool.Get(_trackRoot);
-                    pack.Setup(spec.ForceCost,
+                    pack.Setup(spec.ForceCost, spec.Lane,
                         new Vector3(spec.Lane * _laneWidth, 0f, startZ + spec.Position));
                     _activeEnemies.Add(pack);
                 }
@@ -180,19 +184,28 @@ namespace BattleRunner.Gameplay.Track
             _groundStrips.Clear();
         }
 
-        /// <summary>Crossing checks against the crowd centroid. Called once per frame during RunnerLoop.</summary>
+        /// <summary>Crossing checks against the crowd's leading plane. Called once per frame during RunnerLoop.</summary>
         public void Tick(CrowdController crowd)
         {
-            float crowdZ = crowd.CenterZ;
-            float crowdX = crowd.CenterX;
-            float halfLane = _laneWidth * 0.75f;
+            // Resolve where the player can SEE the crowd touching things, not at an
+            // arbitrary offset from the centroid.
+            float frontZ = crowd.FrontZ;
+            int crowdLane = CrowdMath.LaneIndex(crowd.CenterX, _laneWidth);
 
             for (int i = _activeGates.Count - 1; i >= 0; i--)
             {
                 GateBehaviour gate = _activeGates[i];
-                if (gate.transform.position.z > crowdZ + 0.6f) continue;
+                float aheadBy = gate.transform.position.z - frontZ;
+                if (aheadBy > 0f)
+                {
+                    // Every gate in the level exists from BuildLevel onward and its label
+                    // draws through all geometry, so without this the far ones stack into
+                    // an unreadable pile on the horizon.
+                    gate.SetLabelVisible(aheadBy <= LabelVisibleMeters);
+                    continue;
+                }
 
-                if (!gate.Consumed && Mathf.Abs(crowdX - gate.transform.position.x) <= halfLane)
+                if (!gate.Consumed && gate.Lane == crowdLane)
                 {
                     gate.Consume();
                     GateApplied?.Invoke(gate.Op, gate.Value);
@@ -204,9 +217,14 @@ namespace BattleRunner.Gameplay.Track
             for (int i = _activeEnemies.Count - 1; i >= 0; i--)
             {
                 EnemyPackBehaviour pack = _activeEnemies[i];
-                if (pack.transform.position.z > crowdZ + 0.8f) continue;
+                float aheadBy = pack.transform.position.z - frontZ;
+                if (aheadBy > 0f)
+                {
+                    pack.SetLabelVisible(aheadBy <= LabelVisibleMeters);
+                    continue;
+                }
 
-                if (!pack.Defeated && Mathf.Abs(crowdX - pack.transform.position.x) <= halfLane)
+                if (!pack.Defeated && pack.Lane == crowdLane)
                 {
                     pack.Defeat();
                     EnemyContact?.Invoke(pack.ForceCost);
@@ -215,7 +233,7 @@ namespace BattleRunner.Gameplay.Track
                 _enemyPool.Release(pack);
             }
 
-            if (!_finishRaised && crowdZ >= _finishZ)
+            if (!_finishRaised && frontZ >= _finishZ)
             {
                 _finishRaised = true;
                 FinishReached?.Invoke();

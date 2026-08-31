@@ -16,6 +16,7 @@ namespace BattleRunner.Gameplay.Track
         public bool Consumed { get; private set; }
 
         private TextMesh _label;
+        private MeshRenderer _labelRenderer;
         private MeshRenderer[] _renderers;
         private static Material _addMat;
         private static Material _multiplyMat;
@@ -42,17 +43,20 @@ namespace BattleRunner.Gameplay.Track
             var go = new GameObject("Gate");
             var gate = go.AddComponent<GateBehaviour>();
 
-            // Thicker posts plus a filled infill plate: 0.16m bars projected to ~11px
-            // at 22m, far below what reads on a phone. The plate carries the colour.
+            // A gate must fit INSIDE its own lane. At 2.34 m wide on a 2.2 m lane pitch the
+            // frames of adjacent lanes overlapped by 0.14 m, so a three-lane row spanned
+            // 6.74 m of a 7.07 m frame and read as one solid wall rather than three choices.
+            // 1.92 m leaves a 0.28 m gap between neighbours, and the 1.60 m aperture is wide
+            // enough for the 1.54 m crowd to visibly pass through.
             gate._renderers = new MeshRenderer[4];
-            gate._renderers[0] = Bar(go.transform, new Vector3(-1.05f, 1.5f, 0f), new Vector3(0.24f, 3.0f, 0.24f));
-            gate._renderers[1] = Bar(go.transform, new Vector3(1.05f, 1.5f, 0f), new Vector3(0.24f, 3.0f, 0.24f));
-            gate._renderers[2] = Bar(go.transform, new Vector3(0f, 3.0f, 0f), new Vector3(2.34f, 0.24f, 0.24f));
-            gate._renderers[3] = Bar(go.transform, new Vector3(0f, 1.5f, 0.02f), new Vector3(1.86f, 2.7f, 0.06f));
+            gate._renderers[0] = Bar(go.transform, new Vector3(-0.88f, 1.30f, 0f), new Vector3(0.16f, 2.60f, 0.20f));
+            gate._renderers[1] = Bar(go.transform, new Vector3(0.88f, 1.30f, 0f), new Vector3(0.16f, 2.60f, 0.20f));
+            gate._renderers[2] = Bar(go.transform, new Vector3(0f, 2.60f, 0f), new Vector3(1.92f, 0.16f, 0.20f));
+            gate._renderers[3] = Bar(go.transform, new Vector3(0f, 1.30f, 0.02f), new Vector3(1.60f, 2.36f, 0.06f));
 
             var labelGo = new GameObject("Label", typeof(TextMesh));
             labelGo.transform.SetParent(go.transform, false);
-            labelGo.transform.localPosition = new Vector3(0f, 1.6f, -0.09f);
+            labelGo.transform.localPosition = new Vector3(0f, 1.45f, -0.09f);
             // A TextMesh is legible from its LOCAL -Z side, and the camera already sits
             // at -Z looking toward +Z. The old 180-degree spin showed its back, which
             // the font material's Cull Off rendered as mirrored text.
@@ -60,11 +64,11 @@ namespace BattleRunner.Gameplay.Track
             gate._label = labelGo.GetComponent<TextMesh>();
             gate._label.font = font;
             gate._label.fontSize = 64;
-            gate._label.characterSize = 0.16f;
+            gate._label.characterSize = 0.14f;
             gate._label.anchor = TextAnchor.MiddleCenter;
-            MeshRenderer labelRenderer = gate._label.GetComponent<MeshRenderer>();
-            labelRenderer.sharedMaterial = font.material;
-            labelRenderer.sortingOrder = 1; // never z-fight the infill plate
+            gate._labelRenderer = gate._label.GetComponent<MeshRenderer>();
+            gate._labelRenderer.sharedMaterial = font.material;
+            gate._labelRenderer.sortingOrder = 1; // never z-fight the infill plate
             return gate;
         }
 
@@ -105,9 +109,20 @@ namespace BattleRunner.Gameplay.Track
             _label.color = mat.GetColorSafe("_EmissionColor", Color.white);
         }
 
+        /// <summary>
+        /// Labels use the built-in font material, which draws with ZTest Always — every gate
+        /// in the level otherwise paints its number through all geometry at once, piling the
+        /// far ones into the unreadable stack on the horizon. The track hides distant labels.
+        /// </summary>
+        public void SetLabelVisible(bool visible)
+        {
+            if (_labelRenderer != null && _labelRenderer.enabled != visible)
+                _labelRenderer.enabled = visible;
+        }
+
         public void Consume() => Consumed = true;
 
-        public void OnSpawned() { }
+        public void OnSpawned() => SetLabelVisible(true);
         public void OnDespawned() { }
     }
 }

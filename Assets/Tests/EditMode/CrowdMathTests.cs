@@ -42,6 +42,153 @@ namespace BattleRunner.Tests
             Assert.AreEqual(2f, r400 / r100, 0.1f, "4x units should be ~2x radius");
         }
 
+        // --- Formation envelope -------------------------------------------------
+        // v0.1.1 shipped a crowd that covered all three lanes at once, so steering stopped
+        // being visible and the game stopped reading as a lane game. These pin the fix.
+
+        private const float LaneWidth = 2.2f;
+        private const float CameraRearLimit = 3.742f; // bottom of frame meets ground here
+
+        [Test]
+        public void ShippedDisc_SaturatedWiderThanTheWholeRoad()
+        {
+            // Documents the defect. Spacing compressed by sqrt(40/n) exactly cancelled the
+            // sqrt(n) in the radius, so the disc pinned at one size from 40 bodies upward.
+            float radiusAt40 = CrowdMath.PhyllotaxisSlot(40, 0.55f).Length();
+            float spacingAt300 = 0.55f * System.MathF.Sqrt(40f / 300f);
+            float radiusAt300 = CrowdMath.PhyllotaxisSlot(300, spacingAt300).Length();
+
+            Assert.AreEqual(radiusAt40, radiusAt300, 0.05f, "the old disc never changed size");
+            Assert.Greater(radiusAt300 * 2f, 3f * LaneWidth,
+                "and that size was wider than all three lanes combined");
+        }
+
+        [Test]
+        public void FormationWidth_NeverLeavesOneLane()
+        {
+            float halfWidth = CrowdMath.HalfWidthMaxFor(LaneWidth);
+            foreach (int count in new[] { 1, 5, 12, 40, 100, 200, 300, 512 })
+            {
+                float widest = 0f;
+                for (int i = 0; i < count; i++)
+                    widest = System.MathF.Max(widest,
+                        System.MathF.Abs(CrowdMath.FormationSlot(i, count, halfWidth).X));
+
+                Assert.LessOrEqual(widest, halfWidth + 1e-4f, $"n={count} broke its own envelope");
+                Assert.Less(widest * 2f, LaneWidth, $"n={count} spilled outside its lane");
+            }
+        }
+
+        [Test]
+        public void FormationWidth_DoesNotGrowWithTheArmy()
+        {
+            float halfWidth = CrowdMath.HalfWidthMaxFor(LaneWidth);
+            float at40 = CrowdMath.FormationEnvelope(40, halfWidth).X;
+            float at300 = CrowdMath.FormationEnvelope(300, halfWidth).X;
+
+            Assert.AreEqual(at40, at300, 0.06f, "width is a property of the road, not the count");
+            Assert.Less(at300, halfWidth + 1e-4f);
+        }
+
+        [Test]
+        public void FormationTail_StaysInsideTheCameraFrame()
+        {
+            float halfWidth = CrowdMath.HalfWidthMaxFor(LaneWidth);
+            foreach (int count in new[] { 40, 100, 200, 300, 512 })
+            {
+                float deepest = 0f;
+                for (int i = 0; i < count; i++)
+                    deepest = System.MathF.Min(deepest, CrowdMath.FormationSlot(i, count, halfWidth).Y);
+
+                Assert.Greater(deepest, -CameraRearLimit,
+                    $"n={count} trails past the bottom of the screen");
+            }
+        }
+
+        [Test]
+        public void FormationGrowth_StillReadsAsAnArmyGettingBigger()
+        {
+            float halfWidth = CrowdMath.HalfWidthMaxFor(LaneWidth);
+            Vector3 at40 = CrowdMath.FormationEnvelope(40, halfWidth);
+            Vector3 at300 = CrowdMath.FormationEnvelope(300, halfWidth);
+
+            // Growth goes UP the road, which is the direction that costs no screen: the rig's
+            // top-of-frame ray points above horizontal and never meets the ground.
+            Assert.Greater(at300.Y, at40.Y * 1.8f, "the army must visibly reach further up the road");
+
+            float area40 = at40.X * (at40.Y + at40.Z);
+            float area300 = at300.X * (at300.Y + at300.Z);
+            Assert.Greater(area300, area40 * 1.5f,
+                "a x3 gate that does not change the picture is not a reward");
+        }
+
+        [Test]
+        public void FormationSlots_NeverSwapPlaces()
+        {
+            float halfWidth = CrowdMath.HalfWidthMaxFor(LaneWidth);
+            // Growing the crowd rescales the envelope but must not reorder anyone, or a x2
+            // gate would visibly shuffle the army. The envelope is an ellipse, so Euclidean
+            // length is NOT the invariant (a sideways slot is shorter than a forward one at
+            // the same rank). What must hold is that each unit keeps its bearing and its
+            // rank, measured in envelope units.
+            float Rank(Vector2 s, int count)
+            {
+                Vector3 e = CrowdMath.FormationEnvelope(count, halfWidth);
+                float u = s.X / e.X;
+                float v = s.Y / (s.Y >= 0f ? e.Y : e.Z);
+                return System.MathF.Sqrt(u * u + v * v);
+            }
+
+            for (int i = 1; i < 200; i++)
+            {
+                Vector2 small = CrowdMath.FormationSlot(i, 200, halfWidth);
+                Vector2 large = CrowdMath.FormationSlot(i, 400, halfWidth);
+                Vector2 prev = CrowdMath.FormationSlot(i - 1, 200, halfWidth);
+
+                Assert.GreaterOrEqual(Rank(small, 200), Rank(prev, 200) - 1e-4f, $"slot {i} overtook {i - 1}");
+
+                // Same side of the column before and after growth: nobody walks around the crowd.
+                Assert.AreEqual(System.MathF.Sign(small.X), System.MathF.Sign(large.X),
+                    $"slot {i} crossed the lane axis on growth");
+                Assert.AreEqual(System.MathF.Sign(small.Y), System.MathF.Sign(large.Y),
+                    $"slot {i} changed rank ahead/behind on growth");
+            }
+        }
+
+        // --- Lane assignment ----------------------------------------------------
+
+        [Test]
+        public void LaneIndex_PartitionsTheRoad_WhereTheRadiusTestDoubleCounted()
+        {
+            // The shipped test was |crowdX - gateX| <= laneWidth * 0.75. At exactly half a
+            // lane off centre that accepts BOTH the centre gate and the right-hand gate, so
+            // one crowd could collect a +gate and a -gate on the same frame.
+            const float x = LaneWidth * 0.5f;
+            float oldHalfWidth = LaneWidth * 0.75f;
+            int oldMatches = 0;
+            foreach (int lane in new[] { -1, 0, 1 })
+                if (System.MathF.Abs(x - lane * LaneWidth) <= oldHalfWidth) oldMatches++;
+            Assert.AreEqual(2, oldMatches, "the old radius test really did match two lanes");
+
+            Assert.AreEqual(1, CrowdMath.LaneIndex(x, LaneWidth), "exactly one lane may claim a position");
+        }
+
+        [Test]
+        public void LaneIndex_CoversEveryPositionExactlyOnce()
+        {
+            for (int step = -330; step <= 330; step++)
+            {
+                float x = step * 0.01f;
+                int lane = CrowdMath.LaneIndex(x, LaneWidth);
+                Assert.That(lane, Is.InRange(-1, 1), $"x={x} fell outside the road");
+            }
+            Assert.AreEqual(0, CrowdMath.LaneIndex(0f, LaneWidth));
+            Assert.AreEqual(-1, CrowdMath.LaneIndex(-LaneWidth, LaneWidth));
+            Assert.AreEqual(1, CrowdMath.LaneIndex(LaneWidth, LaneWidth));
+            Assert.AreEqual(1, CrowdMath.LaneIndex(99f, LaneWidth), "beyond the road clamps to the outer lane");
+            Assert.AreEqual(-1, CrowdMath.LaneIndex(-99f, LaneWidth));
+        }
+
         [Test]
         public void SpringDamper_ConvergesWithoutOvershootExplosion()
         {
