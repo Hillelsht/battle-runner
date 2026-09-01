@@ -140,6 +140,10 @@ namespace BattleRunner.Gameplay.States
         private void OnCrowdWiped()
         {
             _awaitingPrompt = true;
+            // Same reason as RunnerLoopState.OnForceDepleted: Tick() stops here, so a live
+            // shield prompt would sit frozen behind the resurrect modal. This path was the
+            // asymmetric one — the runner phase dropped its prompt and the boss phase did not.
+            _ctx.Tutorial.EndPhase();
             _ctx.Resurrect.Show(
                 _ctx.Ads.IsRewardedReady(AdPlacement.Resurrect),
                 onResurrect: () =>
