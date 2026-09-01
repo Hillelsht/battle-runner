@@ -66,7 +66,15 @@ plane and its label pops on again.
 **New Game.** The menu offered only *SET FORTH*, so a returning player could not start
 over — and could not see the FTUE at all, since their save marks it already taught.
 *NEW GAME* takes two taps (the first arms it and says what is about to happen) and wipes
-the profile to a fresh one at the current schema, which re-arms the tutorial. Reported from device:
+the profile to a fresh one at the current schema, which re-arms the tutorial.
+
+That last part did not work on first release, and the cause was two fixes in the same
+commit colliding. `SaveProfile` had just been changed to persist the coach onto the
+profile before writing — so `OnNewRunPressed` created a fresh profile with mask 0, saved
+it (stamping the *old* coach's "all taught" mask onto it), then read that mask straight
+back into the reset. A new game wiped gear and levels but kept the tutorial suppressed.
+`ResetProgress()` now takes no mask at all — a new game is untaught by definition, so
+there is no mask worth passing — and runs before the save. Reported from device:
 *"the central lane is smaller than 2 others."* It was — the road was drawn
 `4.8 × laneWidth` wide with lane lines only at `±0.5 × laneWidth`, so nothing marked
 the outer lanes' outer edge and the eye took the rails at `2.3 × laneWidth` as the

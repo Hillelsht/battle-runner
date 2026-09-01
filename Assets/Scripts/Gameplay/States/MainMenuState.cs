@@ -36,8 +36,11 @@ namespace BattleRunner.Gameplay.States
         public void OnNewRunPressed()
         {
             _ctx.Profile = new PlayerProfile { SchemaVersion = SaveMigrator.CurrentVersion };
+            // Reset BEFORE saving: SaveProfile persists the coach onto the profile, so a
+            // coach still holding the previous player's progress would stamp it right back
+            // onto the fresh profile and the tutorial would never replay.
+            _ctx.Tutorial.ResetProgress();
             _ctx.SaveProfile();
-            _ctx.Tutorial.ResetProgress(_ctx.Profile.TutorialMask);
             Enter(); // refresh the menu against the fresh profile
         }
     }
