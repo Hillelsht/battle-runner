@@ -123,6 +123,28 @@ namespace BattleRunner.Tests
         }
 
         [Test]
+        public void LeadingPlane_RetreatsWhenTheArmyShrinks()
+        {
+            // Documents why a passed gate must LATCH as resolved rather than be re-tested
+            // each frame. The leading plane is derived from the envelope, which shrinks with
+            // the count, so a subtract gate pulls it backwards far faster than the anchor
+            // advances (0.167 m per frame at 60 fps and 10 m/s).
+            float halfWidth = CrowdMath.HalfWidthMaxFor(LaneWidth);
+            const float advancePerFrame = 10f / 60f;
+
+            foreach (var drop in new[] { (before: 120, after: 20), (before: 300, after: 150) })
+            {
+                float before = CrowdMath.FormationEnvelope(drop.before, halfWidth).Y;
+                float after = CrowdMath.FormationEnvelope(drop.after, halfWidth).Y;
+                float netMovement = (advancePerFrame + after) - before;
+
+                Assert.Less(netMovement, 0f,
+                    $"{drop.before}->{drop.after}: the plane must be able to retreat, or this " +
+                    "test no longer describes the hazard the resolve-latch guards against");
+            }
+        }
+
+        [Test]
         public void FormationSlots_NeverSwapPlaces()
         {
             float halfWidth = CrowdMath.HalfWidthMaxFor(LaneWidth);

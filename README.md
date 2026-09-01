@@ -33,7 +33,7 @@ The scene contains a single `Bootstrap` object; the camera, lighting, UI, track,
 | Raise shield | flick **down** (fast) | **↓** or S (or a fast downward mouse flick) |
 | Perf overlay | 3-finger tap | F1 |
 
-On a first run a coaching prompt introduces each control the moment it first matters. Every prompt times out on its own — nothing ever waits on you.
+On a first run a coaching prompt introduces each control the moment it first matters. Every prompt times out on its own — nothing ever waits on you. **NEW GAME** on the main menu wipes the save and replays it (two taps, since it cannot be undone).
 
 ### Expected first-open behaviors (not bugs)
 
@@ -43,7 +43,7 @@ On a first run a coaching prompt introduces each control the moment it first mat
 
 ## Tests
 
-- **In Unity:** Window → General → **Test Runner** → EditMode → Run All (94 tests: gate math incl. soft-cap overflow, the gesture confusion suite, loot distribution + pity, save migration + checksum, crowd math incl. the formation envelope and lane partition, boss sim, state machine).
+- **In Unity:** Window → General → **Test Runner** → EditMode → Run All (103 tests: gate math incl. soft-cap overflow, the gesture confusion suite, loot distribution + pity, save migration + checksum, crowd math incl. the formation envelope and lane partition, boss sim, state machine).
 - **Without Unity:** `dotnet test tooling/CoreTests/CoreTests.csproj` runs the identical test sources against the same core code (the core assembly is engine-free by design).
 - **Serialized-file lint:** `python3 tooling/lint_unity_yaml.py` validates the hand-written scene/material/meta files.
 

@@ -6,6 +6,10 @@ namespace BattleRunner.Gameplay
     /// <summary>Portrait chase camera: behind and above the crowd, soft x-follow.</summary>
     public sealed class CameraRig : MonoBehaviour
     {
+        /// <summary>How far behind the crowd the camera sits. Anything further back than this
+        /// is off-screen, which is what makes it safe to despawn there.</summary>
+        public const float SetbackMeters = 10f;
+
         private CrowdController _crowd;
         private UnityEngine.Camera _camera;
 
@@ -42,7 +46,7 @@ namespace BattleRunner.Gameplay
         // ground filled 86% of a 1080x1920 frame and units were seen almost from
         // overhead; this puts sky behind the crowd's heads and gates mid-screen.
         private Vector3 TargetPosition() =>
-            new Vector3(_crowd.CenterX * 0.85f, 5.5f, _crowd.CenterZ - 10f);
+            new Vector3(_crowd.CenterX * 0.85f, 5.5f, _crowd.CenterZ - SetbackMeters);
 
         private Vector3 LookTarget() =>
             new Vector3(_crowd.CenterX * 0.85f, 1.5f, _crowd.CenterZ + 10f);

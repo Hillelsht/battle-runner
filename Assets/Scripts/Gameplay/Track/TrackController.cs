@@ -27,6 +27,9 @@ namespace BattleRunner.Gameplay.Track
         /// <summary>Gates beyond this hide their label; 45 m chunks put the next decision well inside it.</summary>
         private const float LabelVisibleMeters = 34f;
 
+        /// <summary>Extra clearance past the camera before a passed gate is recycled.</summary>
+        private const float DespawnMarginMeters = 4f;
+
         private Transform _trackRoot;
         private float _laneWidth = 2.2f;
         private float _finishZ;
@@ -197,53 +200,92 @@ namespace BattleRunner.Gameplay.Track
             _groundStrips.Clear();
         }
 
-        /// <summary>Crossing checks against the crowd's leading plane. Called once per frame during RunnerLoop.</summary>
+        /// <summary>
+        /// Crossing checks against the crowd's leading plane. Called once per frame during RunnerLoop.
+        ///
+        /// Resolution and despawn are deliberately separate events. They used to be the same
+        /// one, so a gate in another lane correctly did not score but also POPPED out of
+        /// existence level with the player instead of sliding past them. A gate now scores
+        /// (or does not) at the crowd's plane and keeps drawing until it is behind the camera.
+        /// </summary>
         public void Tick(CrowdController crowd)
         {
             // Resolve where the player can SEE the crowd touching things, not at an
             // arbitrary offset from the centroid.
             float frontZ = crowd.FrontZ;
             int crowdLane = CrowdMath.LaneIndex(crowd.CenterX, _laneWidth);
+            float despawnZ = TrackVisibility.DespawnPlane(
+                crowd.CenterZ, CameraRig.SetbackMeters, DespawnMarginMeters);
 
             for (int i = _activeGates.Count - 1; i >= 0; i--)
             {
                 GateBehaviour gate = _activeGates[i];
-                float aheadBy = gate.transform.position.z - frontZ;
-                if (aheadBy > 0f)
+                float z = gate.transform.position.z;
+
+                // Resolved is a latch, and it has to be: FrontZ is derived from the crowd's
+                // envelope, which SHRINKS when force drops, so a big subtract gate can pull
+                // the leading plane backwards up to 1.8 m in one frame against an anchor that
+                // advances 0.167 m. Without the latch a spent gate slides back in front of the
+                // plane and its label pops on again.
+                if (!gate.Resolved && z > frontZ)
                 {
                     // Every gate in the level exists from BuildLevel onward and its label
                     // draws through all geometry, so without this the far ones stack into
                     // an unreadable pile on the horizon.
-                    gate.SetLabelVisible(aheadBy <= LabelVisibleMeters);
+                    gate.SetLabelVisible(z - frontZ <= LabelVisibleMeters);
                     continue;
                 }
 
-                if (!gate.Consumed && gate.Lane == crowdLane)
+                if (!gate.Resolved && z <= frontZ)
                 {
-                    gate.Consume();
-                    GateApplied?.Invoke(gate.Op, gate.Value);
+                    gate.Resolve();
+                    // The label reads through everything, so a passed gate would otherwise
+                    // paint its number over the crowd on the way by.
+                    gate.SetLabelVisible(false);
+                    if (gate.Lane == crowdLane)
+                    {
+                        gate.Consume();
+                        GateApplied?.Invoke(gate.Op, gate.Value);
+                    }
                 }
-                _activeGates.RemoveAt(i);
-                _gatePool.Release(gate);
+
+                if (z < despawnZ)
+                {
+                    _activeGates.RemoveAt(i);
+                    _gatePool.Release(gate);
+                }
             }
 
             for (int i = _activeEnemies.Count - 1; i >= 0; i--)
             {
                 EnemyPackBehaviour pack = _activeEnemies[i];
-                float aheadBy = pack.transform.position.z - frontZ;
-                if (aheadBy > 0f)
+                float z = pack.transform.position.z;
+
+                if (!pack.Resolved && z > frontZ)
                 {
-                    pack.SetLabelVisible(aheadBy <= LabelVisibleMeters);
+                    pack.SetLabelVisible(z - frontZ <= LabelVisibleMeters);
                     continue;
                 }
 
-                if (!pack.Defeated && pack.Lane == crowdLane)
+                if (!pack.Resolved && z <= frontZ)
                 {
-                    pack.Defeat();
-                    EnemyContact?.Invoke(pack.ForceCost);
+                    pack.Resolve();
+                    pack.SetLabelVisible(false);
+                    if (pack.Lane == crowdLane)
+                    {
+                        pack.Defeat();
+                        EnemyContact?.Invoke(pack.ForceCost);
+                    }
                 }
-                _activeEnemies.RemoveAt(i);
-                _enemyPool.Release(pack);
+
+                // A pack the crowd fought is dead and goes immediately; one in another lane
+                // was dodged and slides past like a gate does. Lingering only makes sense for
+                // the things the player went around.
+                if (pack.Defeated || z < despawnZ)
+                {
+                    _activeEnemies.RemoveAt(i);
+                    _enemyPool.Release(pack);
+                }
             }
 
             if (!_finishRaised && frontZ >= _finishZ)
@@ -262,6 +304,9 @@ namespace BattleRunner.Gameplay.Track
             float best = -1f;
             foreach (EnemyPackBehaviour pack in _activeEnemies)
             {
+                // Spent packs linger until they are behind the camera, and a retreating
+                // FrontZ can briefly put one "ahead" again — which would mis-time a prompt.
+                if (pack.Resolved) continue;
                 float ahead = pack.transform.position.z - fromZ;
                 if (ahead <= 0f) continue;
                 if (best < 0f || ahead < best) best = ahead;
@@ -275,6 +320,7 @@ namespace BattleRunner.Gameplay.Track
             float best = -1f;
             foreach (GateBehaviour gate in _activeGates)
             {
+                if (gate.Resolved) continue;
                 float ahead = gate.transform.position.z - fromZ;
                 if (ahead <= 0f) continue;
                 if (best < 0f || ahead < best) best = ahead;
@@ -289,6 +335,9 @@ namespace BattleRunner.Gameplay.Track
             for (int i = _activeEnemies.Count - 1; i >= 0; i--)
             {
                 EnemyPackBehaviour pack = _activeEnemies[i];
+                // A pack the crowd already passed lingers in the list until it is behind the
+                // camera; a spell must not reach back and pop it.
+                if (pack.Resolved) continue;
                 float z = pack.transform.position.z;
                 if (z < fromZ || z > fromZ + rangeMeters) continue;
                 _activeEnemies.RemoveAt(i);

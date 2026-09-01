@@ -182,7 +182,9 @@ namespace BattleRunner.Gameplay
             Canvas canvas = UiFactory.CreateCanvas("UiCanvas");
             Transform root = canvas.transform;
 
-            ctx.MenuScreen = new MainMenuScreen(root, () => ctx.MenuState.OnPlayPressed());
+            ctx.MenuScreen = new MainMenuScreen(root,
+                () => ctx.MenuState.OnPlayPressed(),
+                () => ctx.MenuState.OnNewRunPressed());
             ctx.Hud = new HudScreen(root);
             ctx.LootScreen = new LootScreen(root);
             ctx.StatScreen = new StatUpgradeScreen(root);

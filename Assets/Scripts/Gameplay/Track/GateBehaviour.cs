@@ -13,7 +13,15 @@ namespace BattleRunner.Gameplay.Track
         public GateOp Op { get; private set; }
         public int Value { get; private set; }
         public int Lane { get; private set; }
+        /// <summary>True once this gate scored the crowd.</summary>
         public bool Consumed { get; private set; }
+
+        /// <summary>
+        /// True once the crowd has passed this gate's plane, whether or not it scored.
+        /// Distinct from <see cref="Consumed"/>: a gate in another lane resolves without
+        /// consuming, and must keep drawing until it is behind the camera.
+        /// </summary>
+        public bool Resolved { get; private set; }
 
         private TextMesh _label;
         private MeshRenderer _labelRenderer;
@@ -89,6 +97,8 @@ namespace BattleRunner.Gameplay.Track
             Value = value;
             Lane = lane;
             Consumed = false;
+            Resolved = false;
+            if (_renderers.Length > 3 && _renderers[3] != null) _renderers[3].enabled = true;
             transform.position = worldPosition;
 
             Material mat = op switch
@@ -120,7 +130,20 @@ namespace BattleRunner.Gameplay.Track
                 _labelRenderer.enabled = visible;
         }
 
-        public void Consume() => Consumed = true;
+        /// <summary>
+        /// Taken. Opens the aperture by dropping the infill plate — which is opaque
+        /// (CrowdInstanced is Queue=Geometry with alpha forced to 1), so a 1.60 x 2.36 m
+        /// slab would otherwise sweep backwards through the whole army as the gate slides
+        /// past. Opening it also makes a taken gate read differently from a missed one.
+        /// </summary>
+        public void Consume()
+        {
+            Consumed = true;
+            if (_renderers.Length > 3 && _renderers[3] != null) _renderers[3].enabled = false;
+        }
+
+        /// <summary>The crowd has drawn level with this gate; it scores now or never.</summary>
+        public void Resolve() => Resolved = true;
 
         public void OnSpawned() => SetLabelVisible(true);
         public void OnDespawned() { }

@@ -71,6 +71,15 @@ namespace BattleRunner.Gameplay
 
         public LevelDefinition CurrentLevel => Config.LevelFor(Profile.CurrentLevelIndex);
 
-        public void SaveProfile() => SaveService.Save(Profile);
+        /// <summary>
+        /// Every save banks tutorial progress first. The boss-defeat path used to write the
+        /// profile before the state's Exit ran the coach's Persist, so the shield beat — the
+        /// only one taught in the boss phase — never reached disk and was re-taught forever.
+        /// </summary>
+        public void SaveProfile()
+        {
+            Tutorial?.Persist();
+            SaveService.Save(Profile);
+        }
     }
 }

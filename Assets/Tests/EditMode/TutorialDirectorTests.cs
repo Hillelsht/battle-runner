@@ -235,6 +235,22 @@ namespace BattleRunner.Tests
         }
 
         [Test]
+        public void NewGame_WipesEverythingAndReArmsTheTutorial()
+        {
+            // What the menu's NEW GAME does. Stamped at the current schema so no migration
+            // runs -- the v2->v3 step marks the tutorial taught, which would defeat the point.
+            var wiped = new PlayerProfile { SchemaVersion = SaveMigrator.CurrentVersion };
+
+            Assert.AreEqual(0, wiped.TutorialMask);
+            Assert.AreEqual(0, wiped.CurrentLevelIndex);
+            Assert.AreEqual(0, wiped.UnspentStatPoints);
+            Assert.IsEmpty(wiped.Inventory);
+            Assert.IsEmpty(wiped.Equipped);
+            Assert.IsFalse(new TutorialDirector(wiped.TutorialMask).IsComplete,
+                "a wiped save must get the tutorial again");
+        }
+
+        [Test]
         public void AncientV1Save_MigratesStraightThroughToTaught()
         {
             var ancient = SaveMigrator.Migrate(new PlayerProfile { SchemaVersion = 1 });

@@ -24,7 +24,7 @@ namespace BattleRunner.Gameplay
 
         private readonly GameContext _ctx;
         private readonly TutorialOverlay _overlay;
-        private readonly TutorialDirector _director;
+        private TutorialDirector _director;
         private int _laneAtArm;
 
         public TutorialCoach(GameContext ctx, TutorialOverlay overlay, int completedMask)
@@ -89,6 +89,16 @@ namespace BattleRunner.Gameplay
 
         /// <summary>Write the taught steps onto the profile. The caller saves.</summary>
         public void Persist() => _ctx.Profile.TutorialMask = _director.CompletedMask;
+
+        /// <summary>
+        /// Rebuild against a mask. The director captures its progress at construction, so a
+        /// wiped profile needs this or the coach would keep the old player's taught steps.
+        /// </summary>
+        public void ResetProgress(int completedMask)
+        {
+            _director = new TutorialDirector(completedMask);
+            _overlay.Hide();
+        }
 
         private void ArmRunnerSteps()
         {

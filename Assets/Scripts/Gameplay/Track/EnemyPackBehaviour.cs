@@ -9,6 +9,9 @@ namespace BattleRunner.Gameplay.Track
         public int Lane { get; private set; }
         public bool Defeated { get; private set; }
 
+        /// <summary>Passed the crowd's plane, scored or not. See GateBehaviour.Resolved.</summary>
+        public bool Resolved { get; private set; }
+
         private TextMesh _label;
         private MeshRenderer _labelRenderer;
 
@@ -60,6 +63,7 @@ namespace BattleRunner.Gameplay.Track
             ForceCost = forceCost;
             Lane = lane;
             Defeated = false;
+            Resolved = false;
             transform.position = worldPosition;
             _label.text = $"-{forceCost}";
         }
@@ -73,6 +77,9 @@ namespace BattleRunner.Gameplay.Track
 
         /// <summary>Consumed by contact or destroyed by a spell.</summary>
         public void Defeat() => Defeated = true;
+
+        /// <summary>The crowd has drawn level with this pack; it bites now or never.</summary>
+        public void Resolve() => Resolved = true;
 
         public void OnSpawned() => SetLabelVisible(true);
         public void OnDespawned() { }

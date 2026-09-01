@@ -17,7 +17,7 @@ points → save → next level.
 | Game loop | Complete end to end |
 | Content | 5 levels, 2 bosses, 15 gear items, 4 rarities |
 | Art | Greybox — procedural meshes, code-built uGUI, no imported assets |
-| Tests | 94, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 103, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
@@ -26,8 +26,8 @@ points → save → next level.
 **Confirmed on device:** v0.1.2 plays as a lane game. The crowd stays in its lane at
 any size and the army reads as a column reaching up the road.
 
-**Unreleased since v0.1.2:** a first-time user experience, and the three lanes now
-render equal.
+**Unreleased since v0.1.2:** a first-time user experience, equal lane widths, gates that
+scroll past instead of vanishing, and a New Game option.
 
 The FTUE closes a measurable cliff, not a polish gap: a player who never learns to steer
 is reduced to zero force by the enemy pack at **16.7 s** of their first run. Four
@@ -41,7 +41,32 @@ seconds and is then marked taught, which the tests prove by ticking ten seconds 
 frames with no input and asserting the run is released. See
 [docs/07-ftue.md](docs/07-ftue.md).
 
-Three lanes now render equal. Reported from device:
+Three lanes now render equal — the road was drawn `4.8 × laneWidth` wide with lane lines
+only at `±0.5 × laneWidth`, so nothing marked the outer lanes' outer edge and the eye took
+the rails as the boundary: the centre lane measured 2.20 m and the outer two 3.96 m each.
+
+**Gates no longer pop out of existence.** Reported from device: *"on another lane doesn't
+influence me, but visually it disappears, and it shouldn't."* Exactly right — resolution
+and despawn were the same event, so a gate was recycled to its pool the instant the crowd
+drew level with it. They are now separate planes: a gate scores (or does not) at the
+crowd's leading edge and keeps drawing until it is 4 m behind the camera, so it lingers
+~15 m — about 1.5 s of visible scroll-past. `TrackVisibility` holds both planes in
+engine-free Core, and a test asserts the band between them never closes.
+
+What lingers depends on what happened, which an adversarial review of the fix forced out:
+a gate you **took** opens its aperture (the infill plate is opaque — `Queue=Geometry`, no
+blend — so a 1.6 × 2.4 m slab would otherwise sweep backwards through the whole army), a
+gate you **missed** slides past whole, an enemy you **fought** dies immediately, and one
+you **dodged** slides past. The same review found that `FrontZ` is not monotonic: it is
+derived from the crowd envelope, which shrinks when force drops, so a big subtract gate
+pulls the leading plane backwards up to 1.8 m in one frame against an anchor advancing
+0.167 m. Resolution is therefore a latch, or a spent gate slides back in front of the
+plane and its label pops on again.
+
+**New Game.** The menu offered only *SET FORTH*, so a returning player could not start
+over — and could not see the FTUE at all, since their save marks it already taught.
+*NEW GAME* takes two taps (the first arms it and says what is about to happen) and wipes
+the profile to a fresh one at the current schema, which re-arms the tutorial. Reported from device:
 *"the central lane is smaller than 2 others."* It was — the road was drawn
 `4.8 × laneWidth` wide with lane lines only at `±0.5 × laneWidth`, so nothing marked
 the outer lanes' outer edge and the eye took the rails at `2.3 × laneWidth` as the
