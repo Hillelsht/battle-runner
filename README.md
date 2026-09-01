@@ -43,7 +43,7 @@ On a first run a coaching prompt introduces each control the moment it first mat
 
 ## Tests
 
-- **In Unity:** Window → General → **Test Runner** → EditMode → Run All (124 tests: gate math incl. soft-cap overflow, the gesture confusion suite, loot distribution + pity, save migration + checksum, crowd math incl. the formation envelope and lane partition, boss sim, state machine).
+- **In Unity:** Window → General → **Test Runner** → EditMode → Run All (132 tests: gate math incl. soft-cap overflow, the gesture confusion suite, loot distribution + pity, save migration + checksum, crowd math incl. the formation envelope and lane partition, boss sim, state machine).
 - **Without Unity:** `dotnet test tooling/CoreTests/CoreTests.csproj` runs the identical test sources against the same core code (the core assembly is engine-free by design).
 - **Serialized-file lint:** `python3 tooling/lint_unity_yaml.py` validates the hand-written scene/material/meta files.
 
@@ -94,7 +94,7 @@ Read in order — the risk critique deliberately comes first:
 | [05 — MVP Roadmap](docs/05-mvp-roadmap.md) | The four-sprint plan this build implements the core of |
 | [06 — Greybox Implementation Notes](docs/06-greybox-implementation-notes.md) | What this build ships, conscious deviations, and what's next |
 | [07 — First-Time User Experience](docs/07-ftue.md) | The four coaching beats, why the run holds instead of pausing, and the proof it cannot strand a player |
-| [08 — Progression](docs/08-progression.md) | The talent tree, why flat stat points were the wrong shape, and the new run-facing stat axes |
+| [08 — Progression](docs/08-progression.md) | The talent tree, why flat stat points were the wrong shape, the new run-facing stat axes, and save slots |
 
 ### Code layout
 

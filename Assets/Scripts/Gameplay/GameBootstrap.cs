@@ -1,5 +1,6 @@
 using BattleRunner.Core.Flow;
 using BattleRunner.Data.Channels;
+using BattleRunner.Core.Save;
 using BattleRunner.Data.Definitions;
 using BattleRunner.Gameplay.Combat;
 using BattleRunner.Gameplay.Crowd;
@@ -39,7 +40,10 @@ namespace BattleRunner.Gameplay
                 Iap = new MockIapService(),
                 BattlePass = new DisabledBattlePassService()
             };
-            ctx.Profile = ctx.SaveService.Load();
+            // No slot is chosen yet, so start on an empty profile. Loading here would pick a
+            // save the player has not asked for; SlotSelectState decides which one becomes
+            // real and ActivateSlot swaps this out.
+            ctx.Profile = new PlayerProfile { SchemaVersion = SaveMigrator.CurrentVersion };
             ctx.TierCap = DetectTierCap(ctx.Config.Balance);
 
             CreateChannels(ctx);
@@ -51,7 +55,7 @@ namespace BattleRunner.Gameplay
             ctx.Tutorial = new TutorialCoach(ctx, ctx.TutorialOverlay, ctx.Profile.TutorialMask);
             CreateFlow(ctx);
 
-            Debug.Log($"[Bootstrap] Ready. Tier cap {ctx.TierCap}, level {ctx.Profile.CurrentLevelIndex + 1}.");
+            Debug.Log($"[Bootstrap] Ready. Tier cap {ctx.TierCap}; awaiting slot choice.");
         }
 
         private static GameConfig LoadConfig()
@@ -185,6 +189,7 @@ namespace BattleRunner.Gameplay
             ctx.MenuScreen = new MainMenuScreen(root,
                 () => ctx.MenuState.OnPlayPressed(),
                 () => ctx.MenuState.OnNewRunPressed());
+            ctx.SlotScreen = new SlotSelectScreen(root);
             ctx.Hud = new HudScreen(root);
             ctx.LootScreen = new LootScreen(root);
             ctx.SkillScreen = new SkillTreeScreen(root);
@@ -207,6 +212,7 @@ namespace BattleRunner.Gameplay
         {
             ctx.Machine = new GameStateMachine();
             ctx.BootState = new BootState(ctx);
+            ctx.SlotState = new SlotSelectState(ctx);
             ctx.MenuState = new MainMenuState(ctx);
             ctx.RunLoadingState = new RunLoadingState(ctx);
             ctx.RunnerState = new RunnerLoopState(ctx);

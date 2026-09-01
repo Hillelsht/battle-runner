@@ -15,10 +15,53 @@ namespace BattleRunner.Meta.Services
         private readonly string _path;
         private readonly string _tempPath;
 
-        public FileSaveService(string fileName = "profile.sav")
+        public FileSaveService(string fileName = SaveSlots.LegacyFileName)
         {
             _path = Path.Combine(Application.persistentDataPath, fileName);
             _tempPath = _path + ".tmp";
+        }
+
+        /// <summary>Opens the numbered slot, moving a pre-slots save into slot 0 on the way.</summary>
+        public static FileSaveService ForSlot(int slot)
+        {
+            var service = new FileSaveService(SaveSlots.FileName(slot));
+            if (slot == 0) service.AdoptLegacySave();
+            return service;
+        }
+
+        /// <summary>
+        /// Builds before save slots wrote one profile.sav. Move it into slot 0 the first time
+        /// slot 0 is opened, so an existing player's game is where they expect it rather than
+        /// silently replaced by an empty slot.
+        /// </summary>
+        private void AdoptLegacySave()
+        {
+            try
+            {
+                string legacy = Path.Combine(Application.persistentDataPath, SaveSlots.LegacyFileName);
+                if (!File.Exists(legacy) || File.Exists(_path)) return;
+                File.Move(legacy, _path);
+                Debug.Log("[Save] Adopted the pre-slots profile into slot 1.");
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[Save] Could not adopt the legacy profile: {e.Message}");
+            }
+        }
+
+        public bool Exists() => File.Exists(_path);
+
+        public void Delete()
+        {
+            try
+            {
+                if (File.Exists(_path)) File.Delete(_path);
+                if (File.Exists(_tempPath)) File.Delete(_tempPath);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[Save] Delete failed: {e.Message}");
+            }
         }
 
         public PlayerProfile Load()

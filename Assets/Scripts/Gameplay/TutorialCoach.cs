@@ -100,6 +100,16 @@ namespace BattleRunner.Gameplay
         /// director's mask, and the reset read it straight back. A new game is untaught by
         /// definition; there is no mask worth passing.
         /// </summary>
+        /// <summary>
+        /// Re-latch against the context's current profile, for switching save slots. Each
+        /// slot has its own tutorial progress, and the director captures it at construction.
+        /// </summary>
+        public void AdoptProfile()
+        {
+            _director = new TutorialDirector(_ctx.Profile?.TutorialMask ?? 0);
+            _overlay.Hide();
+        }
+
         public void ResetProgress()
         {
             _director = new TutorialDirector();

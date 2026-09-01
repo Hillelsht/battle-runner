@@ -11,7 +11,9 @@ namespace BattleRunner.Gameplay.States
 
         public void Enter() { }
 
-        public void Tick(float deltaTime) => _ctx.Machine.TransitionTo(_ctx.MenuState);
+        // Straight to the slot picker: with save slots there is no "the" profile
+        // until the player has said which game they are playing.
+        public void Tick(float deltaTime) => _ctx.Machine.TransitionTo(_ctx.SlotState);
 
         public void Exit() { }
     }

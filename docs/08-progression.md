@@ -47,3 +47,30 @@ step, which is the whole reason to route them through one pipe.
 Schema **v4**. Points already spent on the old three stats are **refunded as unspent
 points**: the old stats have no faithful mapping onto talents, and a free respec is the
 honest trade rather than guessing an equivalent build.
+
+---
+
+# Save slots
+
+Three independent saves, chosen on the first screen. Each slot is its own file
+(`profile_0.sav` … `profile_2.sav`) with its own level, talents, gear **and tutorial
+progress** — the coach re-latches on every slot switch, so a fresh slot is coached and a
+veteran slot is not.
+
+Erase is per-slot and takes two taps, with the armed state expiring after four seconds so
+that backgrounding the app mid-decision cannot leave a one-tap wipe waiting on resume.
+
+**Adopting the old save.** Every build before slots wrote a single `profile.sav`. The
+first time slot 1 is opened it *moves* that file in rather than ignoring it, so an
+existing player finds their game where they expect it. Slot file names deliberately
+differ from the legacy name: sharing it would mean erasing slot 1 deletes the file the
+adoption still looks for.
+
+**Nothing is loaded until a slot is chosen.** The bootstrap starts on an empty
+placeholder profile and `SaveProfile` is a no-op while no slot is active — otherwise the
+placeholder would be written over whichever file the service happened to point at.
+
+A note on the recommendation: this genre's convention is one cloud-synced profile per
+device, and slots are a console-RPG idea. They were built because the project asked for
+them; cloud save is still the right answer to "don't lose my game" and is needed for
+monetization regardless.

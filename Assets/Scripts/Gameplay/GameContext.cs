@@ -51,12 +51,14 @@ namespace BattleRunner.Gameplay
         public LootScreen LootScreen;
         public SkillTreeScreen SkillScreen;
         public ResurrectPrompt Resurrect;
+        public SlotSelectScreen SlotScreen;
         public TutorialOverlay TutorialOverlay;
         public TutorialCoach Tutorial;
 
         // Flow
         public GameStateMachine Machine;
         public BootState BootState;
+        public SlotSelectState SlotState;
         public MainMenuState MenuState;
         public RunLoadingState RunLoadingState;
         public RunnerLoopState RunnerState;
@@ -78,8 +80,29 @@ namespace BattleRunner.Gameplay
         /// </summary>
         public void SaveProfile()
         {
+            // Before a slot is chosen there is nowhere legitimate to write. Saving anyway
+            // would stamp the placeholder profile over whichever file the service happens
+            // to be pointing at.
+            if (ActiveSlot < 0) return;
             Tutorial?.Persist();
             SaveService.Save(Profile);
+        }
+
+        /// <summary>Which save the session is playing. -1 until a slot is chosen.</summary>
+        public int ActiveSlot = -1;
+
+        /// <summary>
+        /// Point the session at one save. Everything reads Profile through this context, so
+        /// swapping the field is enough — but the tutorial coach latched its progress at
+        /// construction, so it has to be rebuilt against whatever this slot has been taught.
+        /// </summary>
+        public void ActivateSlot(int slot)
+        {
+            ActiveSlot = slot;
+            SaveService = FileSaveService.ForSlot(slot);
+            Profile = SaveService.Load();
+            Tutorial?.AdoptProfile();
+            CurrentStats = ProfileStatsResolver.Resolve(Profile, Config);
         }
     }
 }

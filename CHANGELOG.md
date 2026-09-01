@@ -17,7 +17,7 @@ points → save → next level.
 | Game loop | Complete end to end |
 | Content | 5 levels, 2 bosses, 15 gear items, 4 rarities, 12 talents |
 | Art | Greybox — procedural meshes, code-built uGUI, no imported assets |
-| Tests | 124, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 132, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
@@ -38,6 +38,12 @@ means something, and a Zealot branch whose every node pays off on the road: gate
 run speed, enemy resist, loot fortune. Talents emit the same `StatModifier`s gear does,
 so they compose through one pipe. Schema v4 refunds previously-spent points as a free
 respec. See [docs/08-progression.md](docs/08-progression.md).
+
+**Three save slots.** The first screen now picks which game to play; each slot keeps its
+own level, talents, gear and tutorial progress. A pre-slots `profile.sav` is *moved* into
+slot 1 the first time it is opened, so an existing game is where its player expects it.
+Erasing is per-slot and takes two taps, and nothing is loaded until a slot is chosen —
+the bootstrap holds an empty placeholder and `SaveProfile` refuses to write before then.
 
 The FTUE closes a measurable cliff, not a polish gap: a player who never learns to steer
 is reduced to zero force by the enemy pack at **16.7 s** of their first run. Four
