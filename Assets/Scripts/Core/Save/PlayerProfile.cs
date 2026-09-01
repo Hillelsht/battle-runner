@@ -48,6 +48,8 @@ namespace BattleRunner.Core.Save
         public int PityCounter;
         /// <summary>Bitmask of TutorialStep values already taught. 0 = brand new player.</summary>
         public int TutorialMask;
+        /// <summary>Ids of the skill-tree nodes this hero has learned.</summary>
+        public List<string> SkillNodes = new List<string>();
 
         public string GetEquipped(GearSlot slot)
         {

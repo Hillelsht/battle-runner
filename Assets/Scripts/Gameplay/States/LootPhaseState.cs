@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using BattleRunner.Core.Flow;
 using BattleRunner.Core.Loot;
+using BattleRunner.Core.Stats;
 using BattleRunner.Core.Save;
 using BattleRunner.Data.Definitions;
 using BattleRunner.Meta.Services;
@@ -44,7 +45,9 @@ namespace BattleRunner.Gameplay.States
             LootTableModel table = tableDef.ToModel();
             Dictionary<string, GearItemModel> lookup = tableDef.BuildItemLookup();
 
-            float luck = _ctx.LastResult?.OverflowBonus(_ctx.Config.Balance.SoftCap) ?? 1f;
+            // Overflow luck and the Fortune talent compound: both push the same roll.
+            float luck = (_ctx.LastResult?.OverflowBonus(_ctx.Config.Balance.SoftCap) ?? 1f)
+                         * (1f + _ctx.CurrentStats.Get(StatIds.Fortune));
             int pity = _ctx.Profile.PityCounter;
             GearItemModel rolled = LootRoller.Roll(table, lookup, _random, ref pity, luck);
             _ctx.Profile.PityCounter = pity;

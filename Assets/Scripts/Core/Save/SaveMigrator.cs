@@ -10,7 +10,7 @@ namespace BattleRunner.Core.Save
     /// </summary>
     public static class SaveMigrator
     {
-        public const int CurrentVersion = 3;
+        public const int CurrentVersion = 4;
 
         private static readonly Dictionary<int, Action<PlayerProfile>> Steps = new Dictionary<int, Action<PlayerProfile>>
         {
@@ -28,7 +28,22 @@ namespace BattleRunner.Core.Save
             // v2 -> v3: TutorialMask introduced. An existing save belongs to someone who has
             // already played, so mark every step taught rather than coaching a veteran. A
             // genuinely new profile starts at 0 and gets the tutorial.
-            [2] = profile => profile.TutorialMask = AllTutorialStepsTaught
+            [2] = profile => profile.TutorialMask = AllTutorialStepsTaught,
+
+            // v3 -> v4: flat stat points became a skill tree. Refund whatever was spent as
+            // unspent points rather than guessing an equivalent set of talents — the old
+            // three stats have no faithful mapping onto the new nodes, and a free respec is
+            // the honest trade.
+            [3] = profile =>
+            {
+                profile.SkillNodes ??= new List<string>();
+                if (profile.StatPoints != null)
+                {
+                    foreach (StatSpend spend in profile.StatPoints)
+                        if (spend != null && spend.Points > 0) profile.UnspentStatPoints += spend.Points;
+                    profile.StatPoints.Clear();
+                }
+            }
         };
 
         /// <summary>Four steps: Steer, Gate, Spell, Shield. Kept here so Core has no

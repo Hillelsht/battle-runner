@@ -187,7 +187,7 @@ namespace BattleRunner.Gameplay
                 () => ctx.MenuState.OnNewRunPressed());
             ctx.Hud = new HudScreen(root);
             ctx.LootScreen = new LootScreen(root);
-            ctx.StatScreen = new StatUpgradeScreen(root);
+            ctx.SkillScreen = new SkillTreeScreen(root);
             // Above the HUD, below the resurrect modal: the canvas never sets sortingOrder,
             // so draw order is sibling order.
             ctx.TutorialOverlay = new TutorialOverlay(root);

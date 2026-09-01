@@ -49,7 +49,7 @@ namespace BattleRunner.Gameplay
         public MainMenuScreen MenuScreen;
         public HudScreen Hud;
         public LootScreen LootScreen;
-        public StatUpgradeScreen StatScreen;
+        public SkillTreeScreen SkillScreen;
         public ResurrectPrompt Resurrect;
         public TutorialOverlay TutorialOverlay;
         public TutorialCoach Tutorial;

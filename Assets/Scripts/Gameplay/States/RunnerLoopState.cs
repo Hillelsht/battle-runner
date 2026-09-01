@@ -68,7 +68,9 @@ namespace BattleRunner.Gameplay.States
             // A held prompt stops the road, not the game: cooldowns, the HUD, input and the
             // ad service all keep ticking below. Time.timeScale would freeze those too, and
             // a stalled rewarded-ad callback is the one failure that can wedge a run.
-            float speed = _ctx.Tutorial.HoldsRun ? 0f : _ctx.Config.Balance.RunSpeedMetersPerSec;
+            float speed = _ctx.Tutorial.HoldsRun
+                ? 0f
+                : _ctx.Config.Balance.RunSpeedMetersPerSec * (1f + _ctx.CurrentStats.Get(StatIds.RunSpeed));
 
             _ctx.Crowd.AdvanceZ(speed * dt);
             run.Distance += speed * dt;
@@ -94,8 +96,8 @@ namespace BattleRunner.Gameplay.States
         private void OnGateApplied(GateOp op, int value)
         {
             RunState run = _ctx.Run;
-            run.ForceCount = GateMath.ApplyGate(run.ForceCount, op, value,
-                _ctx.Config.Balance.SoftCap, out long overflow);
+            run.ForceCount = GateMath.ApplyGateWithYield(run.ForceCount, op, value,
+                _ctx.Config.Balance.SoftCap, _ctx.CurrentStats.Get(StatIds.GateYield), out long overflow);
             run.OverflowAccumulated += overflow;
             run.GatesHit++;
             _ctx.Crowd.SetForce(run.ForceCount);
@@ -109,7 +111,10 @@ namespace BattleRunner.Gameplay.States
             if (_ctx.Shield.IsActive) return;
 
             RunState run = _ctx.Run;
-            run.ForceCount = System.Math.Max(0L, run.ForceCount - forceCost);
+            // Resist shrugs off part of the bite; capped so a pack always costs something.
+            float resist = System.Math.Min(0.85f, _ctx.CurrentStats.Get(StatIds.EnemyResist));
+            long bite = (long)System.Math.Ceiling(forceCost * (1.0 - resist));
+            run.ForceCount = System.Math.Max(0L, run.ForceCount - bite);
             _ctx.Crowd.SetForce(run.ForceCount);
             _ctx.Hud.SetForce(run.ForceCount);
 

@@ -43,6 +43,27 @@ namespace BattleRunner.Core.Run
             return result;
         }
 
+        /// <summary>
+        /// Applies a gate, then amplifies whatever it GAINED by the hero's gate-yield stat.
+        ///
+        /// Scaling the gain rather than the gate's printed value keeps one rule for both
+        /// operators: a +10 with 20% yield gives 12, and a x2 on 50 force gains 50 and so
+        /// gives 60. A gate that costs force is untouched — yield is a reward, not a shield.
+        /// </summary>
+        public static long ApplyGateWithYield(long force, GateOp op, int value, long softCap,
+            float gateYield, out long overflow)
+        {
+            long result = ApplyGate(force, op, value, softCap, out overflow);
+            if (gateYield <= 0f || result <= force) return result;
+
+            long gain = result - force;
+            long amplified = SaturatingAdd(force, (long)Math.Round(gain * (1.0 + gateYield)));
+            if (amplified <= softCap) return amplified;
+
+            overflow += amplified - softCap;
+            return softCap;
+        }
+
         /// <summary>Diminishing conversion of accumulated overflow into a bonus multiplier (1.0 = no bonus).</summary>
         public static float OverflowToBonusMultiplier(long accumulatedOverflow, long softCap)
         {

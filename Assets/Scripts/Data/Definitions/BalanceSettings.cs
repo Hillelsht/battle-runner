@@ -46,7 +46,15 @@ namespace BattleRunner.Data.Definitions
         {
             [StatIds.Damage] = BaseDamage,
             [StatIds.Health] = BaseHealth,
-            [StatIds.Cooldown] = BaseCooldownReduction
+            [StatIds.Cooldown] = BaseCooldownReduction,
+            // The run axes start at zero: they are pure upside bought from the tree, so a
+            // player who has spent nothing plays exactly the game they played before.
+            [StatIds.SpellPower] = 0f,
+            [StatIds.GateYield] = 0f,
+            [StatIds.RunSpeed] = 0f,
+            [StatIds.EnemyResist] = 0f,
+            [StatIds.ShieldDuration] = 0f,
+            [StatIds.Fortune] = 0f
         };
     }
 }

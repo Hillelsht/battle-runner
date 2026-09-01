@@ -12,6 +12,7 @@ namespace BattleRunner.Gameplay.Combat
         private float _cooldownRemaining;
         private float _activeRemaining;
         private float _cooldownScale = 1f;
+        private float _durationBonus;
 
         public event Action Raised;
 
@@ -21,8 +22,11 @@ namespace BattleRunner.Gameplay.Combat
 
         public ShieldSystem(SpellDefinition def) => _def = def;
 
-        public void ApplyStats(StatSheet stats) =>
+        public void ApplyStats(StatSheet stats)
+        {
             _cooldownScale = 1f - Mathf.Min(0.6f, stats?.Get(StatIds.Cooldown) ?? 0f);
+            _durationBonus = Mathf.Max(0f, stats?.Get(StatIds.ShieldDuration) ?? 0f);
+        }
 
         public void ResetForPhase()
         {
@@ -33,7 +37,7 @@ namespace BattleRunner.Gameplay.Combat
         public void TryRaise()
         {
             if (!Ready) return;
-            _activeRemaining = _def.ShieldDurationSeconds;
+            _activeRemaining = _def.ShieldDurationSeconds + _durationBonus;
             _cooldownRemaining = _def.ShieldCooldownSeconds * _cooldownScale;
             Raised?.Invoke();
         }

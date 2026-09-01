@@ -99,5 +99,51 @@ namespace BattleRunner.Tests
             Assert.Throws<ArgumentOutOfRangeException>(
                 () => GateMath.ApplyGate(10, GateOp.Add, -1, Cap, out _));
         }
+
+        // --- Gate yield (skill tree) --------------------------------------------------
+
+        [Test]
+        public void GateYield_AmplifiesWhatAnAddGatePaid()
+        {
+            long result = GateMath.ApplyGateWithYield(100, GateOp.Add, 10, 100_000, 0.20f, out _);
+            Assert.AreEqual(112, result, "gained 10, +20% yield = 12");
+        }
+
+        [Test]
+        public void GateYield_AmplifiesAMultiplierByTheSameRule()
+        {
+            // x2 on 50 gains 50; +20% of the GAIN is 60, not 120.
+            long result = GateMath.ApplyGateWithYield(50, GateOp.Multiply, 2, 100_000, 0.20f, out _);
+            Assert.AreEqual(110, result);
+        }
+
+        [Test]
+        public void GateYield_NeverSoftensALoss()
+        {
+            long withYield = GateMath.ApplyGateWithYield(100, GateOp.Subtract, 30, 100_000, 0.50f, out _);
+            long without = GateMath.ApplyGate(100, GateOp.Subtract, 30, 100_000, out _);
+            Assert.AreEqual(without, withYield, "yield is a reward, not a shield");
+        }
+
+        [Test]
+        public void GateYield_OfZeroChangesNothing()
+        {
+            foreach (GateOp op in new[] { GateOp.Add, GateOp.Multiply, GateOp.Subtract })
+            {
+                long plain = GateMath.ApplyGate(250, op, 7, 100_000, out long o1);
+                long yielded = GateMath.ApplyGateWithYield(250, op, 7, 100_000, 0f, out long o2);
+                Assert.AreEqual(plain, yielded, $"{op} drifted at zero yield");
+                Assert.AreEqual(o1, o2);
+            }
+        }
+
+        [Test]
+        public void GateYield_StillRespectsTheSoftCap()
+        {
+            long result = GateMath.ApplyGateWithYield(99_000, GateOp.Add, 5_000, 100_000, 1.0f,
+                out long overflow);
+            Assert.AreEqual(100_000, result, "the cap holds however generous the yield");
+            Assert.Greater(overflow, 0, "everything past the cap becomes overflow");
+        }
     }
 }

@@ -1,5 +1,6 @@
 using BattleRunner.Core.Boss;
 using BattleRunner.Core.Flow;
+using BattleRunner.Core.Stats;
 using BattleRunner.Data.Definitions;
 using BattleRunner.Meta.Services;
 using UnityEngine;
@@ -101,7 +102,8 @@ namespace BattleRunner.Gameplay.States
         private void OnSpellCast()
         {
             float dps = BossSim.PlayerDps(_ctx.LastResult, _ctx.Config.Balance.SoftCap);
-            ApplyBossDamage(dps * _ctx.Config.Spells.BossDamageMultiplier);
+            float spellPower = 1f + _ctx.CurrentStats.Get(StatIds.SpellPower);
+            ApplyBossDamage(dps * _ctx.Config.Spells.BossDamageMultiplier * spellPower);
             _ctx.BossView.FlashHit();
         }
 

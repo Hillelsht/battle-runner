@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using BattleRunner.Core.Loot;
+using BattleRunner.Core.Progression;
 using BattleRunner.Core.Save;
 using BattleRunner.Core.Stats;
 using BattleRunner.Data.Definitions;
@@ -25,15 +26,10 @@ namespace BattleRunner.Meta.Services
         public static StatSheet Resolve(PlayerProfile profile, GameConfig config)
         {
             BalanceSettings balance = config.Balance;
-            var modifiers = new List<StatModifier>
-            {
-                new StatModifier(StatIds.Damage, ModifierKind.Flat,
-                    profile.GetStatPoints(StatIds.Damage) * balance.DamagePerPoint),
-                new StatModifier(StatIds.Health, ModifierKind.Flat,
-                    profile.GetStatPoints(StatIds.Health) * balance.HealthPerPoint),
-                new StatModifier(StatIds.Cooldown, ModifierKind.Flat,
-                    profile.GetStatPoints(StatIds.Cooldown) * balance.CooldownPerPoint)
-            };
+
+            // Talents and gear feed the same resolution path, so a node and an affix compose
+            // exactly as two affixes do — no second set of rules to keep in step.
+            var modifiers = new List<StatModifier>(SkillTree.ModifiersFor(profile.SkillNodes));
 
             Dictionary<string, GearItemDefinition> gearById = GearById(config);
             foreach (GearSlot slot in new[] { GearSlot.Weapon, GearSlot.Armor, GearSlot.Relic })
@@ -61,8 +57,22 @@ namespace BattleRunner.Meta.Services
                 return "—";
             }
 
+            var runLine = new List<string>();
+            void Note(string statId, string label, bool percent)
+            {
+                float v = stats.Get(statId);
+                if (v > 0.0001f) runLine.Add(percent ? $"{label} +{v:P0}" : $"{label} +{v:0.#}");
+            }
+            Note(StatIds.GateYield, "Gates", true);
+            Note(StatIds.RunSpeed, "Speed", true);
+            Note(StatIds.EnemyResist, "Resist", true);
+            Note(StatIds.SpellPower, "Spell", true);
+            Note(StatIds.Fortune, "Fortune", true);
+            Note(StatIds.ShieldDuration, "Shield", false);
+
+            string second = runLine.Count > 0 ? string.Join("   ", runLine) + "\n" : string.Empty;
             return $"Might {stats.Get(StatIds.Damage):0.#}   Vigor {stats.Get(StatIds.Health):0.#}   " +
-                   $"Focus -{stats.Get(StatIds.Cooldown):P0}\n" +
+                   $"Focus -{stats.Get(StatIds.Cooldown):P0}\n" + second +
                    $"{GearLine(GearSlot.Weapon)}  |  {GearLine(GearSlot.Armor)}  |  {GearLine(GearSlot.Relic)}";
         }
 
@@ -77,6 +87,12 @@ namespace BattleRunner.Meta.Services
                     StatIds.Damage => "Might",
                     StatIds.Health => "Vigor",
                     StatIds.Cooldown => "Focus",
+                    StatIds.SpellPower => "Spell",
+                    StatIds.GateYield => "Gates",
+                    StatIds.RunSpeed => "Speed",
+                    StatIds.EnemyResist => "Resist",
+                    StatIds.ShieldDuration => "Shield",
+                    StatIds.Fortune => "Fortune",
                     _ => m.StatId
                 };
                 lines.Add(m.Kind == ModifierKind.Flat

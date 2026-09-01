@@ -15,9 +15,9 @@ points → save → next level.
 | Area | State |
 |---|---|
 | Game loop | Complete end to end |
-| Content | 5 levels, 2 bosses, 15 gear items, 4 rarities |
+| Content | 5 levels, 2 bosses, 15 gear items, 4 rarities, 12 talents |
 | Art | Greybox — procedural meshes, code-built uGUI, no imported assets |
-| Tests | 103, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 124, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
@@ -27,7 +27,17 @@ points → save → next level.
 any size and the army reads as a column reaching up the road.
 
 **Unreleased since v0.1.2:** a first-time user experience, equal lane widths, gates that
-scroll past instead of vanishing, and a New Game option.
+scroll past instead of vanishing, a New Game option, and a talent tree replacing flat
+stat points.
+
+**Progression is now a tree.** The problem with three flat stats was not the count — it
+was that Damage, Health and Cooldown *all only mattered during the boss fight*, so
+nothing a player bought changed the forty seconds of running that is most of the game.
+Twelve talents across three branches, with the tier-2 pair mutually exclusive so a build
+means something, and a Zealot branch whose every node pays off on the road: gate yield,
+run speed, enemy resist, loot fortune. Talents emit the same `StatModifier`s gear does,
+so they compose through one pipe. Schema v4 refunds previously-spent points as a free
+respec. See [docs/08-progression.md](docs/08-progression.md).
 
 The FTUE closes a measurable cliff, not a polish gap: a player who never learns to steer
 is reduced to zero force by the enemy pack at **16.7 s** of their first run. Four
