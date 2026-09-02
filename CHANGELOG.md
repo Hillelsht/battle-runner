@@ -26,7 +26,10 @@ points → save → next level.
 **Confirmed on device:** v0.1.2 plays as a lane game. The crowd stays in its lane at
 any size and the army reads as a column reaching up the road.
 
-**Unreleased since v0.2.0:** talents can be handed back for their point, and
+**Unreleased since v0.2.0:** an art pass on the lighting — HDR, bloom, tonemapping,
+colour grading, a procedural night sky, trilight ambient, MSAA and real shadows, so the
+army stands on the road instead of hovering over it. Talents can also be handed back for
+their point, and
 [docs/09-monetization-setup.md](docs/09-monetization-setup.md) spells out the accounts
 only the project owner can create — with the 14-day Google Play closed-test clock called
 out as the one thing that has to start on day one, not when the game is finished.

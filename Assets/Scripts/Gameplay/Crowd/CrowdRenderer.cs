@@ -65,8 +65,11 @@ namespace BattleRunner.Gameplay.Crowd
             var rp = new RenderParams(_material)
             {
                 worldBounds = _crowd.ComputeBounds(),
-                shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off,
-                receiveShadows = false
+                // The crowd is ONE instanced draw, so casting costs one more instanced draw
+                // into the shadow map — cheap, and the difference between an army marching
+                // on the road and an army hovering over it.
+                shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On,
+                receiveShadows = true
             };
 
             if (_instancingSupported)

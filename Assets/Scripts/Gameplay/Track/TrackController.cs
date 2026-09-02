@@ -154,7 +154,8 @@ namespace BattleRunner.Gameplay.Track
                     new Vector3(0.10f, 0.02f, length), _markingMaterial);
 
                 SpawnStatic("Rail", new Vector3(edge * railCentre, 0.45f, midZ),
-                    new Vector3(railHalfThickness * 2f, 0.9f, length), _railMaterial);
+                    new Vector3(railHalfThickness * 2f, 0.9f, length), _railMaterial,
+                    castsShadow: true);
             }
 
             // Speed rungs span the road itself, not the verge.
@@ -165,7 +166,13 @@ namespace BattleRunner.Gameplay.Track
             }
         }
 
-        private void SpawnStatic(string name, Vector3 position, Vector3 size, Material material)
+        /// <summary>
+        /// castsShadow is off by default because most of this is flat road decal — lane
+        /// lines and rungs are 2 cm tall and their shadows would be noise on the surface
+        /// they are painted on. The rails have real height and earn one.
+        /// </summary>
+        private void SpawnStatic(string name, Vector3 position, Vector3 size, Material material,
+            bool castsShadow = false)
         {
             var go = new GameObject(name, typeof(MeshFilter), typeof(MeshRenderer));
             go.transform.SetParent(_trackRoot, false);
@@ -173,7 +180,9 @@ namespace BattleRunner.Gameplay.Track
             go.GetComponent<MeshFilter>().sharedMesh = ProceduralMeshes.BuildBox(Vector3.zero, size);
             var renderer = go.GetComponent<MeshRenderer>();
             renderer.sharedMaterial = material;
-            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.shadowCastingMode = castsShadow
+                ? UnityEngine.Rendering.ShadowCastingMode.On
+                : UnityEngine.Rendering.ShadowCastingMode.Off;
             _groundStrips.Add(go);
         }
 

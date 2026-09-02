@@ -96,6 +96,7 @@ Read in order — the risk critique deliberately comes first:
 | [07 — First-Time User Experience](docs/07-ftue.md) | The four coaching beats, why the run holds instead of pausing, and the proof it cannot strand a player |
 | [08 — Progression](docs/08-progression.md) | The talent tree, why flat stat points were the wrong shape, the new run-facing stat axes, and save slots |
 | [09 — Monetization setup](docs/09-monetization-setup.md) | The accounts only you can create, step by step, with hands-on vs. waiting time — and the 14-day Play Console clock to start today |
+| [10 — The look](docs/10-look.md) | The render stack: why the greybox looked bad, and which setting each symptom actually was |
 
 ### Code layout
 

@@ -22,7 +22,13 @@ namespace BattleRunner.Gameplay
             _camera.fieldOfView = 60f;
             _camera.nearClipPlane = 0.3f;
             _camera.farClipPlane = 220f;
-            _camera.clearFlags = CameraClearFlags.SolidColor;
+            // Skybox, not SolidColor. EnvironmentLook also sets this when it attaches post
+            // processing, but setting it at the source means the camera is never briefly
+            // correct-by-ordering — the background colour stays only as what shows if the
+            // sky material failed to load.
+            _camera.clearFlags = RenderSettings.skybox != null
+                ? CameraClearFlags.Skybox
+                : CameraClearFlags.SolidColor;
             _camera.backgroundColor = new Color(0.05f, 0.045f, 0.08f);
             SnapToCrowd();
         }

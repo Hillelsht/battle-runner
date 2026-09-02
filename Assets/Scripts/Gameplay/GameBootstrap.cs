@@ -68,23 +68,7 @@ namespace BattleRunner.Gameplay
             return ContentFactory.BuildConfig();
         }
 
-        private static void SetupEnvironmentLook()
-        {
-            RenderSettings.fog = true;
-            RenderSettings.fogMode = FogMode.Exponential;
-            RenderSettings.fogDensity = 0.016f;
-            RenderSettings.fogColor = new Color(0.06f, 0.05f, 0.09f);
-            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-            RenderSettings.ambientLight = new Color(0.28f, 0.26f, 0.34f);
-
-            var lightGo = new GameObject("Moonlight");
-            var light = lightGo.AddComponent<Light>();
-            light.type = LightType.Directional;
-            light.color = new Color(0.75f, 0.78f, 0.95f);
-            light.intensity = 1.1f;
-            light.shadows = LightShadows.None; // no realtime shadows on mobile (doc 04)
-            lightGo.transform.rotation = Quaternion.Euler(55f, -35f, 0f);
-        }
+        private static void SetupEnvironmentLook() => EnvironmentLook.Apply();
 
         private static int DetectTierCap(BalanceSettings balance)
         {
@@ -168,6 +152,7 @@ namespace BattleRunner.Gameplay
             var cameraGo = new GameObject("GameCamera");
             ctx.CameraRig = cameraGo.AddComponent<CameraRig>();
             ctx.CameraRig.Initialize(ctx.Crowd);
+            EnvironmentLook.AttachPostProcessing(ctx.CameraRig.Camera);
 
             var overlayGo = new GameObject("DebugOverlay");
             overlayGo.AddComponent<DebugOverlay>().Initialize(ctx.Crowd);

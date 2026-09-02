@@ -23,7 +23,8 @@ namespace BattleRunner.Gameplay.Crowd
             visual.GetComponent<MeshFilter>().sharedMesh = unitMesh;
             var renderer = visual.GetComponent<MeshRenderer>();
             renderer.sharedMaterial = heroMaterial;
-            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            // Casts: the hero leads the column and needs to sit in it.
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
             _visual = visual.transform;
         }
 

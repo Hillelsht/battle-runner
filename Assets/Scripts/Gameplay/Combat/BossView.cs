@@ -26,7 +26,8 @@ namespace BattleRunner.Gameplay.Combat
             _material.SetFloatSafe("_BobAmount", 0f); // at 6x scale the run-bob would look absurd
             var renderer = body.GetComponent<MeshRenderer>();
             renderer.sharedMaterial = _material;
-            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            // Casts: the boss is the largest silhouette in the game.
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
             _body = body.transform;
             gameObject.SetActive(false);
         }

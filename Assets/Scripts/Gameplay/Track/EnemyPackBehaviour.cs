@@ -38,7 +38,8 @@ namespace BattleRunner.Gameplay.Track
                 unit.GetComponent<MeshFilter>().sharedMesh = unitMesh;
                 var renderer = unit.GetComponent<MeshRenderer>();
                 renderer.sharedMaterial = enemyMaterial;
-                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                // Casts: a pack you can see the shadow of reads as an obstacle.
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
             }
 
             var labelGo = new GameObject("Label", typeof(TextMesh));
