@@ -152,7 +152,11 @@ namespace BattleRunner.Gameplay
             bloom.scatter.value = 0.72f;
             bloom.tint.value = new Color(1.0f, 0.86f, 0.72f);
             bloom.highQualityFiltering.value = false;   // mobile: half-res filtering is enough
-            bloom.skipIterations.value = 1;
+
+            // maxIterations, not skipIterations: the latter was removed in URP 2023.1 and
+            // is an obsolete-as-ERROR, not a warning. One under the default of six keeps a
+            // wide soft glow while dropping the largest, cheapest-to-lose mip.
+            bloom.maxIterations.value = 5;
 
             var color = profile.Add<ColorAdjustments>(true);
             color.postExposure.value = 0.20f;

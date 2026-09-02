@@ -31,7 +31,10 @@ colour grading, a procedural night sky, trilight ambient, MSAA and real shadows,
 army stands on the road instead of hovering over it — and a procedural cobbled road
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
-corner notches, a gradient backdrop and readable disabled states, across every screen. Talents can also be handed back for
+corner notches, a gradient backdrop and readable disabled states, across every screen.
+The art pass took two CI round trips to compile: a missing URP assembly reference (now
+caught locally by `tooling/check_asmdef_refs.py`) and a bloom parameter removed in URP
+2023.1. Talents can also be handed back for
 their point, and
 [docs/09-monetization-setup.md](docs/09-monetization-setup.md) spells out the accounts
 only the project owner can create — with the 14-day Google Play closed-test clock called

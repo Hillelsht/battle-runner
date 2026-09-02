@@ -109,6 +109,19 @@ the one thing it has to do. And `FullscreenPanel(..., gradient: false)` for the 
 scrim, where the caller's colour and alpha *are* the design: replacing them with a warm
 opaque gradient would hide the very thing the player is being asked to decide about.
 
+## Two CI round trips, and what each cost
+
+Neither could have been caught from a container without a Unity editor, and both were
+one line:
+
+1. **`CS0234`** — `BattleRunner.Gameplay` never declared the URP assemblies. See below;
+   this one is now caught locally.
+2. **`CS0619`** — `Bloom.skipIterations` was removed in URP 2023.1 and is obsolete-as-an-
+   **error**, not a warning. Every other post-processing parameter compiled first time, so
+   the fix was `maxIterations` and nothing else. There is no local check for this one: it
+   needs the real URP assemblies to know what is deprecated, which is exactly what CI has
+   and this container does not.
+
 ## The check that came out of it
 
 The first attempt at this stage failed in CI with `CS0234: the namespace 'Universal' does
