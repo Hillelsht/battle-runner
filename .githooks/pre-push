@@ -10,6 +10,7 @@ set -uo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 CHECKER="$REPO_ROOT/tooling/check_docs.py"
+ASMDEF_CHECKER="$REPO_ROOT/tooling/check_asmdef_refs.py"
 [ -f "$CHECKER" ] && command -v python3 >/dev/null 2>&1 || exit 0
 
 ZERO="0000000000000000000000000000000000000000"
@@ -34,9 +35,17 @@ while read -r _local_ref local_sha _remote_ref remote_sha; do
   fi
 done
 
+# Cheap, and the alternative is finding out from a headless Unity editor sixteen
+# minutes later that an asmdef never declared a package its code uses.
+if [ -f "$ASMDEF_CHECKER" ]; then
+  echo "--- asmdef reference check ---"
+  python3 "$ASMDEF_CHECKER" || STATUS=1
+fi
+
 if [ "$STATUS" -ne 0 ]; then
   echo ""
-  echo "Push blocked: the docs are out of date with the code."
+  echo "Push blocked: the docs are out of date with the code, or an asmdef is"
+  echo "missing a package reference."
   echo "Fix the items above (CHANGELOG.md is usually the right place), then push again."
   echo "To bypass in an emergency: git push --no-verify"
 fi

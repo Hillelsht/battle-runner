@@ -83,9 +83,49 @@ no texture to author, import, stream or strip:
 
 It receives shadows like everything else. It does not cast — it is the floor.
 
+## The UI
+
+Every screen builds through `UiFactory`, so one file changed all of them at once.
+Sprites are generated in code by `UiTextures` — no imported images:
+
+- **Rounded, bevelled panels and buttons.** The shape lives in the sprite's ALPHA and the
+  RGB carries only a lit-from-above gradient. That matters: screens tint these images to
+  say what a widget *means* — a taken talent is gold, a locked one is dark — and a sprite
+  with colour baked into its RGB would multiply against that tint and turn every state
+  muddy.
+- **A bronze frame** with corner notches, as a separate child drawn over the fill, because
+  the frame is always bronze whatever the fill beneath it is saying and one tinted image
+  cannot be two colours. The notches sit inside the 9-slice corner region so they never
+  stretch with the widget.
+- **A gradient backdrop** instead of a flat wash. A single unbroken colour behind
+  everything is most of what reads as "unfinished app".
+- **Explicit button states.** uGUI's default `ColorBlock` fades a disabled button to 50%
+  alpha, which on a dark background is indistinguishable from an enabled one.
+
+Two opt-outs exist and both are load-bearing. `Panel(..., rounded: false)` for thin
+progress fills — a 9-sliced rounded sprite on a bar a few pixels wide spends its whole
+width on corner radius and stops reading as a quantity, which for a boss health bar is
+the one thing it has to do. And `FullscreenPanel(..., gradient: false)` for the resurrect
+scrim, where the caller's colour and alpha *are* the design: replacing them with a warm
+opaque gradient would hide the very thing the player is being asked to decide about.
+
+## The check that came out of it
+
+The first attempt at this stage failed in CI with `CS0234: the namespace 'Universal' does
+not exist in 'UnityEngine.Rendering'`. **Unity assembly references are not transitive** —
+`BattleRunner.Gameplay` referenced `BattleRunner.Meta`, but using a URP type meant it had
+to name `Unity.RenderPipelines.Universal.Runtime` and `Unity.RenderPipelines.Core.Runtime`
+itself.
+
+That is a missing line of JSON diagnosed by a headless editor sixteen minutes later, so
+`tooling/check_asmdef_refs.py` now finds package namespaces and distinctive type names in
+the `.cs` files under each asmdef and asserts the asmdef declares the assembly providing
+them. It runs in the pre-push hook and in CI, takes about a second, and was verified by
+reverting the fix and confirming it reproduces both original errors.
+
 ## Deliberately not done yet
 
-Gates as real portals, camera juice, VFX and the UI pass. Those are stages 3–4.
+Gates as real portals, camera juice and VFX. That is stage 3.
 
 ## Verifying a look change from a container
 

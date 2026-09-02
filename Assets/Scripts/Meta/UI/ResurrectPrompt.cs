@@ -16,7 +16,8 @@ namespace BattleRunner.Meta.UI
 
         public ResurrectPrompt(Transform canvas)
         {
-            RectTransform root = UiFactory.FullscreenPanel(canvas, "Resurrect", new Color(0f, 0f, 0f, 0.82f));
+            RectTransform root = UiFactory.FullscreenPanel(canvas, "Resurrect", new Color(0f, 0f, 0f, 0.82f),
+                gradient: false);
             _root = root.gameObject;
 
             _message = UiFactory.Label(root, "Message", "YOUR FORCE HAS FALLEN", 58, UiFactory.Blood);

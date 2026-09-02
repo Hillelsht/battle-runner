@@ -25,6 +25,12 @@ jobs:
       - name: Lint hand-written serialized files
         run: python3 tooling/lint_unity_yaml.py
 
+      # Unity assembly references are not transitive, and a missing one shows up only
+      # as CS0234 from the headless editor sixteen minutes into the run. Catch it here
+      # instead, in about a second.
+      - name: Verify asmdefs declare the packages they use
+        run: python3 tooling/check_asmdef_refs.py
+
   # Decides whether a COMPLETE Unity activation strategy is configured.
   # GameCI ALWAYS needs the Unity account credentials to reach the licensing
   # servers, plus proof of licence:

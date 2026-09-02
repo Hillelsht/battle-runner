@@ -46,7 +46,7 @@ namespace BattleRunner.Meta.UI
             RectTransform track = UiFactory.Panel(_root.transform, "PatienceTrack", UiFactory.Shadow);
             UiFactory.Place(track, 0.5f, 0.638f, _patienceFullWidth, 8f);
 
-            _patience = UiFactory.Panel(_root.transform, "Patience", UiFactory.Arcane);
+            _patience = UiFactory.Panel(_root.transform, "Patience", UiFactory.Arcane, rounded: false);
             UiFactory.Place(_patience, 0.5f, 0.638f, _patienceFullWidth, 8f);
             // Place() centres the pivot, which would drain the bar from both ends. Pin the
             // left edge to the track's left edge so it empties left-to-right.

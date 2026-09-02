@@ -50,17 +50,78 @@ namespace BattleRunner.Meta.UI
             return canvas;
         }
 
-        public static RectTransform Panel(Transform parent, string name, Color color)
+        /// <summary>
+        /// A rounded, bevelled panel body. The colour still tints it exactly as a flat
+        /// Image did, so every screen that sets <c>Image.color</c> to mean something keeps
+        /// working — the sprite adds shape and a lit-from-above bevel, not colour.
+        /// </summary>
+        /// <param name="rounded">
+        /// False for thin progress fills. A 9-sliced rounded sprite on a bar a few pixels
+        /// wide spends its whole width on corner radius and the fill stops reading as a
+        /// quantity, which for a boss health bar is the one thing it has to do.
+        /// </param>
+        public static RectTransform Panel(Transform parent, string name, Color color,
+            bool rounded = true)
         {
             var go = new GameObject(name, typeof(RectTransform), typeof(Image));
             go.transform.SetParent(parent, false);
-            go.GetComponent<Image>().color = color;
+            var image = go.GetComponent<Image>();
+            if (rounded)
+            {
+                image.sprite = UiTextures.Fill;
+                image.type = Image.Type.Sliced;
+            }
+            image.color = color;
             return (RectTransform)go.transform;
         }
 
-        public static RectTransform FullscreenPanel(Transform parent, string name, Color color)
+        /// <summary>
+        /// The bronze border, as a separate child drawn over a panel. Separate because the
+        /// frame is always bronze whatever the fill beneath it is saying, and one tinted
+        /// image cannot be two colours.
+        /// </summary>
+        public static Image AddFrame(RectTransform panel)
         {
-            RectTransform rt = Panel(parent, name, color);
+            var go = new GameObject("Frame", typeof(RectTransform), typeof(Image));
+            go.transform.SetParent(panel, false);
+            var image = go.GetComponent<Image>();
+            image.sprite = UiTextures.Frame;
+            image.type = Image.Type.Sliced;
+            image.raycastTarget = false;   // the panel underneath takes the taps
+            Stretch((RectTransform)go.transform);
+            return image;
+        }
+
+        /// <summary>
+        /// The screen backdrop. A vertical gradient rather than a flat wash: a single
+        /// unbroken colour behind everything is most of what reads as "unfinished app".
+        /// </summary>
+        /// <param name="gradient">
+        /// False for a scrim — an overlay dimming the live game behind it, like the
+        /// resurrect prompt. There the caller's colour and alpha ARE the design, and
+        /// replacing them with a warm opaque gradient would hide the very thing the
+        /// player is being asked to decide about.
+        /// </param>
+        public static RectTransform FullscreenPanel(Transform parent, string name, Color color,
+            bool gradient = true)
+        {
+            var go = new GameObject(name, typeof(RectTransform), typeof(Image));
+            go.transform.SetParent(parent, false);
+            var image = go.GetComponent<Image>();
+            if (gradient)
+            {
+                image.sprite = UiTextures.Backdrop;
+                image.type = Image.Type.Simple;
+                // White, not the caller's colour: the gradient carries its own palette, and
+                // tinting it with the old flat ink would flatten it straight back out.
+                image.color = new Color(1f, 1f, 1f, Mathf.Max(color.a, 0.94f));
+            }
+            else
+            {
+                image.color = color;
+            }
+
+            var rt = (RectTransform)go.transform;
             rt.anchorMin = Vector2.zero;
             rt.anchorMax = Vector2.one;
             rt.offsetMin = Vector2.zero;
@@ -85,14 +146,43 @@ namespace BattleRunner.Meta.UI
             return text;
         }
 
+        /// <summary>
+        /// A framed, bevelled button. GetComponent&lt;Image&gt;() still returns the FILL, and
+        /// GetComponentInChildren&lt;Text&gt;() still returns the label, so callers that repaint
+        /// a button to show state are untouched.
+        ///
+        /// Child order is the draw order: fill (on the button itself), then frame, then
+        /// text. The frame must sit over the fill and under the label.
+        /// </summary>
         public static Button ActionButton(Transform parent, string name, string label, Color tint,
             UnityEngine.Events.UnityAction onClick)
         {
             var go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
             go.transform.SetParent(parent, false);
-            go.GetComponent<Image>().color = tint;
+
+            var fill = go.GetComponent<Image>();
+            fill.sprite = UiTextures.Fill;
+            fill.type = Image.Type.Sliced;
+            fill.color = tint;
+
             var button = go.GetComponent<Button>();
+            button.targetGraphic = fill;
             button.onClick.AddListener(onClick);
+
+            // Explicit states. The default ColorBlock fades a disabled button to 50% alpha,
+            // which on a dark background is indistinguishable from an enabled one.
+            button.colors = new ColorBlock
+            {
+                normalColor = Color.white,
+                highlightedColor = new Color(1.12f, 1.12f, 1.12f),
+                pressedColor = new Color(0.72f, 0.72f, 0.76f),
+                selectedColor = Color.white,
+                disabledColor = new Color(0.42f, 0.42f, 0.46f, 1f),
+                colorMultiplier = 1f,
+                fadeDuration = 0.08f
+            };
+
+            AddFrame((RectTransform)go.transform);
 
             Text text = Label(go.transform, "Label", label, 40, Color.white);
             Stretch((RectTransform)text.transform);

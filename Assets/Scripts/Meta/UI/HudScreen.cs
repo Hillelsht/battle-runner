@@ -36,7 +36,7 @@ namespace BattleRunner.Meta.UI
             UiFactory.Place(barBack, 0.5f, 0.83f, 820f, 44f);
             _bossBarRoot = barBack.gameObject;
 
-            _bossBarFill = UiFactory.Panel(barBack, "Fill", UiFactory.Blood);
+            _bossBarFill = UiFactory.Panel(barBack, "Fill", UiFactory.Blood, rounded: false);
             _bossBarFill.anchorMin = new Vector2(0f, 0f);
             _bossBarFill.anchorMax = new Vector2(1f, 1f);
             _bossBarFill.offsetMin = new Vector2(4f, 4f);

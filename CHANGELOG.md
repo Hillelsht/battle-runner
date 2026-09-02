@@ -29,7 +29,9 @@ any size and the army reads as a column reaching up the road.
 **Unreleased since v0.2.0:** an art pass on the lighting — HDR, bloom, tonemapping,
 colour grading, a procedural night sky, trilight ambient, MSAA and real shadows, so the
 army stands on the road instead of hovering over it — and a procedural cobbled road
-with brick bonding, grime and a wet sheen, in place of the flat slab. Talents can also be handed back for
+with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
+rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
+corner notches, a gradient backdrop and readable disabled states, across every screen. Talents can also be handed back for
 their point, and
 [docs/09-monetization-setup.md](docs/09-monetization-setup.md) spells out the accounts
 only the project owner can create — with the 14-day Google Play closed-test clock called
