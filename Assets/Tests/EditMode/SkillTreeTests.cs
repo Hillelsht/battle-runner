@@ -177,6 +177,99 @@ namespace BattleRunner.Tests
             Assert.AreEqual(0, SkillTree.CountInBranch(null, SkillBranch.Warlord));
         }
 
+        // --- Giving talents back --------------------------------------------------------
+
+        [Test]
+        public void ALeafTalentComesBackOff()
+        {
+            Assert.IsNull(SkillTree.UnlearnBlockedReason("wl_edge", Taken("wl_edge")));
+            Assert.IsTrue(SkillTree.CanUnlearn("wl_edge", Taken("wl_edge")));
+        }
+
+        [Test]
+        public void ATalentSomethingElseStandsOnIsHeldDown()
+        {
+            // Keen Edge is what let Cleave be bought. Pulling it out would leave Cleave in a
+            // branch it could never have been bought into.
+            Assert.AreEqual("Unlearn Cleave first",
+                SkillTree.UnlearnBlockedReason("wl_edge", Taken("wl_edge", "wl_cleave")));
+            Assert.IsNull(SkillTree.UnlearnBlockedReason("wl_cleave", Taken("wl_edge", "wl_cleave")));
+        }
+
+        [Test]
+        public void TheDeepestTalentIsTheOneNamed()
+        {
+            // With a whole branch held, the message must point at the capstone, not the
+            // middle node — telling the player to drop Cleave first would be a dead end.
+            var full = Taken("wl_edge", "wl_cleave", "wl_annihilate");
+            Assert.AreEqual("Unlearn Annihilation first", SkillTree.UnlearnBlockedReason("wl_edge", full));
+            Assert.AreEqual("Unlearn Annihilation first", SkillTree.UnlearnBlockedReason("wl_cleave", full));
+            Assert.IsNull(SkillTree.UnlearnBlockedReason("wl_annihilate", full));
+        }
+
+        [Test]
+        public void BranchesDoNotHoldEachOtherDown()
+        {
+            Assert.IsNull(SkillTree.UnlearnBlockedReason("wd_hide", Taken("wl_edge", "wl_cleave", "wd_hide")));
+        }
+
+        [Test]
+        public void UnlearningWhatWasNeverLearnedIsRefused()
+        {
+            Assert.AreEqual("Not learned", SkillTree.UnlearnBlockedReason("wl_edge", new List<string>()));
+            Assert.AreEqual("Not learned", SkillTree.UnlearnBlockedReason("wl_edge", null));
+            Assert.AreEqual("Unknown talent", SkillTree.UnlearnBlockedReason("not_a_node", Taken("not_a_node")));
+        }
+
+        [Test]
+        public void AnyLegalBuildCanBeFullyUnwoundOneTalentAtATime()
+        {
+            // The property that makes the undo trustworthy: there is no build a player can
+            // reach where nothing at all can be handed back. Take everything takeable across
+            // all three branches, then peel it apart with no respec button available.
+            var taken = new List<string>();
+            foreach (SkillNode node in SkillTree.Nodes)
+                if (SkillTree.CanTake(node.Id, taken, Plenty)) taken.Add(node.Id);
+
+            Assert.AreEqual(9, taken.Count, "three branches of three, one fork lost per branch");
+
+            int guard = 0;
+            while (taken.Count > 0)
+            {
+                Assert.Less(guard++, 32, "unwinding is not terminating");
+
+                string next = null;
+                foreach (string id in taken)
+                    if (SkillTree.CanUnlearn(id, taken)) { next = id; break; }
+
+                Assert.IsNotNull(next, $"stuck holding {string.Join(", ", taken)}");
+                taken.Remove(next);
+            }
+        }
+
+        [Test]
+        public void GivingATalentBackRefundsExactlyItsCost()
+        {
+            var taken = Taken("zl_avarice", "zl_zeal");
+            int before = SkillTree.PointsSpent(taken);
+            taken.Remove("zl_zeal");
+            Assert.AreEqual(before - SkillTree.PointCost, SkillTree.PointsSpent(taken));
+            Assert.IsEmpty(SkillTree.ModifiersFor(new List<string>()));
+        }
+
+        [Test]
+        public void UnlearningUndoesTheStatsItGranted()
+        {
+            var taken = Taken("zl_avarice", "zl_zeal");
+            taken.Remove("zl_zeal");
+
+            float gateYield = 0f;
+            foreach (StatModifier m in SkillTree.ModifiersFor(taken))
+                if (m.StatId == StatIds.GateYield) gateYield += m.Value;
+
+            Assert.AreEqual(0.12f, gateYield, 1e-4f, "Zeal's 0.08 goes back with it");
+        }
+
         // --- Migration ------------------------------------------------------------------
 
         [Test]

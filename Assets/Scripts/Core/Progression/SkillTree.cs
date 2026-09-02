@@ -149,6 +149,49 @@ namespace BattleRunner.Core.Progression
         public static bool CanTake(string nodeId, IReadOnlyCollection<string> taken, int unspentPoints) =>
             BlockedReason(nodeId, taken, unspentPoints) == null;
 
+        /// <summary>
+        /// Why a learned talent cannot be handed back, or null when it can.
+        ///
+        /// Removal is leaf-first. The tier gates count talents already held in the branch, so
+        /// a node of tier T can only have been bought with T-1 others beside it — pulling one
+        /// out from under a capstone would leave the capstone standing on nothing. Whatever
+        /// would stop clearing its own bar is named, so the player knows what to drop first.
+        ///
+        /// Unlearning is free and unlimited: this is a tree the player meets three talents in,
+        /// long before they can read it, and a build they cannot walk back is a trap, not a
+        /// choice. Charging for a respec is a lever to pull once the tree is deep enough that
+        /// commitment means something.
+        /// </summary>
+        public static string UnlearnBlockedReason(string nodeId, IReadOnlyCollection<string> taken)
+        {
+            SkillNode node = Find(nodeId);
+            if (node == null) return "Unknown talent";
+            if (!Has(taken, nodeId)) return "Not learned";
+
+            int remaining = 0;
+            foreach (string id in taken)
+            {
+                if (string.Equals(id, nodeId, StringComparison.Ordinal)) continue;
+                SkillNode other = Find(id);
+                if (other != null && other.Branch == node.Branch) remaining++;
+            }
+
+            SkillNode blocker = null;
+            foreach (string id in taken)
+            {
+                if (string.Equals(id, nodeId, StringComparison.Ordinal)) continue;
+                SkillNode other = Find(id);
+                if (other == null || other.Branch != node.Branch) continue;
+                if (remaining >= other.Tier) continue;
+                if (blocker == null || other.Tier > blocker.Tier) blocker = other;
+            }
+
+            return blocker == null ? null : $"Unlearn {blocker.DisplayName} first";
+        }
+
+        public static bool CanUnlearn(string nodeId, IReadOnlyCollection<string> taken) =>
+            UnlearnBlockedReason(nodeId, taken) == null;
+
         /// <summary>Every modifier the taken nodes contribute, for StatSheet.Resolve.</summary>
         public static List<StatModifier> ModifiersFor(IEnumerable<string> taken)
         {

@@ -42,6 +42,26 @@ Talents emit `StatModifier`s into the same `StatSheet.Resolve` path gear uses, s
 and an affix stack exactly as two affixes do. There is no second set of rules to keep in
 step, which is the whole reason to route them through one pipe.
 
+## Taking it back
+
+Every choice is reversible, free and unlimited. A learned talent is still a live button:
+the first tap arms the undo and says which talent it will forget, the second spends it
+and hands the point back. **FORGET ALL** empties the tree in the same two taps. Both arms
+expire after four seconds, so backgrounding the app mid-decision never leaves a one-tap
+undo waiting on resume.
+
+Removal is **leaf-first**. A node of tier T could only have been bought with T−1 others
+beside it, so pulling one out from under a capstone would leave the capstone standing on
+nothing. `SkillTree.UnlearnBlockedReason` refuses those taps and *names the deepest node
+that has to come off first* — pointing at the middle node instead would send the player
+down a dead end. A property test takes every talent that can legally be taken across all
+three branches and peels the build apart one node at a time with no respec available,
+proving there is no reachable build a player can get stuck holding.
+
+Free respec is the right call at this depth: the tree is met three talents in, long
+before it can be read, so a build that cannot be walked back is a trap rather than a
+choice. Charging for it is a lever worth pulling only once commitment means something.
+
 ## Migration
 
 Schema **v4**. Points already spent on the old three stats are **refunded as unspent

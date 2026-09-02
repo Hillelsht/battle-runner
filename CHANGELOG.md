@@ -17,7 +17,7 @@ points → save → next level.
 | Game loop | Complete end to end |
 | Content | 5 levels, 2 bosses, 15 gear items, 4 rarities, 12 talents |
 | Art | Greybox — procedural meshes, code-built uGUI, no imported assets |
-| Tests | 132, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 140, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
@@ -25,6 +25,8 @@ points → save → next level.
 
 **Confirmed on device:** v0.1.2 plays as a lane game. The crowd stays in its lane at
 any size and the army reads as a column reaching up the road.
+
+**Unreleased since v0.2.0:** talents can be handed back for their point.
 
 **Unreleased since v0.1.2:** a first-time user experience, equal lane widths, gates that
 scroll past instead of vanishing, a New Game option, and a talent tree replacing flat
@@ -37,7 +39,13 @@ Twelve talents across three branches, with the tier-2 pair mutually exclusive so
 means something, and a Zealot branch whose every node pays off on the road: gate yield,
 run speed, enemy resist, loot fortune. Talents emit the same `StatModifier`s gear does,
 so they compose through one pipe. Schema v4 refunds previously-spent points as a free
-respec. See [docs/08-progression.md](docs/08-progression.md).
+respec.
+
+Talents are also **reversible**: a learned node stays tappable, the first tap arms the
+undo and names it, the second refunds the point, and FORGET ALL empties the tree. Removal
+is leaf-first — a node under a capstone refuses and says which talent has to come off
+first — and a property test proves no reachable build can get stuck.
+See [docs/08-progression.md](docs/08-progression.md).
 
 **Three save slots.** The first screen now picks which game to play; each slot keeps its
 own level, talents, gear and tutorial progress. A pre-slots `profile.sav` is *moved* into

@@ -91,16 +91,6 @@ namespace BattleRunner.Gameplay
         public void Persist() => _ctx.Profile.TutorialMask = _director.CompletedMask;
 
         /// <summary>
-        /// Forget everything taught, for a new game. The director captures its progress at
-        /// construction, so without this the coach keeps the previous player's taught steps.
-        ///
-        /// Takes no mask on purpose. It used to accept one and the caller passed
-        /// Profile.TutorialMask — but SaveProfile persists the coach onto the profile first,
-        /// so by then the fresh profile's 0 had already been overwritten with the OLD
-        /// director's mask, and the reset read it straight back. A new game is untaught by
-        /// definition; there is no mask worth passing.
-        /// </summary>
-        /// <summary>
         /// Re-latch against the context's current profile, for switching save slots. Each
         /// slot has its own tutorial progress, and the director captures it at construction.
         /// </summary>
@@ -110,6 +100,16 @@ namespace BattleRunner.Gameplay
             _overlay.Hide();
         }
 
+        /// <summary>
+        /// Forget everything taught, for a new game. The director captures its progress at
+        /// construction, so without this the coach keeps the previous player's taught steps.
+        ///
+        /// Takes no mask on purpose. It used to accept one and the caller passed
+        /// Profile.TutorialMask — but SaveProfile persists the coach onto the profile first,
+        /// so by then the fresh profile's 0 had already been overwritten with the OLD
+        /// director's mask, and the reset read it straight back. A new game is untaught by
+        /// definition; there is no mask worth passing.
+        /// </summary>
         public void ResetProgress()
         {
             _director = new TutorialDirector();

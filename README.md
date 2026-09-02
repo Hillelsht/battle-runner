@@ -43,7 +43,7 @@ On a first run a coaching prompt introduces each control the moment it first mat
 
 ## Tests
 
-- **In Unity:** Window → General → **Test Runner** → EditMode → Run All (132 tests: gate math incl. soft-cap overflow, the gesture confusion suite, loot distribution + pity, save migration + checksum, crowd math incl. the formation envelope and lane partition, boss sim, state machine).
+- **In Unity:** Window → General → **Test Runner** → EditMode → Run All (140 tests: gate math incl. soft-cap overflow, the gesture confusion suite, loot distribution + pity, save migration + checksum, crowd math incl. the formation envelope and lane partition, boss sim, state machine).
 - **Without Unity:** `dotnet test tooling/CoreTests/CoreTests.csproj` runs the identical test sources against the same core code (the core assembly is engine-free by design).
 - **Serialized-file lint:** `python3 tooling/lint_unity_yaml.py` validates the hand-written scene/material/meta files.
 
