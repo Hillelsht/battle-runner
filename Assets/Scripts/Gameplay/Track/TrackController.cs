@@ -41,6 +41,32 @@ namespace BattleRunner.Gameplay.Track
 
         public float FinishZ => _finishZ;
 
+        /// <summary>
+        /// The cobbled road, or the old flat slab if it cannot render.
+        ///
+        /// Same rule as the sky: the material lives in Resources so the shader is never
+        /// stripped from the Android build, and the pipeline is checked explicitly because
+        /// Shader.isSupported reports whether a shader COMPILED, not whether any of its
+        /// SubShaders match the active pipeline — a URP shader in a Built-in player passes
+        /// that check and renders magenta.
+        /// </summary>
+        private static Material LoadRoadMaterial(Material fallbackBase)
+        {
+            if (UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline != null
+                && !ShaderSafety.UsingFallback)
+            {
+                var road = Resources.Load<Material>("Road");
+                if (road != null && road.shader != null && road.shader.isSupported) return road;
+            }
+
+            Debug.LogWarning("[Track] Road material unavailable — falling back to a flat slab.");
+            Material flat = ShaderSafety.CreateMaterial(fallbackBase);
+            flat.SetColorSafe("_BaseColor", new Color(0.10f, 0.09f, 0.12f));
+            flat.SetColorSafe("_EmissionColor", Color.black);
+            flat.SetFloatSafe("_BobAmount", 0f); // static geometry must not run-bob
+            return flat;
+        }
+
         public void Initialize(Material baseMaterial, Material enemyMaterial, Mesh unitMesh, Font font, float laneWidth)
         {
             _laneWidth = laneWidth;
@@ -57,10 +83,7 @@ namespace BattleRunner.Gameplay.Track
             _gatePool.Prewarm(14);
             _enemyPool.Prewarm(20);
 
-            _groundMaterial = ShaderSafety.CreateMaterial(baseMaterial);
-            _groundMaterial.SetColorSafe("_BaseColor", new Color(0.10f, 0.09f, 0.12f));
-            _groundMaterial.SetColorSafe("_EmissionColor", Color.black);
-            _groundMaterial.SetFloatSafe("_BobAmount", 0f); // static geometry must not run-bob
+            _groundMaterial = LoadRoadMaterial(baseMaterial);
 
             _finishMaterial = ShaderSafety.CreateMaterial(baseMaterial);
             _finishMaterial.SetColorSafe("_BaseColor", new Color(0.9f, 0.65f, 0.2f) * 0.5f);

@@ -63,10 +63,29 @@ one more instanced draw into the shadow map — and the alternative is an army t
 floats. If the shadow pass turns out to cost real frames on a low tier, the lever is
 `shadowDistance`, not the feature.
 
+## Surfaces
+
+**The road** — `Assets/Resources/Road.shader`. It is the largest single area of the frame
+and was an untextured slab: no amount of lighting makes a featureless plane interesting,
+because there is nothing on it for the light to catch.
+
+Everything is derived from world XZ, so it tiles forever down a road of any length with
+no texture to author, import, stream or strip:
+
+- **Brick-bonded cobbles** — every other row shifts half a stone, so the mortar never
+  lines up into long straight seams running away down the road.
+- **Per-stone tone** from a hash of the cell, so no two neighbours match.
+- **Two octaves of value noise** for grime at three metres and damp at ten. Enough to
+  break up the regularity without looking like noise for its own sake.
+- **A wet sheen** on the stone tops only, strongest where the grime says the stone is
+  damp, and killed inside a shadow. This is what makes the road read as a *surface*
+  rather than as a colour.
+
+It receives shadows like everything else. It does not cast — it is the floor.
+
 ## Deliberately not done yet
 
-Surface detail (the road is still an untextured slab), gates as real portals, camera
-juice, VFX and the UI pass. Those are stages 2–4; this stage is the light.
+Gates as real portals, camera juice, VFX and the UI pass. Those are stages 3–4.
 
 ## Verifying a look change from a container
 
