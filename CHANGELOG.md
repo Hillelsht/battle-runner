@@ -26,7 +26,10 @@ points → save → next level.
 **Confirmed on device:** v0.1.2 plays as a lane game. The crowd stays in its lane at
 any size and the army reads as a column reaching up the road.
 
-**Unreleased since v0.2.0:** talents can be handed back for their point.
+**Unreleased since v0.2.0:** talents can be handed back for their point, and
+[docs/09-monetization-setup.md](docs/09-monetization-setup.md) spells out the accounts
+only the project owner can create — with the 14-day Google Play closed-test clock called
+out as the one thing that has to start on day one, not when the game is finished.
 
 **Unreleased since v0.1.2:** a first-time user experience, equal lane widths, gates that
 scroll past instead of vanishing, a New Game option, and a talent tree replacing flat
