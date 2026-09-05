@@ -109,6 +109,45 @@ the one thing it has to do. And `FullscreenPanel(..., gradient: false)` for the 
 scrim, where the caller's colour and alpha *are* the design: replacing them with a warm
 opaque gradient would hide the very thing the player is being asked to decide about.
 
+## What the first device screenshots showed
+
+Two defects in the sky, both mine, both arithmetic rather than taste.
+
+**The ember glow filled the whole sky.** It is `pow(saturate(dot(dir, glowDir)), _GlowPower)`
+and `_GlowPower` was **6**, which falls to half brightness at
+
+```
+acos(0.5^(1/6)) = acos(0.891) = 27 degrees
+```
+
+The camera's horizontal half-FOV is 18 degrees and its vertical half-FOV is 30, so every
+pixel of visible sky sat at or above half glow: an ember lamp rendered as a red dome
+across the top half of the frame, then pushed further by `postExposure +0.20` and the
+warm-tinted highlights. `_GlowPower` is now **110**, a half-angle of 6.4 degrees.
+
+A second contributor: the rig pitches about 11 degrees down, so visible sky only reaches
+~19 degrees elevation, where `pow(sin(19deg), 0.55) = 0.54`. Even the top of the frame was
+barely half-way to the zenith colour, so the *horizon* band coloured everything on screen.
+The horizon is now darker and blue-violet rather than mauve, and `_ZenithFalloff` drops to
+0.4 so the sky reaches its dark zenith sooner.
+
+**The stars were 18-pixel grey quads.** `floor()` gives every pixel in a cell the same
+value, so a "star" was the entire cell:
+
+```
+cell width in dir.x = 0.65 / 60      = 0.0108
+dir.x per pixel     = 0.65 / 1080    = 0.000602
+                                     = 18 px per cell
+```
+
+and peak brightness was `(1 - 0.985) * 66 * 0.55 * 0.6 = 0.33`, mid-grey. Together that is
+confetti, not a night sky. Stars now hash a *position inside* each cell, measure the
+pixel's distance to it and fall off over 0.055 of a cell, at a brightness above 1.0 so
+bloom treats them as light.
+
+The lesson generalises: a falloff exponent is only meaningful against the field of view it
+is seen through, and `floor()` alone never makes a point.
+
 ## Two CI round trips, and what each cost
 
 Neither could have been caught from a container without a Unity editor, and both were

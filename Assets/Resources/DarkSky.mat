@@ -25,13 +25,13 @@ Material:
     m_TexEnvs: {}
     m_Ints: {}
     m_Floats:
-    - _ZenithFalloff: 0.55
+    - _ZenithFalloff: 0.4
     - _GroundFalloff: 0.35
-    - _GlowPower: 6
-    - _StarStrength: 0.55
+    - _GlowPower: 110
+    - _StarStrength: 1.6
     m_Colors:
-    - _ZenithColor: {r: 0.035, g: 0.03, b: 0.075, a: 1}
-    - _HorizonColor: {r: 0.16, g: 0.1, b: 0.16, a: 1}
+    - _ZenithColor: {r: 0.022, g: 0.02, b: 0.055, a: 1}
+    - _HorizonColor: {r: 0.085, g: 0.07, b: 0.125, a: 1}
     - _GroundColor: {r: 0.02, g: 0.018, b: 0.03, a: 1}
-    - _GlowColor: {r: 0.55, g: 0.2, b: 0.1, a: 1}
+    - _GlowColor: {r: 1.5, g: 0.52, b: 0.16, a: 1}
     - _GlowDirection: {r: 0, g: 0.1, b: 1, a: 0}

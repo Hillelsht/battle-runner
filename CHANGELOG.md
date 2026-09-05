@@ -32,6 +32,12 @@ army stands on the road instead of hovering over it — and a procedural cobbled
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
 corner notches, a gradient backdrop and readable disabled states, across every screen.
+First device screenshots found two sky defects, both arithmetic: the ember glow's
+exponent of 6 gave a 27-degree half-angle against an 18-degree half-FOV, so it washed
+the whole sky red instead of sitting on the horizon (now 110), and the stars were
+18-pixel grey quads because `floor()` gives every pixel in a cell the same value (now
+hashed points with a distance falloff).
+
 The art pass took two CI round trips to compile: a missing URP assembly reference (now
 caught locally by `tooling/check_asmdef_refs.py`) and a bloom parameter removed in URP
 2023.1. Talents can also be handed back for

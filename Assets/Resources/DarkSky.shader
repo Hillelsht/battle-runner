@@ -100,12 +100,29 @@ Shader "BattleRunner/DarkSky"
                 half glow = pow(saturate(dot(dir, glowDir)), _GlowPower);
                 color += _GlowColor.rgb * glow;
 
-                // Stars only in the upper hemisphere, and faded out near the horizon where
-                // the ember wash would swallow them anyway.
-                float2 cell = floor(dir.xz / max(0.0001, abs(dir.y) + 0.35) * 60.0);
-                float star = Hash21(cell);
-                star = saturate(star - 0.985) * 66.0;
-                color += star * _StarStrength * saturate(height * 2.0);
+                // Stars. The first version hashed the CELL and used that value directly,
+                // which gave every pixel in a cell the same brightness — so a "star" was
+                // the whole cell. At this projection one cell is ~18 px across on a 1080
+                // frame, so they rendered as grey quads scattered over the sky like
+                // confetti. Peak brightness was (1 - 0.985) * 66 * 0.55 ~= 0.54, mid-grey,
+                // which is why they read as debris rather than light.
+                //
+                // A star has to be a POINT inside its cell: hash a position, measure the
+                // distance to it, and fall off sharply.
+                float2 grid = dir.xz / max(0.0001, abs(dir.y) + 0.35) * 60.0;
+                float2 cell = floor(grid);
+                float2 f = frac(grid);
+
+                float present = Hash21(cell);
+                float2 starPos = float2(Hash21(cell + 17.31), Hash21(cell + 41.77));
+                float d = length(f - starPos);
+
+                // Sub-pixel-tight, so a star is a point of light rather than a blob.
+                float star = smoothstep(0.055, 0.0, d) * step(0.986, present);
+
+                // Above white on purpose: bloom is on now, so a star should be a genuine
+                // light source that scatters a little, not a grey dot.
+                color += star * _StarStrength * saturate(height * 2.5);
 
                 return half4(color, 1.0h);
             }
