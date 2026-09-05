@@ -148,7 +148,7 @@ namespace BattleRunner.Gameplay.Track
                 _ => "-"
             };
             _label.text = $"{symbol}{value}";
-            _label.color = mat.GetColorSafe("_EmissionColor", Color.white);
+            _label.color = frame.GetColorSafe("_EmissionColor", Color.white);
         }
 
         /// <summary>
