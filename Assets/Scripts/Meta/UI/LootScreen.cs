@@ -32,6 +32,11 @@ namespace BattleRunner.Meta.UI
 
             _card = UiFactory.Panel(root, "Card", UiFactory.InkSoft);
             UiFactory.Place(_card, 0.5f, 0.62f, 760f, 460f);
+            // AddFrame had exactly one caller — ActionButton — so the art pass framed every
+            // BUTTON and no content panel. The loot card sat 0.001 in red away from the
+            // backdrop behind it at its lower edge: an invisible boundary next to framed
+            // buttons on the same screen.
+            UiFactory.AddFrame(_card);
 
             _itemName = UiFactory.Label(_card, "Name", "", 52, Color.white);
             UiFactory.Place((RectTransform)_itemName.transform, 0.5f, 0.82f, 700f, 80f);

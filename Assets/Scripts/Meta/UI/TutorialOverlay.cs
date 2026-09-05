@@ -32,22 +32,29 @@ namespace BattleRunner.Meta.UI
             // A band rather than a full-screen scrim: the lesson is about what is happening
             // on the road, so the road must stay visible while it is taught.
             RectTransform band = UiFactory.Panel(_root.transform, "Band", UiFactory.Ink);
-            UiFactory.Place(band, 0.5f, 0.70f, 900f, 190f);
+            UiFactory.Place(band, 0.5f, 0.70f, 900f, 210f);
+            UiFactory.AddFrame(band);
 
-            _headline = UiFactory.Label(_root.transform, "Headline", string.Empty, 60, UiFactory.Gold,
+            // Everything below is parented to the BAND, not to the full-screen root.
+            // UiFactory.Place anchors against the parent, so as siblings of the root these
+            // were positioned against the whole screen and the timer bar landed ~20-34
+            // units BELOW the band's bottom edge — 860 units wide, floating in open space
+            // over the road. It read as a bright blue laser across the track rather than
+            // as a timer belonging to the prompt.
+            _headline = UiFactory.Label(band, "Headline", string.Empty, 60, UiFactory.Gold,
                 TextAnchor.MiddleCenter);
-            UiFactory.Place((RectTransform)_headline.transform, 0.5f, 0.735f, 880f, 80f);
+            UiFactory.Place((RectTransform)_headline.transform, 0.5f, 0.755f, 840f, 80f);
 
-            _detail = UiFactory.Label(_root.transform, "Detail", string.Empty, 36, UiFactory.Parchment,
+            _detail = UiFactory.Label(band, "Detail", string.Empty, 36, UiFactory.Parchment,
                 TextAnchor.MiddleCenter);
-            UiFactory.Place((RectTransform)_detail.transform, 0.5f, 0.678f, 880f, 60f);
+            UiFactory.Place((RectTransform)_detail.transform, 0.5f, 0.40f, 840f, 60f);
 
-            _patienceFullWidth = 860f;
-            RectTransform track = UiFactory.Panel(_root.transform, "PatienceTrack", UiFactory.Shadow);
-            UiFactory.Place(track, 0.5f, 0.638f, _patienceFullWidth, 8f);
+            _patienceFullWidth = 760f;
+            RectTransform track = UiFactory.Panel(band, "PatienceTrack", UiFactory.Shadow);
+            UiFactory.Place(track, 0.5f, 0.135f, _patienceFullWidth + 8f, 18f);
 
-            _patience = UiFactory.Panel(_root.transform, "Patience", UiFactory.Arcane, rounded: false);
-            UiFactory.Place(_patience, 0.5f, 0.638f, _patienceFullWidth, 8f);
+            _patience = UiFactory.Panel(band, "Patience", UiFactory.Arcane, rounded: false);
+            UiFactory.Place(_patience, 0.5f, 0.135f, _patienceFullWidth, 10f);
             // Place() centres the pivot, which would drain the bar from both ends. Pin the
             // left edge to the track's left edge so it empties left-to-right.
             _patience.pivot = new Vector2(0f, 0.5f);

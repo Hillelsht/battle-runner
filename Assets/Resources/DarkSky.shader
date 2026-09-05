@@ -11,9 +11,10 @@ Shader "BattleRunner/DarkSky"
         _GroundColor ("Below Horizon", Color) = (0.020, 0.018, 0.030, 1)
         _ZenithFalloff ("Zenith Falloff", Float) = 0.55
         _GroundFalloff ("Ground Falloff", Float) = 0.35
-        _GlowColor ("Ember Glow", Color) = (0.55, 0.20, 0.10, 1)
-        _GlowDirection ("Glow Direction", Vector) = (0, 0.10, 1, 0)
-        _GlowPower ("Glow Tightness", Float) = 6.0
+        _GlowColor ("Ember Glow", Color) = (0.50, 0.33, 0.23, 1)
+        _GlowDirection ("Glow Direction", Vector) = (0, 0, 1, 0)
+        _GlowPower ("Glow Azimuth Tightness", Float) = 8.0
+        _GlowHeight ("Glow Height Falloff", Float) = 16.0
         _StarStrength ("Star Strength", Float) = 0.55
     }
 
@@ -49,7 +50,8 @@ Shader "BattleRunner/DarkSky"
                 half _GroundFalloff;
                 half4 _GlowColor;
                 float4 _GlowDirection;
-                half _GlowPower;
+                float _GlowPower;
+                float _GlowHeight;
                 half _StarStrength;
             CBUFFER_END
 
@@ -94,10 +96,25 @@ Shader "BattleRunner/DarkSky"
                                    saturate(pow(saturate(-height), _GroundFalloff)));
                 half3 color = height > 0.0 ? above : below;
 
-                // A single ember source low on the horizon ahead. It gives the frame a
-                // direction to run toward, which a uniform gradient cannot.
+                // An ember BAND along the horizon ahead, not a radial lobe.
+                //
+                // This was pow(saturate(dot(dir, glowDir)), 6). A dot-power lobe is
+                // radially symmetric, and at exponent 6 it falls to half only 27 degrees
+                // off axis — against a horizontal half-FOV of 18 and a vertical half of
+                // 30. Every pixel of visible sky sat between 0.68 and 1.00 of full glow,
+                // which is a uniform wash, not a light source. It rendered as a red dome.
+                //
+                // No exponent fixes the shape, only the size: a real horizon glow is
+                // WIDE in azimuth and TIGHT in elevation. So the two axes are separated —
+                // azimuth^8 spreads it about 24 degrees left and right of the road ahead,
+                // while exp2(-|height| * 16) halves it 3.6 degrees above the horizon and
+                // is gone by 10.
                 float3 glowDir = normalize(_GlowDirection.xyz);
-                half glow = pow(saturate(dot(dir, glowDir)), _GlowPower);
+                float2 dirAz = normalize(float2(dir.x, dir.z) + 1e-5);
+                float2 glowAz = normalize(float2(glowDir.x, glowDir.z) + 1e-5);
+                float azimuth = saturate(dot(dirAz, glowAz));
+                float band = exp2(-abs(height) * _GlowHeight);
+                float glow = pow(azimuth, _GlowPower) * band;
                 color += _GlowColor.rgb * glow;
 
                 // Stars. The first version hashed the CELL and used that value directly,

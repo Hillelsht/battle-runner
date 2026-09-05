@@ -9,14 +9,20 @@ Shader "BattleRunner/Road"
 {
     Properties
     {
-        _BaseColor ("Stone", Color) = (0.115, 0.105, 0.135, 1)
-        _MortarColor ("Mortar", Color) = (0.045, 0.042, 0.058, 1)
-        _DampColor ("Damp Sheen", Color) = (0.16, 0.17, 0.26, 1)
+        // The project renders in Linear colour space, so these sRGB values are
+        // gamma->linear converted on upload. The original 0.115 arrived at the shader as
+        // 0.0125 linear — a 1.25% reflectance, seven times darker than dark asphalt and
+        // darker than charcoal. No material can be that dark, and no grade could rescue
+        // it: the lower half of the frame was black because the albedo was impossible.
+        // Darkness in a night scene has to come from the light level, not the albedo.
+        _BaseColor ("Stone", Color) = (0.30, 0.28, 0.35, 1)
+        _MortarColor ("Mortar", Color) = (0.15, 0.14, 0.18, 1)
+        _DampColor ("Damp Sheen", Color) = (0.32, 0.34, 0.48, 1)
         _Tiling ("Cobbles Per Metre", Float) = 1.6
         _MortarWidth ("Mortar Width", Range(0.01, 0.3)) = 0.075
         _StoneVariation ("Stone Tone Variation", Range(0, 1)) = 0.45
         _Wetness ("Wetness", Range(0, 1)) = 0.55
-        _Gloss ("Sheen Tightness", Float) = 24
+        _Gloss ("Sheen Tightness", Float) = 8
     }
 
     SubShader

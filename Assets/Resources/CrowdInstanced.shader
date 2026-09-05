@@ -9,6 +9,16 @@ Shader "BattleRunner/CrowdInstanced"
         _BaseColor ("Base Color", Color) = (0.25, 0.28, 0.38, 1)
         _EmissionColor ("Emission / Rim", Color) = (0.35, 0.5, 0.9, 1)
         _BobAmount ("Run Bob Amount", Float) = 0.12
+
+        // Rim shape is per-MATERIAL, not baked. The lane lines, speed rungs and finish
+        // line are 2 cm-tall boxes whose only bright term is this rim on their top face,
+        // so the crowd cannot narrow the lobe or mask up-faces globally without putting
+        // the road markings out. Defaults reproduce the previous hard-coded expression
+        // exactly, so every material that does not opt in is bit-identical.
+        _RimPower ("Rim Power", Range(1, 8)) = 2.5
+        _RimStrength ("Rim Strength", Range(0, 4)) = 0.9
+        _RimUpMask ("Rim Up-Face Mask", Range(0, 1)) = 0
+        _EmissionFlat ("Flat Emission", Range(0, 4)) = 0.15
     }
 
     SubShader
@@ -27,6 +37,10 @@ Shader "BattleRunner/CrowdInstanced"
             half4 _BaseColor;
             half4 _EmissionColor;
             half _BobAmount;
+            half _RimPower;
+            half _RimStrength;
+            half _RimUpMask;
+            half _EmissionFlat;
         CBUFFER_END
 
         // Per-instance bob phase recovered from the instance's uniform SCALE, which
@@ -42,13 +56,20 @@ Shader "BattleRunner/CrowdInstanced"
         // the forward pass or every unit's shadow detaches from its feet and slides. A
         // macro cannot drift out of step the way two copied blocks can, and it keeps
         // UNITY_MATRIX_M at the call site where the instance id is already set up.
+        // Keep in lockstep with CrowdRenderer.ScaleMin / ScaleSpan. The drawn scale
+        // dropped from 0.94..1.06 to 0.44..0.50 because the formation is pinned to one
+        // lane (1.56 m across) while a body is 0.60 m over the pauldrons: at n=90 the
+        // lateral pitch is 0.157 m, so units were drawn nearly four body-widths into one
+        // another and the army was geometrically a solid slab before any shader ran.
+        #define CROWD_SCALE_MIN  0.44
+        #define CROWD_SCALE_SPAN 0.06
         #define APPLY_RUN_BOB(posOS)                                                          \
             {                                                                                 \
                 float _s = length(float3(UNITY_MATRIX_M._m00, UNITY_MATRIX_M._m10,            \
                                          UNITY_MATRIX_M._m20));                               \
-                float _p = saturate((_s - 0.94) / 0.12);                                      \
+                float _p = saturate((_s - CROWD_SCALE_MIN) / CROWD_SCALE_SPAN);               \
                 float _b = abs(sin(_Time.y * 9.0 + _p * 6.2831)) * _BobAmount;                \
-                posOS.y += _b * saturate(posOS.y + 0.5); /* feet stay planted */              \
+                posOS.y += _b * saturate(posOS.y * 2.5 - 0.05); /* 0 at the feet */           \
             }
         ENDHLSL
 
@@ -118,9 +139,19 @@ Shader "BattleRunner/CrowdInstanced"
 
                 half3 color = _BaseColor.rgb * (mainLight.color * halfLambert * shadow + ambient);
 
-                // Rim light sells silhouettes against the dark environment (doc 01, R5).
-                half rim = pow(1.0h - saturate(dot(viewDirWS, normalWS)), 2.5h);
-                color += _EmissionColor.rgb * (rim * 0.9h + 0.15h);
+                // Rim light sells silhouettes against the dark environment (doc 01, R5) —
+                // but pow(1 - dot(V,N), k) is NOT an edge term on this geometry.
+                // ProceduralMeshes.AddBox duplicates vertices per face for HARD normals,
+                // so this is a per-FACE CONSTANT: at k = 2.5 every face more than 76
+                // degrees off the view axis glows at over half strength. Of the three
+                // faces the camera can see on a unit, the top sits at ~79 degrees and the
+                // visible side at ~78 — two of three flooded — and the flat term then
+                // floods the third. The crowd was 79-97% pure emission: self-lit blocks,
+                // not lit figures. The up-face mask and a tighter power give the crowd a
+                // real silhouette while the road decals keep the wide default.
+                half rim = pow(1.0h - saturate(dot(viewDirWS, normalWS)), _RimPower);
+                rim *= lerp(1.0h, saturate(1.0h - normalWS.y * 2.0h), _RimUpMask);
+                color += _EmissionColor.rgb * (rim * _RimStrength + _EmissionFlat);
 
                 color = MixFog(color, input.fogFactor);
                 return half4(color, 1.0h);

@@ -94,10 +94,25 @@ namespace BattleRunner.Gameplay
             // that visibly hovers above the road.
             light.shadows = LightShadows.Soft;
             light.shadowStrength = 0.72f;
-            light.shadowBias = 0.04f;
-            light.shadowNormalBias = 0.5f;
 
-            lightGo.transform.rotation = Quaternion.Euler(55f, -35f, 0f);
+            // shadowBias / shadowNormalBias are deliberately NOT set here. URP ignores a
+            // Light's own bias unless it carries a UniversalAdditionalLightData with
+            // usePipelineSettings == false, and a runtime AddComponent<Light>() has none —
+            // so the two lines that used to sit here were inert, and silently contradicted
+            // the real values. Shadow bias lives in UrpBootstrap.Tune().
+
+            // This was Euler(55, -35, 0), whose forward is (-0.329, -0.819, +0.470). The
+            // horizontal part points +Z — the SAME way the camera looks — so every shadow
+            // was cast directly away from the viewer, landing behind its own caster and
+            // fully hidden by it. A caster of height h at distance d hides d*h/(H-h) of
+            // road behind itself; at H = 5.5 that is 2.1-2.9 m for the army, and the
+            // shadow only reached 0.55 m. The feature was working and invisible.
+            //
+            // Now the light comes from ahead and to the right, so shadows rake ACROSS the
+            // road toward the camera where the road itself displays them. 32 degrees of
+            // elevation rather than 55 makes them 1.6x the caster's height instead of
+            // 0.7x, which is what makes a crowd read as standing on something.
+            lightGo.transform.rotation = Quaternion.Euler(32f, 250f, 0f);
         }
 
         /// <summary>

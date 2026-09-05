@@ -148,6 +148,47 @@ bloom treats them as light.
 The lesson generalises: a falloff exponent is only meaningful against the field of view it
 is seen through, and `floor()` alone never makes a point.
 
+## What a 30-agent diagnosis found that I could not
+
+Six subsystems were investigated in parallel against the real code, each finding then
+handed to an adversarial verifier told to refute it. **24 findings, 11 survived, 13 were
+killed** — including several that sounded right (bloom clipping the sky, vignette eating
+the near road, contrast crushing the road to black) and did not hold up under arithmetic.
+
+Three of the survivors were causes I had no path to from the screenshots alone.
+
+**The key light pointed the same way the camera looks.** `Euler(55, -35, 0)` has forward
+`(-0.329, -0.819, +0.470)`. The horizontal part is **+Z** — the camera's own view
+direction — so every shadow was cast directly away from the viewer and landed behind its
+own caster. A caster of height `h` at distance `d` from a camera at height `H` hides
+`d·h/(H−h)` of ground behind itself; at `H = 5.5` that is 2.1–2.9 m for the army, and the
+shadow only reached 0.55 m. **The shadows were rendering correctly and were 100%
+self-occluded.** The light now comes from ahead and to the right at 32° rather than 55°,
+so shadows rake across the road toward the camera at 1.6× the caster's height.
+
+**Everything in a `.mat` is sRGB.** The project renders in Linear space, so material
+colour properties are gamma→linear converted on upload. `Road._BaseColor = 0.115` reached
+the shader as **0.0125 linear — a 1.25% reflectance**, seven times darker than dark
+asphalt and darker than charcoal. No grade could rescue that; the lower half of the frame
+was black because the albedo was physically impossible. Darkness in a night scene has to
+come from the light level, not from an albedo no material can have.
+
+**The rim term is a per-face constant, not an edge.** `pow(1 − dot(V,N), 2.5)` assumes
+smooth normals. `ProceduralMeshes.AddBox` duplicates vertices per face for *hard* normals,
+so it is constant across each face and exceeds half strength for any face more than 76°
+off the view axis. Of the three faces the camera sees on a unit, two are flooded and the
+`+0.15` constant floods the third: the crowd was **79–97% pure emission** — self-lit
+blocks, not lit figures.
+
+Two more shape defects fell out of the same pass. The formation is pinned to one lane
+(1.56 m across) while a body is 0.60 m over the pauldrons, so at n=90 the lateral pitch is
+0.157 m and units were drawn nearly **four body-widths into one another** — geometrically
+a solid slab before any shader ran; the drawn scale drops from ~1.0 to ~0.47. And a gate's
+bars face the camera dead-on, making rim ≈ 0 on every visible surface, so a gate's entire
+glow came from the flat term and landed *below URP's bloom knee*: gates contributed
+exactly nothing to the bloom pass. Frame and infill plate are now separate materials, the
+frame pushed over the knee and the plate deliberately left under it.
+
 ## Two CI round trips, and what each cost
 
 Neither could have been caught from a container without a Unity editor, and both were

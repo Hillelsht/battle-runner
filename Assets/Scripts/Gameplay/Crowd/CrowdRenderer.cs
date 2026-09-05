@@ -12,6 +12,19 @@ namespace BattleRunner.Gameplay.Crowd
         // One number governs the array length, the draw count and the tier clamp.
         private const int MaxInstances = CrowdController.MaxSimulated;
 
+        // The formation envelope is pinned by the ROAD — halfWidthMax is 0.355 of a
+        // 2.2 m lane, so the crowd is never wider than 1.56 m — and depth cannot separate
+        // bodies at the rig's 11 degree pitch. The only free variable is how big each body
+        // is drawn. At the old 0.94-1.06 a unit was 0.60 m across the pauldrons against a
+        // lateral neighbour pitch of 0.157 m at n=90: bodies drawn nearly four widths into
+        // each other, a solid slab of overlapping boxes. At 0.44-0.50 ranks still overlap,
+        // which is what an army looks like, but individual figures resolve.
+        //
+        // CrowdInstanced.shader recovers the bob phase from this scale — CROWD_SCALE_MIN
+        // and CROWD_SCALE_SPAN there must match these two exactly.
+        private const float ScaleMin = 0.44f;
+        private const float ScaleSpan = 0.06f;
+
         private readonly Matrix4x4[] _matrices = new Matrix4x4[MaxInstances];
         private CrowdController _crowd;
         private Mesh _mesh;
@@ -53,9 +66,9 @@ namespace BattleRunner.Gameplay.Crowd
             for (int i = 0; i < count; i++)
             {
                 // Scale carries the bob phase into the shader (see CrowdInstanced.shader):
-                // keep 0.94 + phase*0.12 in step with the decode there.
+                // keep ScaleMin + phase*ScaleSpan in step with the decode there.
                 float phase = _crowd.UnitPhase(i);
-                float scale = 0.94f + phase * 0.12f;
+                float scale = ScaleMin + phase * ScaleSpan;
                 _matrices[i] = Matrix4x4.TRS(
                     _crowd.UnitPosition(i),
                     Quaternion.Euler(0f, (phase - 0.5f) * 24f, 0f),

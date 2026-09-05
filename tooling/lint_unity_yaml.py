@@ -104,6 +104,45 @@ def check_build_settings(known_guids):
             problem(f"EditorBuildSettings: guid mismatch for {scene_path}")
 
 
+def check_crowd_scale_coupling():
+    """CrowdRenderer bakes the bob phase into the instance SCALE and the shader decodes
+    it back out. The two constants live in different languages in different files, and
+    if they drift the phase decodes wrong: every unit's bob desynchronises from its
+    shadow and the march turns back into noise. Nothing at compile time connects them,
+    so pin them here.
+    """
+    cs_path = os.path.join(REPO, "Assets/Scripts/Gameplay/Crowd/CrowdRenderer.cs")
+    sh_path = os.path.join(REPO, "Assets/Resources/CrowdInstanced.shader")
+    if not (os.path.exists(cs_path) and os.path.exists(sh_path)):
+        return
+
+    with open(cs_path, encoding="utf-8") as f:
+        cs = f.read()
+    with open(sh_path, encoding="utf-8") as f:
+        sh = f.read()
+
+    def grab(text, pattern, where):
+        m = re.search(pattern, text)
+        if not m:
+            PROBLEMS.append(f"{where}: could not find {pattern!r} — the crowd scale "
+                            "coupling check can no longer verify itself")
+            return None
+        return float(m.group(1))
+
+    cs_min = grab(cs, r"ScaleMin\s*=\s*([0-9.]+)f", "CrowdRenderer.cs")
+    cs_span = grab(cs, r"ScaleSpan\s*=\s*([0-9.]+)f", "CrowdRenderer.cs")
+    sh_min = grab(sh, r"CROWD_SCALE_MIN\s+([0-9.]+)", "CrowdInstanced.shader")
+    sh_span = grab(sh, r"CROWD_SCALE_SPAN\s+([0-9.]+)", "CrowdInstanced.shader")
+
+    if None in (cs_min, cs_span, sh_min, sh_span):
+        return
+    if abs(cs_min - sh_min) > 1e-6 or abs(cs_span - sh_span) > 1e-6:
+        PROBLEMS.append(
+            f"crowd scale drift: CrowdRenderer.cs writes {cs_min}+phase*{cs_span} but "
+            f"CrowdInstanced.shader decodes {sh_min}+phase*{sh_span}. The bob phase would "
+            "decode wrong for every unit. Change both together.")
+
+
 def main():
     known_guids = collect_meta_guids()
 
@@ -119,6 +158,7 @@ def main():
                     check_scene(path, text)
 
     check_build_settings(known_guids)
+    check_crowd_scale_coupling()
 
     if PROBLEMS:
         print(f"LINT FAILED — {len(PROBLEMS)} problem(s):")

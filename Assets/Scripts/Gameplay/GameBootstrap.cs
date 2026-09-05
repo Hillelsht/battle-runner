@@ -126,6 +126,17 @@ namespace BattleRunner.Gameplay
             var crowdMaterial = ShaderSafety.CreateMaterial(ctx.CrowdMaterial);
             crowdMaterial.SetColorSafe("_EmissionColor", new Color(0.45f, 0.75f, 1.4f));
 
+            // The crowd is the one thing made of hard-normal boxes seen in bulk, so it is
+            // the one thing the wide default rim ruins: at power 2.5 two of the three
+            // visible faces glow over half strength and the flat term floods the third,
+            // leaving units as self-lit blocks. A tighter lobe plus an up-face mask puts
+            // the light back on the silhouette. The road markings keep the wide default
+            // because their top face IS their only lit surface.
+            crowdMaterial.SetFloatSafe("_RimPower", 4.5f);
+            crowdMaterial.SetFloatSafe("_RimStrength", 0.6f);
+            crowdMaterial.SetFloatSafe("_RimUpMask", 1f);
+            crowdMaterial.SetFloatSafe("_EmissionFlat", 0.03f);
+
             var crowdGo = new GameObject("Crowd");
             crowdGo.transform.SetParent(ctx.ArenaRoot.transform, false);
             ctx.Crowd = crowdGo.AddComponent<CrowdController>();

@@ -32,6 +32,15 @@ army stands on the road instead of hovering over it — and a procedural cobbled
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
 corner notches, a gradient backdrop and readable disabled states, across every screen.
+A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
+11 survived adversarial refutation. The headline three: the key light pointed the same way
+the camera looks, so every shadow was cast behind its own caster and fully self-occluded;
+`.mat` colours are sRGB and gamma-converted on upload, so the road's authored 0.115 was a
+1.25% reflectance and no grade could rescue it; and the rim term is a per-face constant on
+hard-normal boxes, leaving the crowd 79-97% pure emission. Also: the army was drawn nearly
+four body-widths into itself, gates fell below URP's bloom knee so they never bloomed at
+all, and no content panel ever got a bronze frame because `AddFrame` had one caller.
+
 First device screenshots found two sky defects, both arithmetic: the ember glow's
 exponent of 6 gave a 27-degree half-angle against an 18-degree half-FOV, so it washed
 the whole sky red instead of sitting on the horizon (now 110), and the stars were

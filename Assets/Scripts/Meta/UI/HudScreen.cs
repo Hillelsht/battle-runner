@@ -43,6 +43,11 @@ namespace BattleRunner.Meta.UI
             _bossBarFill.offsetMax = new Vector2(-4f, -4f);
             _bossBarFill.pivot = new Vector2(0f, 0.5f);
 
+            // After the fill, not before: the frame's corner notches sit 6-13 units in from
+            // each edge while the opaque Blood fill is inset only 4, so a frame added at
+            // sibling index 0 would keep its ring and lose all four notches behind the fill.
+            UiFactory.AddFrame(barBack);
+
             _bossName = UiFactory.Label(barBack, "BossName", "", 30, UiFactory.Parchment);
             UiFactory.Stretch((RectTransform)_bossName.transform);
 

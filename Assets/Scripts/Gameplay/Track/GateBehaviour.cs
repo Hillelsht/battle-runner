@@ -26,22 +26,44 @@ namespace BattleRunner.Gameplay.Track
         private TextMesh _label;
         private MeshRenderer _labelRenderer;
         private MeshRenderer[] _renderers;
-        private static Material _addMat;
-        private static Material _multiplyMat;
-        private static Material _subtractMat;
+        // A gate is a FRAME and a PLATE, and they must not look the same. The plate is
+        // 1.60 x 2.36 m against four bars only 0.16 m thick — 77% of the gate's projected
+        // area — so painting both with one material makes the gate a solid coloured
+        // rectangle with no visible frame at all. Frame and plate are now separate.
+        private static Material _addFrame, _addPlate;
+        private static Material _multiplyFrame, _multiplyPlate;
+        private static Material _subtractFrame, _subtractPlate;
 
         public static void SetSharedMaterials(Material baseMaterial)
         {
-            _addMat = Tint(baseMaterial, new Color(0.30f, 0.55f, 1.2f));
-            _multiplyMat = Tint(baseMaterial, new Color(1.3f, 0.85f, 0.25f));
-            _subtractMat = Tint(baseMaterial, new Color(1.1f, 0.2f, 0.2f));
+            var add = new Color(0.30f, 0.55f, 1.2f);
+            var multiply = new Color(1.3f, 0.85f, 0.25f);
+            var subtract = new Color(1.1f, 0.2f, 0.2f);
+
+            _addFrame = Tint(baseMaterial, add, emissionFlat: 1.15f, baseScale: 0.35f);
+            _multiplyFrame = Tint(baseMaterial, multiply, emissionFlat: 1.15f, baseScale: 0.35f);
+            _subtractFrame = Tint(baseMaterial, subtract, emissionFlat: 1.15f, baseScale: 0.35f);
+
+            _addPlate = Tint(baseMaterial, add, emissionFlat: 0.16f, baseScale: 0.18f);
+            _multiplyPlate = Tint(baseMaterial, multiply, emissionFlat: 0.16f, baseScale: 0.18f);
+            _subtractPlate = Tint(baseMaterial, subtract, emissionFlat: 0.16f, baseScale: 0.18f);
         }
 
-        private static Material Tint(Material baseMaterial, Color emissive)
+        /// <summary>
+        /// A gate's bars face the camera dead-on, so the shader's rim term is ~0 on every
+        /// visible surface — the entire glow has to come from the flat emission term. At
+        /// the old constant 0.15 a gate landed below URP's bloom knee and contributed
+        /// EXACTLY NOTHING to the bloom pass, which is why gates read as flat plates even
+        /// after bloom was switched on. The frame is pushed well over the knee; the plate
+        /// is deliberately left under it, so the bars glow and the aperture stays a hole.
+        /// </summary>
+        private static Material Tint(Material baseMaterial, Color emissive,
+            float emissionFlat, float baseScale)
         {
             Material mat = ShaderSafety.CreateMaterial(baseMaterial);
-            mat.SetColorSafe("_BaseColor", emissive * 0.35f);
+            mat.SetColorSafe("_BaseColor", emissive * baseScale);
             mat.SetColorSafe("_EmissionColor", emissive);
+            mat.SetFloatSafe("_EmissionFlat", emissionFlat);
             mat.SetFloatSafe("_BobAmount", 0f); // gate frames must not run-bob
             return mat;
         }
@@ -101,13 +123,23 @@ namespace BattleRunner.Gameplay.Track
             if (_renderers.Length > 3 && _renderers[3] != null) _renderers[3].enabled = true;
             transform.position = worldPosition;
 
-            Material mat = op switch
+            Material frame = op switch
             {
-                GateOp.Add => _addMat,
-                GateOp.Multiply => _multiplyMat,
-                _ => _subtractMat
+                GateOp.Add => _addFrame,
+                GateOp.Multiply => _multiplyFrame,
+                _ => _subtractFrame
             };
-            foreach (MeshRenderer r in _renderers) r.sharedMaterial = mat;
+            Material plate = op switch
+            {
+                GateOp.Add => _addPlate,
+                GateOp.Multiply => _multiplyPlate,
+                _ => _subtractPlate
+            };
+
+            // Renderers 0-2 are the bars; 3 is the infill plate that fills the aperture.
+            for (int i = 0; i < _renderers.Length; i++)
+                if (_renderers[i] != null)
+                    _renderers[i].sharedMaterial = i == 3 ? plate : frame;
 
             string symbol = op switch
             {

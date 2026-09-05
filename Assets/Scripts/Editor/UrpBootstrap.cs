@@ -99,7 +99,18 @@ namespace BattleRunner.Editor
             pipeline.supportsHDR = true;
             pipeline.msaaSampleCount = 4;
             pipeline.renderScale = 1f;
-            pipeline.shadowDistance = 45f;
+            // 45 m in ONE 1024 cascade is what erased the army. Unity wraps a single
+            // cascade in a sphere around the whole frustum: at a 60 deg vertical FOV and a
+            // 0.5625 portrait aspect that sphere is ~32 m in radius, so the shadow map
+            // covered ~65 m across = ~63 mm per texel. URP scales BOTH biases by the texel
+            // AND by the soft-shadow kernel radius, so m_ShadowNormalBias = 1.0 inset every
+            // caster face by ~158 mm — against a unit torso only 110 mm in half-depth. The
+            // box turned inside out and each body survived as a splinter a 5x5 PCF averaged
+            // away to nothing.
+            //
+            // 24 m covers the army comfortably (the camera sits 10 m back and the formation
+            // reaches ~3.7 m ahead of its centre) at ~17 mm per texel.
+            pipeline.shadowDistance = 24f;
 
             // Still off: nothing here samples scene depth or colour, and both cost a full
             // extra pass on mobile.
@@ -113,9 +124,9 @@ namespace BattleRunner.Editor
             changed |= SetBool(so, "m_MainLightShadowsSupported", true);
             changed |= SetInt(so, "m_MainLightRenderingMode", 1);      // PerPixel
             changed |= SetInt(so, "m_ShadowCascadeCount", 1);
-            changed |= SetInt(so, "m_MainLightShadowmapResolution", 1024);
-            changed |= SetFloat(so, "m_ShadowDepthBias", 1.0f);
-            changed |= SetFloat(so, "m_ShadowNormalBias", 1.0f);
+            changed |= SetInt(so, "m_MainLightShadowmapResolution", 2048);
+            changed |= SetFloat(so, "m_ShadowDepthBias", 0.6f);   // ~25 mm along the light
+            changed |= SetFloat(so, "m_ShadowNormalBias", 0.35f); // ~15 mm vs a 110 mm half-depth
             changed |= SetBool(so, "m_SoftShadowsSupported", true);
             so.ApplyModifiedPropertiesWithoutUndo();
 
