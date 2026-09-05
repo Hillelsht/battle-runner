@@ -41,6 +41,11 @@ hard-normal boxes, leaving the crowd 79-97% pure emission. Also: the army was dr
 four body-widths into itself, gates fell below URP's bloom knee so they never bloomed at
 all, and no content panel ever got a bronze frame because `AddFrame` had one caller.
 
+The art fixes took a third CI round trip on a stale local left behind by the gate
+material split (`CS0103`) — carelessness rather than an environment limit, since only
+`BattleRunner.Core` is mirrored into the local `dotnet` project and the Gameplay
+assembly's first compile is in CI.
+
 First device screenshots found two sky defects, both arithmetic: the ember glow's
 exponent of 6 gave a 27-degree half-angle against an 18-degree half-FOV, so it washed
 the whole sky red instead of sitting on the horizon (now 110), and the stars were
