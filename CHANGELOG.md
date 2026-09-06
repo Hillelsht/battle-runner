@@ -32,6 +32,13 @@ army stands on the road instead of hovering over it — and a procedural cobbled
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
 corner notches, a gradient backdrop and readable disabled states, across every screen.
+**Every talent capstone was off-screen.** Found in v0.6.0 device screenshots: the tree
+showed only three rows. `SkillTreeScreen` stepped rows 0, 2, 4, 6 — both arms of an
+if/else did `row++` and the body incremented again — so `RowY(6)` resolved to −0.115,
+below the bottom of the screen. Annihilation, Undying and Multiplication have been
+unreachable since the tree shipped, and the three visible rows sat at double spacing. The
+row is now simply the list index, and a test pins the branch shape the layout leans on.
+
 **Stage 3 — feel.** Every event looked identical before this: a x2 gate, a pack eating
 half the army and a boss blow all produced the same nothing. The camera now has a
 trauma-squared shake, a critically damped fov punch on a gain, a lane lean and a telegraph
@@ -46,7 +53,7 @@ The v0.4.0 screenshots confirmed the art pass landed — sky, stars, shadows, ro
 gates and UI frames all correct on device — and surfaced two bugs that were never about
 art: `Focus -0 %` on the menu and `+0.01 Focus` on the loot card. Both were units chosen
 from the ModifierKind rather than from the stat, plus a hard-coded minus sign in front of
-a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (140 -> 161 tests).
+a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (140 -> 162 tests).
 
 A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
 11 survived adversarial refutation. The headline three: the key light pointed the same way

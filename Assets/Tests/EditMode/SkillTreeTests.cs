@@ -110,6 +110,37 @@ namespace BattleRunner.Tests
         // --- What the tree is FOR -----------------------------------------------------
 
         [Test]
+        public void ABranchIsFourNodesInTierOrder()
+        {
+            // SkillTreeScreen lays the tree out by using the LIST INDEX as the row, which
+            // is only correct while every branch is exactly 1 + 2 exclusive + 1 capstone,
+            // sorted ascending by tier. The screen cannot be tested without an editor, so
+            // the invariant it leans on is pinned here.
+            //
+            // This matters because the layout got it wrong once already: a state machine
+            // stepped rows 0, 2, 4, 6, putting every capstone at an anchor of -0.115 —
+            // off the bottom of the screen and unreachable — for the whole life of the
+            // tree. A fifth node or an unsorted branch would break it the same way.
+            foreach (SkillBranch branch in new[]
+                     { SkillBranch.Warlord, SkillBranch.Warden, SkillBranch.Zealot })
+            {
+                List<SkillNode> nodes = SkillTree.Branch(branch);
+                Assert.AreEqual(4, nodes.Count, $"{branch} must be 1 + 2 exclusive + 1");
+
+                for (int i = 1; i < nodes.Count; i++)
+                    Assert.LessOrEqual(nodes[i - 1].Tier, nodes[i].Tier,
+                        $"{branch} is not sorted by tier; the screen would mis-row it");
+
+                Assert.AreEqual(1, nodes[0].Tier, $"{branch} must open on a tier-1 node");
+                Assert.AreEqual(2, nodes[1].Tier);
+                Assert.AreEqual(2, nodes[2].Tier, "the two exclusive nodes share a tier");
+                Assert.AreEqual(3, nodes[3].Tier, $"{branch} must end on its capstone");
+                Assert.AreEqual(nodes[1].Id, nodes[2].Excludes, "the fork must be mutual");
+                Assert.AreEqual(nodes[2].Id, nodes[1].Excludes);
+            }
+        }
+
+        [Test]
         public void EveryBranchPaysOffSomewhere()
         {
             foreach (SkillBranch branch in new[] { SkillBranch.Warlord, SkillBranch.Warden, SkillBranch.Zealot })

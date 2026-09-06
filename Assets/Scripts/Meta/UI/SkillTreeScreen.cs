@@ -88,17 +88,20 @@ namespace BattleRunner.Meta.UI
             for (int c = 0; c < Columns.Length; c++)
             {
                 List<SkillNode> nodes = SkillTree.Branch(Columns[c]);
-                int row = 0;
-                int lastTier = 0;
 
-                foreach (SkillNode node in nodes)
+                // One row per node, in tier order. SkillTree.Branch sorts by tier and every
+                // branch is exactly 1 + 2 exclusive + 1 capstone, so the list index IS the
+                // row — the two tier-2 nodes land on consecutive rows and the fork reads as
+                // a fork for free.
+                //
+                // This replaces a lastTier state machine whose two if/else arms BOTH did
+                // row++ and which then incremented again at the end of the body, stepping
+                // 0, 2, 4, 6. RowY(6) = 0.755 - 6*0.145 = -0.115, i.e. below the bottom of
+                // the screen: every capstone was rendered off-screen and unreachable, and
+                // the three visible rows sat at double the intended spacing.
+                for (int row = 0; row < nodes.Count; row++)
                 {
-                    // Two exclusive nodes share a tier and sit on consecutive rows, so the
-                    // fork is visible as a fork.
-                    if (node.Tier != lastTier && lastTier != 0) row++;
-                    else if (lastTier != 0) row++;
-                    lastTier = node.Tier;
-
+                    SkillNode node = nodes[row];
                     var widget = new NodeWidget { NodeId = node.Id };
                     string captured = node.Id;
                     Button button = UiFactory.ActionButton(root, $"Node_{node.Id}", string.Empty,
@@ -110,7 +113,6 @@ namespace BattleRunner.Meta.UI
                     widget.Label = button.GetComponentInChildren<Text>();
                     widget.Label.fontSize = 24;
                     _widgets.Add(widget);
-                    row++;
                 }
             }
 
