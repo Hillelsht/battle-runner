@@ -1,3 +1,4 @@
+using BattleRunner.Core.Feel;
 using BattleRunner.Core.Boss;
 using BattleRunner.Core.Flow;
 using BattleRunner.Core.Stats;
@@ -86,12 +87,15 @@ namespace BattleRunner.Gameplay.States
             // Attack cycle with telegraph — the shield-timing game.
             _attackTimer -= dt;
             float telegraph = 1f - Mathf.Clamp01(_attackTimer / _boss.TelegraphSeconds);
-            _ctx.BossView.SetTelegraph(_attackTimer <= _boss.TelegraphSeconds ? telegraph : 0f);
+            float wind = _attackTimer <= _boss.TelegraphSeconds ? telegraph : 0f;
+            _ctx.BossView.SetTelegraph(wind);
+            _ctx.CameraRig.SetTelegraph(wind);
 
             if (_attackTimer <= 0f)
             {
                 _attackTimer = _boss.AttackIntervalSeconds;
                 _ctx.BossView.SetTelegraph(0f);
+                _ctx.CameraRig.SetTelegraph(0f);
                 LandBossAttack();
             }
         }
@@ -105,6 +109,8 @@ namespace BattleRunner.Gameplay.States
             float spellPower = 1f + _ctx.CurrentStats.Get(StatIds.SpellPower);
             ApplyBossDamage(dps * _ctx.Config.Spells.BossDamageMultiplier * spellPower);
             _ctx.BossView.FlashHit();
+            _ctx.CameraRig.Apply(CameraFeel.Spell);
+            _ctx.CameraRig.PunchFov(2.2f);
         }
 
         private void ApplyBossDamage(float amount)
@@ -121,6 +127,8 @@ namespace BattleRunner.Gameplay.States
                 _ctx.LastResult.HeroStats.Get(BattleRunner.Core.Stats.StatIds.Health),
                 _ctx.Shield.IsActive);
 
+            bool blocked = _ctx.Shield.IsActive;
+
             if (after != before)
             {
                 _ctx.Run.ForceCount = after;
@@ -129,11 +137,21 @@ namespace BattleRunner.Gameplay.States
                 _ctx.Hud.SetForce(after);
             }
 
+            _ctx.CameraRig.Apply(CameraFeel.ForBossStrike(before, after, blocked));
+            // A blow the shield actually ate. Without this the player has no way to know
+            // their flick did anything — the army simply does not shrink, which is
+            // indistinguishable from the boss having missed.
+            if (blocked) _ctx.Ward.FlashBlock();
+
             if (after <= 0) OnCrowdWiped();
         }
 
         private void OnBossDefeated()
         {
+            _ctx.CameraRig.Apply(CameraFeel.BossDefeated);
+            _ctx.CameraRig.SetTelegraph(0f);
+            _ctx.Ward.Clear();
+
             _resolved = true;
             _ctx.Profile.UnspentStatPoints += _ctx.Config.Balance.StatPointsPerBossKill;
             _ctx.Machine.TransitionTo(_ctx.LootState);
@@ -141,6 +159,13 @@ namespace BattleRunner.Gameplay.States
 
         private void OnCrowdWiped()
         {
+            // Tick() stops here, so the ward would hang lit behind the resurrect
+            // modal. CancelActive drops the window WITHOUT refunding the cooldown —
+            // ResetForPhase would hand out a free shield on revive.
+            _ctx.Shield.CancelActive();
+            _ctx.Ward.Clear();
+            _ctx.CameraRig.SetTelegraph(0f);
+
             _awaitingPrompt = true;
             // Same reason as RunnerLoopState.OnForceDepleted: Tick() stops here, so a live
             // shield prompt would sit frozen behind the resurrect modal. This path was the

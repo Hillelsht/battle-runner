@@ -1,4 +1,5 @@
 using BattleRunner.Core.Flow;
+using BattleRunner.Core.Feel;
 using BattleRunner.Core.Run;
 using BattleRunner.Core.Stats;
 using BattleRunner.Meta.Services;
@@ -96,12 +97,18 @@ namespace BattleRunner.Gameplay.States
         private void OnGateApplied(GateOp op, int value)
         {
             RunState run = _ctx.Run;
+            long before = run.ForceCount;
             run.ForceCount = GateMath.ApplyGateWithYield(run.ForceCount, op, value,
                 _ctx.Config.Balance.SoftCap, _ctx.CurrentStats.Get(StatIds.GateYield), out long overflow);
             run.OverflowAccumulated += overflow;
             run.GatesHit++;
             _ctx.Crowd.SetForce(run.ForceCount);
             _ctx.Hud.SetForce(run.ForceCount);
+
+            // Scaled by the RATIO, so a x2 lands the same at 10 units and at 1000.
+            _ctx.CameraRig.Apply(CameraFeel.ForGate(op, before, run.ForceCount));
+            if (run.ForceCount > before)
+                _ctx.CameraRig.PunchFov(1.4f + 2.6f * CameraFeel.ForGate(op, before, run.ForceCount).Trauma);
 
             if (run.ForceCount <= 0) OnForceDepleted();
         }
@@ -114,9 +121,12 @@ namespace BattleRunner.Gameplay.States
             // Resist shrugs off part of the bite; capped so a pack always costs something.
             float resist = System.Math.Min(0.85f, _ctx.CurrentStats.Get(StatIds.EnemyResist));
             long bite = (long)System.Math.Ceiling(forceCost * (1.0 - resist));
+            long beforeBite = run.ForceCount;
             run.ForceCount = System.Math.Max(0L, run.ForceCount - bite);
             _ctx.Crowd.SetForce(run.ForceCount);
             _ctx.Hud.SetForce(run.ForceCount);
+
+            _ctx.CameraRig.Apply(CameraFeel.ForLoss(beforeBite, run.ForceCount));
 
             if (run.ForceCount <= 0) OnForceDepleted();
         }
@@ -127,6 +137,10 @@ namespace BattleRunner.Gameplay.States
             // Tick() stops here, so a live coaching prompt would sit frozen behind the
             // resurrect modal. Drop it; an un-taught step re-arms if the player revives.
             _ctx.Tutorial.EndPhase();
+            // Same reason for the ward: CancelActive drops the block window without
+            // refunding the cooldown, which ResetForPhase would.
+            _ctx.Shield.CancelActive();
+            _ctx.Ward.Clear();
             _ctx.Resurrect.Show(
                 _ctx.Ads.IsRewardedReady(AdPlacement.Resurrect),
                 onResurrect: () =>

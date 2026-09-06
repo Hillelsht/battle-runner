@@ -95,9 +95,21 @@ namespace BattleRunner.Gameplay.Track
             _markingMaterial.SetColorSafe("_EmissionColor", new Color(0.30f, 0.34f, 0.45f));
             _markingMaterial.SetFloatSafe("_BobAmount", 0f);
 
+            // The rails were reading as lit blue plastic rather than as stone kerbs.
+            // They are ~83% pure emission: the shader's flat term applies to every pixel
+            // regardless of angle, and the wide default rim lobe floods their grazing side
+            // faces on top of it. Now bloom is on, that all became light.
+            //
+            // The emission is cut and the flat term nearly removed, but NOT to zero — the
+            // rails are the player's peripheral cue for where the road ends, so they have
+            // to stay visible. A tight rim keeps a bright edge on the silhouette while the
+            // faces go dark, which is what a stone kerb catching moonlight looks like.
             _railMaterial = ShaderSafety.CreateMaterial(baseMaterial);
-            _railMaterial.SetColorSafe("_BaseColor", new Color(0.12f, 0.14f, 0.26f));
-            _railMaterial.SetColorSafe("_EmissionColor", new Color(0.25f, 0.30f, 0.55f));
+            _railMaterial.SetColorSafe("_BaseColor", new Color(0.26f, 0.27f, 0.33f));
+            _railMaterial.SetColorSafe("_EmissionColor", new Color(0.30f, 0.36f, 0.58f));
+            _railMaterial.SetFloatSafe("_RimPower", 5f);
+            _railMaterial.SetFloatSafe("_RimStrength", 0.7f);
+            _railMaterial.SetFloatSafe("_EmissionFlat", 0.02f);
             _railMaterial.SetFloatSafe("_BobAmount", 0f);
         }
 

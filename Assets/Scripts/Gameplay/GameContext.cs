@@ -42,6 +42,7 @@ namespace BattleRunner.Gameplay
         public TrackController TrackController;
         public BossView BossView;
         public CameraRig CameraRig;
+        public Vfx.ShieldWard Ward;
         public SpellSystem Spell;
         public ShieldSystem Shield;
 

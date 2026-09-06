@@ -32,11 +32,21 @@ army stands on the road instead of hovering over it — and a procedural cobbled
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
 corner notches, a gradient backdrop and readable disabled states, across every screen.
+**Stage 3 — feel.** Every event looked identical before this: a x2 gate, a pack eating
+half the army and a boss blow all produced the same nothing. The camera now has a
+trauma-squared shake, a critically damped fov punch on a gain, a lane lean and a telegraph
+lean-in — all scaled by the RATIO of what changed, so a doubling feels the same at 10
+units as at 1000 (engine-free in `Core/Feel`, unit-tested). The shield finally has
+feedback: it was a timing mechanic played completely blind, and the block window now wards
+the army's own emission with a near-white spike on a blow it actually eats. The boss flash
+drives the shader's view-independent flat term, without which it arrived at 15% strength
+and was lost. Rails were ~83% pure emission and read as lit plastic.
+
 The v0.4.0 screenshots confirmed the art pass landed — sky, stars, shadows, road, army,
 gates and UI frames all correct on device — and surfaced two bugs that were never about
 art: `Focus -0 %` on the menu and `+0.01 Focus` on the loot card. Both were units chosen
 from the ModifierKind rather than from the stat, plus a hard-coded minus sign in front of
-a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (140 -> 154 tests).
+a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (140 -> 161 tests).
 
 A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
 11 survived adversarial refutation. The headline three: the key light pointed the same way

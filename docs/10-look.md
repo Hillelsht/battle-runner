@@ -216,6 +216,53 @@ the `.cs` files under each asmdef and asserts the asmdef declares the assembly p
 them. It runs in the pre-push hook and in CI, takes about a second, and was verified by
 reverting the fix and confirming it reproduces both original errors.
 
+## Feel: the camera and the block window
+
+Every event in the game used to look identical. A x2 gate, a pack eating half the army
+and a boss blow all produced the same nothing.
+
+**Impulse size is a RATIO, not a difference.** `Core/Feel/CameraFeel.cs` is engine-free
+and unit-tested for exactly that reason: force is unbounded, so a `+5` gate is enormous at
+10 units and meaningless at 1000. Magnitude is measured in octaves — one doubling is half
+strength, two is full — so `10 -> 20` lands exactly as hard as `1000 -> 2000`, and a test
+pins it. Nothing may saturate the shake pool on its own, or every event would feel the
+same again from the other direction.
+
+**The rig keeps its own base pose** and writes the juiced pose to the transform. The old
+code lerped `transform.position` toward the target *from `transform.position` itself*, so
+any offset written in became the next frame's input — the shake would fold into the
+smoothing and the camera would chase its own noise. Shake amplitude is trauma **squared**,
+which is what separates a shake from a jitter.
+
+Shake moves world **x and y only, never z**: the despawn plane is derived from
+`SetbackMeters` as a constant, so inventing world-z motion would let a gate pop out of
+existence in front of the player. Most of the shake therefore lives in *rotation*, which
+moves the position by nothing at all. The follow is now frame-rate independent
+(`1 - exp(-rate·dt)`), where the old `Lerp(a, b, dt * 5f)` travelled further per second on
+a slow device than on a fast one.
+
+**The shield had no feedback whatsoever.** You flicked down and nothing on screen changed,
+so there was no way to learn the flick had registered, and no way to see the window close —
+a pure timing mechanic played blind. `ShieldWard` recolours the crowd's *own* emission
+rather than drawing a dome: this project ships exactly three shaders and all are opaque, so
+a translucent shell would need a fourth in `Resources` — the shader-stripping path that
+shipped v0.1.0 as solid magenta. It costs no new mesh, material, shader or draw call. It
+lights the **silhouette** rather than filling the bodies, because the army has to stay
+readable while you are still steering through it. A blow the shield actually eats spikes
+it near-white.
+
+**The boss flash needed the flat term, not the colour.** `CrowdInstanced` adds
+`_EmissionColor * (rim * _RimStrength + _EmissionFlat)`, and the boss's camera-facing slab
+has `rim ≈ 0` — so raising the emission colour alone arrived at 15% strength and vanished.
+Driving the view-independent flat term is what makes the hit land. The scale dip went from
+0.96 to 0.90 because 0.96 was a 0.23-unit flinch on a 5.7-unit figure, recovered in about
+two frames: invisible.
+
+The rails were **~83% pure emission** — the flat term applies at every angle, and the wide
+default rim lobe flooded their grazing faces on top of it, which bloom then turned into
+light. Cut, but deliberately not to zero: they are the peripheral cue for where the road
+ends. A tight rim keeps a bright edge on the silhouette while the faces go dark.
+
 ## Deliberately not done yet
 
 Gates as real portals, camera juice and VFX. That is stage 3.

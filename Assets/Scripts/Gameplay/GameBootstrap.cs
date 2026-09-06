@@ -171,6 +171,16 @@ namespace BattleRunner.Gameplay
             ctx.Spell = new SpellSystem(ctx.Config.Spells);
             ctx.Shield = new ShieldSystem(ctx.Config.Spells);
 
+            // AFTER ctx.Shield exists — the ward holds a reference to it, and the systems
+            // are built at the bottom of this method while the camera is built above.
+            //
+            // The block window had no visual at all: the player flicked down and nothing
+            // on screen changed, so there was no way to learn the flick had registered.
+            // The ward recolours the army's own emission, so it costs no new mesh,
+            // material, shader or draw call — and adds no shader-stripping risk.
+            ctx.Ward = cameraGo.AddComponent<Vfx.ShieldWard>();
+            ctx.Ward.Initialize(ctx.Shield, crowdMaterial, heroMaterial);
+
             ctx.ArenaRoot.SetActive(false);
         }
 
