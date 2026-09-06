@@ -232,12 +232,29 @@ namespace BattleRunner.Data.Definitions
                     });
                 }
 
-                // Enemy pressure in the middle lane, scaling with progress.
+                // Enemy pressure stays in lane 0, and that is deliberate: the FTUE's whole
+                // justification is that a player who never learns to steer takes only the
+                // lane-0 gates and is bled to zero by these packs at 16.7 s. Moving them
+                // out of lane 0 would make every pack dodgeable by standing still.
+                //
+                // What had to move is the POSITION. At a flat 20 m the pack sat 8 m from
+                // the lane-0 gate in two chunks out of every three — gate A holds lane 0
+                // when c%3==1, gate B when c%3==0 — and two world-space labels 8 m apart
+                // in one lane land less than half a glyph apart on screen. That is the
+                // "+5" printed over "-5" and "+9" over "-9" seen on device. No pair of
+                // label heights fixes it: the gate is nearer in one case and farther in
+                // the other, which want opposite offsets. Standing 20 m clear does.
                 if (c > 0)
                 {
+                    float packPosition = (c % 3) switch
+                    {
+                        0 => 8f,   // lane-0 gate is B at 28 — sit 20 m ahead of it
+                        1 => 32f,  // lane-0 gate is A at 12 — sit 20 m behind it
+                        _ => 20f   // no add gate is on lane 0 this chunk
+                    };
                     enemies.Add(new ChunkDefinition.EnemySpec
                     {
-                        ForceCost = 3 + levelIndex * 2 + c * 2, Lane = 0, Position = 20f
+                        ForceCost = 3 + levelIndex * 2 + c * 2, Lane = 0, Position = packPosition
                     });
                 }
 

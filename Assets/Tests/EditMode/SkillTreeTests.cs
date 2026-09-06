@@ -151,6 +151,48 @@ namespace BattleRunner.Tests
         }
 
         [Test]
+        public void SpellPowerTalentsActuallyRaiseSpellPower()
+        {
+            // Shipped completely inert. StatSheet resolves
+            //     final = (base + flat) * (1 + percent)
+            // and SpellPower's base is 0, so a Percent modifier multiplied zero: both
+            // Executioner ("+40% spell damage") and Annihilation ("+50%") granted nothing,
+            // and BossEncounterState's spellPower was permanently 1.0. Players were
+            // spending points on dead nodes.
+            var baseStats = new Dictionary<string, float> { [StatIds.SpellPower] = 0f };
+
+            StatSheet executioner = StatSheet.Resolve(
+                baseStats, SkillTree.ModifiersFor(Taken("wl_edge", "wl_execute")));
+            Assert.AreEqual(0.40f, executioner.Get(StatIds.SpellPower), 1e-4f,
+                "Executioner's +40% spell damage must reach the sheet");
+
+            // Pins the composition this fix chooses: the two nodes ADD to 0.90 (a 1.9x
+            // spell), matching how the Zealot branch stacks gate yield, rather than
+            // compounding to 2.1x.
+            StatSheet full = StatSheet.Resolve(
+                baseStats, SkillTree.ModifiersFor(Taken("wl_edge", "wl_execute", "wl_annihilate")));
+            Assert.AreEqual(0.90f, full.Get(StatIds.SpellPower), 1e-4f);
+        }
+
+        [Test]
+        public void NoTalentMultipliesAStatWhoseBaseIsZero()
+        {
+            // The general form of the bug above. A Percent modifier on a stat that starts
+            // at zero can never do anything, so no talent may grant one.
+            var zeroBased = new HashSet<string>
+            {
+                StatIds.SpellPower, StatIds.GateYield, StatIds.RunSpeed,
+                StatIds.EnemyResist, StatIds.Fortune, StatIds.Cooldown
+            };
+
+            foreach (SkillNode node in SkillTree.Nodes)
+                foreach (StatModifier m in node.Modifiers)
+                    if (m.Kind == ModifierKind.Percent && zeroBased.Contains(m.StatId))
+                        Assert.Fail($"{node.Id} grants Percent {m.StatId}, whose base is 0 — " +
+                                    "it would multiply zero and grant nothing. Use Flat.");
+        }
+
+        [Test]
         public void PointsSpentCountsOnlyRealNodes()
         {
             Assert.AreEqual(0, SkillTree.PointsSpent(new List<string>()));

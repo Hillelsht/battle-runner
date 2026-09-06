@@ -56,6 +56,12 @@ namespace BattleRunner.Core.Progression
         private static readonly SkillNode[] NodeTable =
         {
             // --- Warlord: damage and spell, the boss killer -------------------------
+            //
+            // SpellPower is granted FLAT, not Percent, and that is load-bearing. StatSheet
+            // resolves final = (base + flat) * (1 + percent), and SpellPower's base is 0 —
+            // so a Percent modifier multiplied zero and both spell talents were completely
+            // inert. Every other fraction-valued stat in the tree is granted Flat for the
+            // same reason; SpellPower was the lone exception.
             new SkillNode("wl_edge", SkillBranch.Warlord, 1, "Keen Edge",
                 "+4 Might", null,
                 new StatModifier(StatIds.Damage, ModifierKind.Flat, 4f)),
@@ -64,11 +70,11 @@ namespace BattleRunner.Core.Progression
                 new StatModifier(StatIds.Damage, ModifierKind.Percent, 0.15f)),
             new SkillNode("wl_execute", SkillBranch.Warlord, 2, "Executioner",
                 "+40% spell damage", "wl_cleave",
-                new StatModifier(StatIds.SpellPower, ModifierKind.Percent, 0.40f)),
+                new StatModifier(StatIds.SpellPower, ModifierKind.Flat, 0.40f)),
             new SkillNode("wl_annihilate", SkillBranch.Warlord, 3, "Annihilation",
                 "+25% Might, +50% spell damage", null,
                 new StatModifier(StatIds.Damage, ModifierKind.Percent, 0.25f),
-                new StatModifier(StatIds.SpellPower, ModifierKind.Percent, 0.50f)),
+                new StatModifier(StatIds.SpellPower, ModifierKind.Flat, 0.50f)),
 
             // --- Warden: staying alive on the road -----------------------------------
             new SkillNode("wd_hide", SkillBranch.Warden, 1, "Thick Hide",
