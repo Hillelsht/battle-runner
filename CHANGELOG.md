@@ -17,7 +17,7 @@ points → save → next level.
 | Game loop | Complete end to end |
 | Content | 5 levels, 2 bosses, 15 gear items, 4 rarities, 12 talents |
 | Art | Greybox — procedural meshes, code-built uGUI, no imported assets |
-| Tests | 140, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 148, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
@@ -32,6 +32,12 @@ army stands on the road instead of hovering over it — and a procedural cobbled
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
 corner notches, a gradient backdrop and readable disabled states, across every screen.
+The v0.4.0 screenshots confirmed the art pass landed — sky, stars, shadows, road, army,
+gates and UI frames all correct on device — and surfaced two bugs that were never about
+art: `Focus -0 %` on the menu and `+0.01 Focus` on the loot card. Both were units chosen
+from the ModifierKind rather than from the stat, plus a hard-coded minus sign in front of
+a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (140 -> 148 tests).
+
 A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
 11 survived adversarial refutation. The headline three: the key light pointed the same way
 the camera looks, so every shadow was cast behind its own caster and fully self-occluded;

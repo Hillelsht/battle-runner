@@ -57,48 +57,49 @@ namespace BattleRunner.Meta.Services
                 return "—";
             }
 
+            // Every stat now goes through StatFormat, which knows which ids are fractions.
+            // The hand-rolled version carried that knowledge in two places with two
+            // different rules, and printed a base Cooldown of zero as "Focus -0 %" from a
+            // hard-coded minus sign.
             var runLine = new List<string>();
-            void Note(string statId, string label, bool percent)
+            void Note(string statId)
             {
                 float v = stats.Get(statId);
-                if (v > 0.0001f) runLine.Add(percent ? $"{label} +{v:P0}" : $"{label} +{v:0.#}");
+                if (v > 0.0001f) runLine.Add(StatFormat.Total(statId, v));
             }
-            Note(StatIds.GateYield, "Gates", true);
-            Note(StatIds.RunSpeed, "Speed", true);
-            Note(StatIds.EnemyResist, "Resist", true);
-            Note(StatIds.SpellPower, "Spell", true);
-            Note(StatIds.Fortune, "Fortune", true);
-            Note(StatIds.ShieldDuration, "Shield", false);
+            Note(StatIds.GateYield);
+            Note(StatIds.RunSpeed);
+            Note(StatIds.EnemyResist);
+            Note(StatIds.SpellPower);
+            Note(StatIds.Fortune);
+            Note(StatIds.ShieldDuration);
 
             string second = runLine.Count > 0 ? string.Join("   ", runLine) + "\n" : string.Empty;
-            return $"Might {stats.Get(StatIds.Damage):0.#}   Vigor {stats.Get(StatIds.Health):0.#}   " +
-                   $"Focus -{stats.Get(StatIds.Cooldown):P0}\n" + second +
-                   $"{GearLine(GearSlot.Weapon)}  |  {GearLine(GearSlot.Armor)}  |  {GearLine(GearSlot.Relic)}";
+
+            // The gear row used to be three bare em-dashes when nothing was equipped:
+            // "—  |  —  |  —" under the stats, which reads as a rendering fault rather
+            // than as three empty slots. Name it.
+            string gear = $"{GearLine(GearSlot.Weapon)}  |  {GearLine(GearSlot.Armor)}  |  " +
+                          $"{GearLine(GearSlot.Relic)}";
+            if (gear.Replace("—", string.Empty).Replace("|", string.Empty).Trim().Length == 0)
+                gear = "no gear yet";
+
+            return $"{StatFormat.Total(StatIds.Damage, stats.Get(StatIds.Damage))}   " +
+                   $"{StatFormat.Total(StatIds.Health, stats.Get(StatIds.Health))}   " +
+                   $"{StatFormat.Total(StatIds.Cooldown, stats.Get(StatIds.Cooldown))}\n" +
+                   second + gear;
         }
 
         public static string DescribeModifiers(GearItemDefinition def)
         {
             if (def.Modifiers == null || def.Modifiers.Length == 0) return "No bonuses";
+            // Units come from the STAT, never from the ModifierKind. Kind says how a
+            // modifier composes — added into the base, or multiplied over the total — and
+            // nothing about units. Choosing units by kind is what printed the Ember
+            // Talisman's flat 0.01 Cooldown affix as "+0.01 Focus" instead of "+1% Focus".
             var lines = new List<string>();
             foreach (StatModifier m in def.Modifiers)
-            {
-                string statName = m.StatId switch
-                {
-                    StatIds.Damage => "Might",
-                    StatIds.Health => "Vigor",
-                    StatIds.Cooldown => "Focus",
-                    StatIds.SpellPower => "Spell",
-                    StatIds.GateYield => "Gates",
-                    StatIds.RunSpeed => "Speed",
-                    StatIds.EnemyResist => "Resist",
-                    StatIds.ShieldDuration => "Shield",
-                    StatIds.Fortune => "Fortune",
-                    _ => m.StatId
-                };
-                lines.Add(m.Kind == ModifierKind.Flat
-                    ? $"+{m.Value:0.##} {statName}"
-                    : $"+{m.Value:P0} {statName}");
-            }
+                lines.Add(StatFormat.Affix(m.StatId, m.Value));
             return string.Join("\n", lines);
         }
     }

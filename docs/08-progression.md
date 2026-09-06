@@ -42,6 +42,25 @@ Talents emit `StatModifier`s into the same `StatSheet.Resolve` path gear uses, s
 and an affix stack exactly as two affixes do. There is no second set of rules to keep in
 step, which is the whole reason to route them through one pipe.
 
+## How a stat reads
+
+`Core/Stats/StatFormat.cs` is the single place that decides units, because the first
+version decided them in two places with two different rules and shipped both wrong.
+
+**Percent-ness is a property of the STAT, not of the ModifierKind.** `ModifierKind.Flat`
+vs `Percent` says how a modifier *composes* — added into the base, or multiplied over the
+total — and says nothing about units. `Cooldown`, `GateYield`, `RunSpeed`, `EnemyResist`,
+`SpellPower` and `Fortune` are stored as fractions of 1, so a **flat** modifier of `0.01`
+on Cooldown means one percent. Choosing units by the kind printed the Ember Talisman's
+affix as `+0.01 Focus` on the loot card. `ShieldDuration` is the one run-axis stat that is
+genuinely absolute — the docs on `StatIds` call it "extra seconds" — and a test pins that.
+
+Zero is also collapsed onto *positive* zero before formatting. .NET renders negative zero
+as `-0`, and a hard-coded minus in front of a base Cooldown of 0 produced `Focus -0 %` on
+the main menu.
+
+Both bugs were found from device screenshots, not from tests, and both now have tests.
+
 ## Taking it back
 
 Every choice is reversible, free and unlimited. A learned talent is still a live button:
