@@ -65,7 +65,10 @@ namespace BattleRunner.Meta.Services
             void Note(string statId)
             {
                 float v = stats.Get(statId);
-                if (v > 0.0001f) runLine.Add(StatFormat.Total(statId, v));
+                // ShowsAsNonZero shares the formatter's own epsilon, so this gate cannot
+                // drift from what Total() prints and let a "Gates 0%" through.
+                if (v > 0f && StatFormat.ShowsAsNonZero(statId, v))
+                    runLine.Add(StatFormat.Total(statId, v));
             }
             Note(StatIds.GateYield);
             Note(StatIds.RunSpeed);
@@ -99,7 +102,7 @@ namespace BattleRunner.Meta.Services
             // Talisman's flat 0.01 Cooldown affix as "+0.01 Focus" instead of "+1% Focus".
             var lines = new List<string>();
             foreach (StatModifier m in def.Modifiers)
-                lines.Add(StatFormat.Affix(m.StatId, m.Value));
+                lines.Add(StatFormat.Affix(m));
             return string.Join("\n", lines);
         }
     }

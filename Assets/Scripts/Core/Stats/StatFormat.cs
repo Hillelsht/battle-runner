@@ -50,19 +50,51 @@ namespace BattleRunner.Core.Stats
             return statId ?? "?";
         }
 
-        /// <summary>An item's bonus line: "+2 Might", "+1% Focus".</summary>
-        public static string Affix(string statId, float value)
+        /// <summary>
+        /// An item's bonus line: "+2 Might", "+5% Might", "+1% Focus".
+        ///
+        /// There are TWO independent reasons to print a percentage, and getting only one
+        /// of them right is how both shipped bugs happened:
+        ///
+        ///   1. the STAT is stored as a fraction of 1 — a flat 0.01 on Cooldown is 1%
+        ///   2. the MODIFIER is <see cref="ModifierKind.Percent"/>, which scales the
+        ///      resolved total (StatSheet: <c>final = (base + flat) * (1 + pct)</c>) and
+        ///      is therefore a percentage whatever units the stat itself carries
+        ///
+        /// A plain number is correct only when BOTH are absent. Formatting by kind alone
+        /// printed "+0.01 Focus"; formatting by stat alone printed "+0.05 Might" for the
+        /// seven items whose affix is Percent on an absolute stat. The kind is required
+        /// rather than defaulted so neither half can be forgotten at a call site.
+        /// </summary>
+        public static string Affix(string statId, ModifierKind kind, float value)
         {
             string name = DisplayName(statId);
-            if (!IsFraction(statId))
+
+            if (kind == ModifierKind.Percent || IsFraction(statId))
             {
-                float flat = Snap(value, 0.005f);
-                return $"{(flat < 0f ? "-" : "+")}{Math.Abs(flat):0.##} {name}";
+                // A Percent modifier is already a fraction of the total; a fraction-valued
+                // stat is already a fraction of 1. Either way, x100 is the display.
+                float percent = Snap(value * 100f, 0.05f);
+                return $"{(percent < 0f ? "-" : "+")}{Math.Abs(percent):0.#}% {name}";
             }
 
-            float percent = Snap(value * 100f, 0.05f);
-            return $"{(percent < 0f ? "-" : "+")}{Math.Abs(percent):0.#}% {name}";
+            float flat = Snap(value, 0.005f);
+            return $"{(flat < 0f ? "-" : "+")}{Math.Abs(flat):0.##} {name}";
         }
+
+        /// <summary>Convenience overload — the modifier already carries both halves.</summary>
+        public static string Affix(StatModifier modifier) =>
+            Affix(modifier.StatId, modifier.Kind, modifier.Value);
+
+        /// <summary>
+        /// True when a value renders as something other than zero.
+        ///
+        /// Shares Snap's epsilon so a caller's visibility test can never drift from what
+        /// <see cref="Total"/> actually prints — a hand-written gate of 0.0001f would let
+        /// a GateYield of 0.0002 through to render as "Gates 0%".
+        /// </summary>
+        public static bool ShowsAsNonZero(string statId, float value) =>
+            Math.Abs(IsFraction(statId) ? value * 100f : value) >= 0.05f;
 
         /// <summary>A resolved total: "Might 10", "Focus 12%".</summary>
         public static string Total(string statId, float value)

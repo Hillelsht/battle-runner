@@ -47,13 +47,32 @@ step, which is the whole reason to route them through one pipe.
 `Core/Stats/StatFormat.cs` is the single place that decides units, because the first
 version decided them in two places with two different rules and shipped both wrong.
 
-**Percent-ness is a property of the STAT, not of the ModifierKind.** `ModifierKind.Flat`
-vs `Percent` says how a modifier *composes* — added into the base, or multiplied over the
-total — and says nothing about units. `Cooldown`, `GateYield`, `RunSpeed`, `EnemyResist`,
-`SpellPower` and `Fortune` are stored as fractions of 1, so a **flat** modifier of `0.01`
-on Cooldown means one percent. Choosing units by the kind printed the Ember Talisman's
-affix as `+0.01 Focus` on the loot card. `ShieldDuration` is the one run-axis stat that is
-genuinely absolute — the docs on `StatIds` call it "extra seconds" — and a test pins that.
+There are **two independent reasons** to print a percentage, and getting one right while
+getting the other wrong is how this broke twice, in opposite directions:
+
+| stat is a fraction | kind is `Percent` | correct | broken by |
+|---|---|---|---|
+| no | no | `+2 Might` | — |
+| no | **yes** | `+5% Might` | choosing units by the **stat** alone |
+| **yes** | no | `+1% Focus` | choosing units by the **kind** alone |
+| **yes** | **yes** | `+15% Focus` | — |
+
+`ModifierKind.Flat` vs `Percent` says how a modifier *composes* — added into the base, or
+multiplied over the total (`final = (base + flat) × (1 + pct)`) — so a `Percent` modifier
+is a percentage whatever units the stat carries. Separately, `Cooldown`, `GateYield`,
+`RunSpeed`, `EnemyResist`, `SpellPower` and `Fortune` are stored as fractions of 1, so a
+**flat** `0.01` on Cooldown is one percent. **A plain number is correct only when both are
+absent**, which is why `Affix` requires the kind rather than defaulting it.
+
+Choosing by kind alone printed the Ember Talisman as `+0.01 Focus`. Choosing by stat alone
+printed seven of the fifteen shipped items — every Percent affix on Might or Vigor — as
+`+0.05 Might`. `ShieldDuration` is the one run-axis stat that is genuinely absolute; the
+docs on `StatIds` call it "extra seconds", and a test pins it.
+
+`Cooldown` is also stored **positive** as a reduction (both `SpellSystem` and
+`ShieldSystem` compute `1 − min(0.6, Cooldown)`), so higher is better and it must never
+print with a leading minus — the old line rendered a 12% bonus as `Focus -12 %`, reading
+as a penalty.
 
 Zero is also collapsed onto *positive* zero before formatting. .NET renders negative zero
 as `-0`, and a hard-coded minus in front of a base Cooldown of 0 produced `Focus -0 %` on
