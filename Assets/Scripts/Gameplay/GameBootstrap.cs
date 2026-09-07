@@ -155,6 +155,11 @@ namespace BattleRunner.Gameplay
             crowdMaterial.SetFloatSafe("_RimStrength", 0.6f);
             crowdMaterial.SetFloatSafe("_RimUpMask", 1f);
             crowdMaterial.SetFloatSafe("_EmissionFlat", 0.03f);
+            // The CROWD only. Everything else on this shader — gates, rails, road markings,
+            // the finish line, the boss, the hero — sits far outside the 0.44-0.50 instance
+            // scale the phase is decoded from, so their phase pins to 1.0 and they would all
+            // silently brighten by 30% if this were on the shared material.
+            crowdMaterial.SetFloatSafe("_ToneSpread", 1f);
 
             var crowdGo = new GameObject("Crowd");
             crowdGo.transform.SetParent(ctx.ArenaRoot.transform, false);

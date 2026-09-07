@@ -82,21 +82,107 @@ namespace BattleRunner.Gameplay
             }
         }
 
-        private static Mesh BuildUnit()
+        /// <summary>
+        /// The four kinds of soldier in the army. Four meshes means four instanced draw
+        /// calls instead of one — still nothing on any GPU — and it is the difference
+        /// between an army and a photocopy. The two that carry something ABOVE the head
+        /// (spear, banner) are doing most of the work: at 0.47 scale and 26 m a unit is
+        /// about ten pixels tall, so anything at chest height is invisible and only what
+        /// breaks the skyline reads.
+        /// </summary>
+        public enum SoldierKind { Spear = 0, Shield = 1, Axe = 2, Banner = 3 }
+
+        public const int SoldierKindCount = 4;
+
+        private static readonly Mesh[] _soldiers = new Mesh[SoldierKindCount];
+
+        public static Mesh Soldier(SoldierKind kind)
         {
-            var vertices = new List<Vector3>();
-            var triangles = new List<int>();
-
-            // Torso: tapered box, feet at y=0.
-            AddBox(vertices, triangles, new Vector3(0f, 0.34f, 0f), new Vector3(0.34f, 0.68f, 0.22f));
-            // Head.
-            AddBox(vertices, triangles, new Vector3(0f, 0.84f, 0f), new Vector3(0.22f, 0.22f, 0.2f));
-            // Shoulder pauldrons — the dark-fantasy silhouette.
-            AddBox(vertices, triangles, new Vector3(-0.24f, 0.62f, 0f), new Vector3(0.12f, 0.12f, 0.2f));
-            AddBox(vertices, triangles, new Vector3(0.24f, 0.62f, 0f), new Vector3(0.12f, 0.12f, 0.2f));
-
-            return Finish(vertices, triangles, "UnitGreybox");
+            int i = (int)kind;
+            if (_soldiers[i] == null) _soldiers[i] = BuildSoldier(kind);
+            return _soldiers[i];
         }
+
+        /// <summary>
+        /// The old unit mesh read as a CROSS, and the geometry says why: a 0.34-wide torso
+        /// with pauldrons jutting to +/-0.24 at head height, and no legs at all — a single
+        /// box from the ground to the shoulders. That is a plus sign with a head on it.
+        ///
+        /// The rebuild fixes both halves. Legs are separated with a real gap between them,
+        /// which is the single strongest cue that a silhouette is a person; and the
+        /// pauldrons come in to +/-0.19 and drop to shoulder height so the outline tapers
+        /// from a wide base to a narrow head instead of spreading into a T.
+        ///
+        /// The hip line at y = 0.30 is load-bearing: CrowdInstanced swings everything below
+        /// it about that pivot to make the march cycle, so every archetype must keep its
+        /// legs under it and its body above it.
+        /// </summary>
+        private static Mesh BuildSoldier(SoldierKind kind)
+        {
+            var v = new List<Vector3>();
+            var t = new List<int>();
+
+            // Legs. Offset in x on purpose — the shader picks which limb swings forward
+            // from sign(x), so anything centred on the midline stays still.
+            AddPrism(v, t, new Vector3(-0.105f, 0f, 0f), new Vector2(0.13f, 0.17f),
+                           new Vector3(-0.09f, 0.32f, 0f), new Vector2(0.14f, 0.18f));
+            AddPrism(v, t, new Vector3(0.105f, 0f, 0f), new Vector2(0.13f, 0.17f),
+                           new Vector3(0.09f, 0.32f, 0f), new Vector2(0.14f, 0.18f));
+
+            // Torso: narrow at the waist, wide at the chest, leaning very slightly forward.
+            AddPrism(v, t, new Vector3(0f, 0.28f, 0.01f), new Vector2(0.24f, 0.19f),
+                           new Vector3(0f, 0.66f, -0.01f), new Vector2(0.32f, 0.22f));
+
+            // Pauldrons: IN to 0.19 and down to the shoulder line. This is the single number
+            // that was making a cross out of a soldier.
+            AddPrism(v, t, new Vector3(-0.19f, 0.56f, 0f), new Vector2(0.13f, 0.19f),
+                           new Vector3(-0.20f, 0.68f, 0f), new Vector2(0.10f, 0.15f));
+            AddPrism(v, t, new Vector3(0.19f, 0.56f, 0f), new Vector2(0.13f, 0.19f),
+                           new Vector3(0.20f, 0.68f, 0f), new Vector2(0.10f, 0.15f));
+
+            // Head and helmet crest — the crest gives the skyline a point rather than a flat top.
+            AddPrism(v, t, new Vector3(0f, 0.68f, -0.01f), new Vector2(0.17f, 0.17f),
+                           new Vector3(0f, 0.84f, -0.01f), new Vector2(0.15f, 0.15f));
+            AddPrism(v, t, new Vector3(0f, 0.83f, -0.01f), new Vector2(0.09f, 0.13f),
+                           new Vector3(0f, 0.93f, 0.01f), new Vector2(0.03f, 0.06f));
+
+            switch (kind)
+            {
+                case SoldierKind.Spear:
+                    // Tall and thin, well clear of the helmet: the one shape that survives
+                    // being ten pixels tall, because it breaks the skyline.
+                    AddOrientedBox(v, t, new Vector3(0.23f, 0.62f, 0.02f),
+                        new Vector3(0.035f, 1.05f, 0.035f), Quaternion.Euler(0f, 0f, -9f));
+                    AddOrientedBox(v, t, new Vector3(0.31f, 1.12f, 0.02f),
+                        new Vector3(0.06f, 0.16f, 0.03f), Quaternion.Euler(0f, 0f, -9f));
+                    break;
+
+                case SoldierKind.Shield:
+                    AddOrientedBox(v, t, new Vector3(-0.25f, 0.44f, -0.09f),
+                        new Vector3(0.21f, 0.30f, 0.05f), Quaternion.Euler(0f, 14f, 4f));
+                    break;
+
+                case SoldierKind.Axe:
+                    AddOrientedBox(v, t, new Vector3(0.24f, 0.50f, 0.02f),
+                        new Vector3(0.035f, 0.62f, 0.035f), Quaternion.Euler(0f, 0f, -14f));
+                    AddOrientedBox(v, t, new Vector3(0.32f, 0.78f, 0.02f),
+                        new Vector3(0.20f, 0.18f, 0.04f), Quaternion.Euler(0f, 0f, -14f));
+                    break;
+
+                case SoldierKind.Banner:
+                    // Banners over a crowd is the oldest army silhouette there is, and it is
+                    // the only element here tall enough to read across the whole formation.
+                    AddOrientedBox(v, t, new Vector3(0.20f, 0.78f, 0.02f),
+                        new Vector3(0.035f, 1.35f, 0.035f), Quaternion.Euler(0f, 0f, -5f));
+                    AddOrientedBox(v, t, new Vector3(0.29f, 1.24f, 0.02f),
+                        new Vector3(0.24f, 0.30f, 0.02f), Quaternion.Euler(0f, 0f, -5f));
+                    break;
+            }
+
+            return Finish(v, t, $"Soldier{kind}");
+        }
+
+        private static Mesh BuildUnit() => BuildSoldier(SoldierKind.Spear);
 
         /// <summary>
         /// The boss, ~1.11 units tall so BossView's 6x renders a figure just under 7 m.

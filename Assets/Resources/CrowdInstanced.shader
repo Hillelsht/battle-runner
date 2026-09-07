@@ -19,6 +19,13 @@ Shader "BattleRunner/CrowdInstanced"
         _RimStrength ("Rim Strength", Range(0, 4)) = 0.9
         _RimUpMask ("Rim Up-Face Mask", Range(0, 1)) = 0
         _EmissionFlat ("Flat Emission", Range(0, 4)) = 0.15
+
+        // Per-unit tone spread, and OFF by default. The phase this rides on is decoded from
+        // instance scale, and every non-crowd object using this shader (gates, rails, road
+        // markings, finish line, boss) has a scale far outside the crowd's 0.44-0.50 window,
+        // so their phase pins to 1.0 and they would all silently brighten. Only the crowd
+        // and hero materials turn this on.
+        _ToneSpread ("Per-Unit Tone Spread", Range(0, 1)) = 0
     }
 
     SubShader
@@ -41,6 +48,7 @@ Shader "BattleRunner/CrowdInstanced"
             half _RimStrength;
             half _RimUpMask;
             half _EmissionFlat;
+            half _ToneSpread;
         CBUFFER_END
 
         // Per-instance bob phase recovered from the instance's uniform SCALE, which
@@ -63,12 +71,43 @@ Shader "BattleRunner/CrowdInstanced"
         // another and the army was geometrically a solid slab before any shader ran.
         #define CROWD_SCALE_MIN  0.44
         #define CROWD_SCALE_SPAN 0.06
-        #define APPLY_RUN_BOB(posOS)                                                          \
+
+        // The hip line. ProceduralMeshes.BuildSoldier keeps every archetype's legs below
+        // this and its body above it, because everything under it is swung about it here.
+        #define CROWD_HIP_Y 0.30
+        #define CROWD_STRIDE 4.4
+        // Legs sit at |x| = 0.105; every weapon starts at |x| >= 0.23. Without this band a
+        // spear butt (which hangs to y = 0.10, well under the hip) would swing with the
+        // right leg while its head stayed put, and the shaft would visibly BEND at the hip
+        // line. The x test is what makes the swing select legs rather than "everything low".
+        #define CROWD_LEG_X 0.18
+
+        // A real WALK, not just a bob. The army was sliding along the road at 10 m/s with
+        // its feet welded together and only a vertical wobble to suggest motion — which is
+        // most of why it read as objects being carried rather than as soldiers marching.
+        //
+        // Legs rotate about the hip, and the two sides are in antiphase because the swing
+        // is multiplied by sign(x): anything on the midline (torso, head, crest) has
+        // sign() == 0 and does not move at all, so the effect selects the limbs by itself
+        // with no bone weights, no skinning and no extra vertex channel.
+        //
+        // Scaled by _BobAmount, which is already 0 on every non-crowd material — gates,
+        // rails, road markings, the finish line and the boss are all untouched by this.
+        #define APPLY_RUN_BOB(posOS, outPhase)                                                \
             {                                                                                 \
                 float _s = length(float3(UNITY_MATRIX_M._m00, UNITY_MATRIX_M._m10,            \
                                          UNITY_MATRIX_M._m20));                               \
                 float _p = saturate((_s - CROWD_SCALE_MIN) / CROWD_SCALE_SPAN);               \
-                float _b = abs(sin(_Time.y * 9.0 + _p * 6.2831)) * _BobAmount;                \
+                outPhase = _p;                                                                \
+                float _t = _Time.y * 9.0 + _p * 6.2831;                                       \
+                float _sw = sin(_t) * sign(posOS.x) * CROWD_STRIDE * _BobAmount;              \
+                if (posOS.y < CROWD_HIP_Y && abs(posOS.x) < CROWD_LEG_X)                      \
+                {                                                                             \
+                    float _dy = CROWD_HIP_Y - posOS.y;                                        \
+                    posOS.z += sin(_sw) * _dy;                                                \
+                    posOS.y  = CROWD_HIP_Y - cos(_sw) * _dy;                                  \
+                }                                                                             \
+                float _b = abs(sin(_t)) * _BobAmount;                                         \
                 posOS.y += _b * saturate(posOS.y * 2.5 - 0.05); /* 0 at the feet */           \
             }
         ENDHLSL
@@ -104,6 +143,7 @@ Shader "BattleRunner/CrowdInstanced"
                 float4 positionCS : SV_POSITION;
                 float3 normalWS : TEXCOORD0;
                 float3 positionWS : TEXCOORD1;
+                half phase : TEXCOORD2;
             };
 
             Varyings vert(Attributes input)
@@ -112,7 +152,9 @@ Shader "BattleRunner/CrowdInstanced"
                 UNITY_SETUP_INSTANCE_ID(input);
 
                 float3 positionOS = input.positionOS.xyz;
-                APPLY_RUN_BOB(positionOS)
+                float phase = 0.0;
+                APPLY_RUN_BOB(positionOS, phase)
+                output.phase = (half)phase;
 
                 float3 positionWS = TransformObjectToWorld(positionOS);
                 output.positionWS = positionWS;
@@ -149,7 +191,11 @@ Shader "BattleRunner/CrowdInstanced"
                 half halfLambert = wrapped * 0.7h + 0.3h;
                 half3 ambient = SampleSH(normalWS);
 
-                half3 color = _BaseColor.rgb * (mainLight.color * halfLambert * shadow + ambient);
+                // Identical armour on nine hundred men reads as one object. A cheap tonal
+                // spread off the per-instance phase breaks that up without a second draw
+                // call, a second material or a per-instance colour channel.
+                half3 albedo = _BaseColor.rgb * lerp(1.0h, lerp(0.74h, 1.30h, input.phase), _ToneSpread);
+                half3 color = albedo * (mainLight.color * halfLambert * shadow + ambient);
 
                 // Rim light sells silhouettes against the dark environment (doc 01, R5) —
                 // but pow(1 - dot(V,N), k) is NOT an edge term on this geometry.
@@ -228,7 +274,8 @@ Shader "BattleRunner/CrowdInstanced"
                 UNITY_SETUP_INSTANCE_ID(input);
 
                 float3 positionOS = input.positionOS.xyz;
-                APPLY_RUN_BOB(positionOS)
+                float _unusedPhase = 0.0;
+                APPLY_RUN_BOB(positionOS, _unusedPhase)
 
                 float3 positionWS = TransformObjectToWorld(positionOS);
                 float3 normalWS = TransformObjectToWorldNormal(input.normalOS);

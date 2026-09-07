@@ -9,6 +9,31 @@ namespace BattleRunner.Gameplay.Crowd
     /// </summary>
     public sealed class CrowdRenderer : MonoBehaviour
     {
+        /// <summary>
+        /// Which soldier a slot is. A cheap integer hash rather than i % 4, so the four
+        /// kinds scatter through the phyllotaxis spiral instead of banding into four
+        /// interleaved arms of it.
+        ///
+        /// Banners are deliberately rare — one in eight, not one in four. A banner over
+        /// every fourth man is a parade; a banner here and there over a mass of spears is
+        /// an army.
+        /// </summary>
+        private static int Archetype(int slot)
+        {
+            uint h = (uint)slot * 2654435761u;
+            h ^= h >> 15;
+            int bucket = (int)(h % 8u);
+            switch (bucket)
+            {
+                case 0: return 3;               // banner, 1 in 8
+                case 1:
+                case 2: return 1;               // shield, 2 in 8
+                case 3:
+                case 4: return 2;               // axe, 2 in 8
+                default: return 0;              // spear, 3 in 8
+            }
+        }
+
         // One number governs the array length, the draw count and the tier clamp.
         private const int MaxInstances = CrowdController.MaxSimulated;
 
@@ -25,7 +50,22 @@ namespace BattleRunner.Gameplay.Crowd
         private const float ScaleMin = 0.44f;
         private const float ScaleSpan = 0.06f;
 
-        private readonly Matrix4x4[] _matrices = new Matrix4x4[MaxInstances];
+        // One bucket per soldier archetype. Four instanced draws instead of one is still
+        // nothing on any GPU, and it is the difference between an army and a photocopy.
+        // Each bucket is sized for the worst case where every unit lands in it — 4 x 512
+        // matrices is 128 KB, allocated once and never touched again.
+        private static readonly ProceduralMeshes.SoldierKind[] Kinds =
+        {
+            ProceduralMeshes.SoldierKind.Spear,
+            ProceduralMeshes.SoldierKind.Shield,
+            ProceduralMeshes.SoldierKind.Axe,
+            ProceduralMeshes.SoldierKind.Banner
+        };
+
+        private readonly Matrix4x4[][] _buckets = new Matrix4x4[Kinds.Length][];
+        private readonly int[] _bucketCounts = new int[Kinds.Length];
+        private readonly Mesh[] _meshes = new Mesh[Kinds.Length];
+
         private CrowdController _crowd;
         private Mesh _mesh;
         private Material _material;
@@ -36,6 +76,12 @@ namespace BattleRunner.Gameplay.Crowd
             _crowd = crowd;
             _mesh = unitMesh;
             _material = crowdMaterial;
+
+            for (int k = 0; k < Kinds.Length; k++)
+            {
+                _buckets[k] = new Matrix4x4[MaxInstances];
+                _meshes[k] = ProceduralMeshes.Soldier(Kinds[k]);
+            }
             if (_material != null && !_material.enableInstancing)
                 _material.enableInstancing = true;
 
@@ -61,6 +107,8 @@ namespace BattleRunner.Gameplay.Crowd
             int count = Mathf.Min(_crowd.VisibleUnits, MaxInstances);
             if (count <= 0) return;
 
+            for (int k = 0; k < _bucketCounts.Length; k++) _bucketCounts[k] = 0;
+
             // Per-instance yaw and scale: identical boxes in a regular lattice read as a
             // texture, not a crowd. The phase was already computed and never used.
             for (int i = 0; i < count; i++)
@@ -69,10 +117,17 @@ namespace BattleRunner.Gameplay.Crowd
                 // keep ScaleMin + phase*ScaleSpan in step with the decode there.
                 float phase = _crowd.UnitPhase(i);
                 float scale = ScaleMin + phase * ScaleSpan;
-                _matrices[i] = Matrix4x4.TRS(
+                var trs = Matrix4x4.TRS(
                     _crowd.UnitPosition(i),
                     Quaternion.Euler(0f, (phase - 0.5f) * 24f, 0f),
                     new Vector3(scale, scale, scale));
+
+                // Archetype from the SLOT INDEX, not from position or from a random draw.
+                // Slots are stable for the life of a run — a unit keeps its identity as the
+                // army grows around it, instead of the whole crowd reshuffling its weapons
+                // every time a gate is passed.
+                int kind = Archetype(i);
+                _buckets[kind][_bucketCounts[kind]++] = trs;
             }
 
             var rp = new RenderParams(_material)
@@ -85,16 +140,22 @@ namespace BattleRunner.Gameplay.Crowd
                 receiveShadows = true
             };
 
-            if (_instancingSupported)
+            for (int k = 0; k < Kinds.Length; k++)
             {
-                Graphics.RenderMeshInstanced(rp, _mesh, 0, _matrices, count);
-                return;
-            }
+                int n = _bucketCounts[k];
+                if (n <= 0) continue;
+                Mesh mesh = _meshes[k] != null ? _meshes[k] : _mesh;
 
-            // A few hundred individual draws is affordable at greybox scale, and an
-            // ugly-but-visible crowd beats an invisible one.
-            for (int i = 0; i < count; i++)
-                Graphics.RenderMesh(rp, _mesh, 0, _matrices[i]);
+                if (_instancingSupported)
+                {
+                    Graphics.RenderMeshInstanced(rp, mesh, 0, _buckets[k], n);
+                    continue;
+                }
+
+                // A few hundred individual draws is affordable at greybox scale, and an
+                // ugly-but-visible crowd beats an invisible one.
+                for (int i = 0; i < n; i++) Graphics.RenderMesh(rp, mesh, 0, _buckets[k][i]);
+            }
         }
     }
 }

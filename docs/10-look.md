@@ -599,6 +599,53 @@ discriminates on its own:
 The bolt uses `ProceduralMeshes.Cube` — the same mesh the working motes use — so it is the
 control in the experiment.
 
+## The army was a field of crosses, and the geometry says exactly why
+
+`BuildUnit` was a 0.34-wide torso with pauldrons jutting to ±0.24 **at head height**, and
+**no legs at all** — one box from the ground to the shoulders. That is a plus sign with a
+head on it, and at 0.47 scale and 26 m, where a unit is about ten pixels tall, the
+silhouette is the only thing that survives.
+
+The rebuild fixes both halves. **Separated legs** with a real gap between them — the single
+strongest cue that an outline is a person — and pauldrons pulled in to ±0.19 and dropped to
+the shoulder line, so the profile tapers from a wide base to a narrow head instead of
+spreading into a T.
+
+**Four archetypes** — spear, shield, axe, banner — assigned from a hash of the slot index,
+so a soldier keeps his identity as the army grows around him rather than the whole crowd
+reshuffling its weapons every time a gate is passed. Banners are deliberately rare, one in
+eight: a banner over every fourth man is a parade, a banner here and there over a mass of
+spears is an army. This costs four instanced draws instead of one, which is nothing.
+
+The two archetypes that carry something **above the head** do most of the work. At ten
+pixels tall, anything at chest height is invisible; only what breaks the skyline reads. A
+banner-bearer stands 0.68 m against a spearman's 0.57 and the old unit's 0.45.
+
+## A march, not a bob
+
+The army slid along at 10 m/s with its feet welded together and a vertical wobble for
+motion — most of why it read as objects being carried rather than soldiers marching.
+
+Legs now rotate about a hip pivot at y = 0.30, the two sides in antiphase because the swing
+is multiplied by `sign(x)`. Anything on the midline has `sign() == 0` and does not move, so
+the effect selects limbs by itself: no bone weights, no skinning, no extra vertex channel,
+and it happens in the same macro the shadow pass uses so shadows stay welded to the feet.
+
+Two gates make it safe:
+
+- **`_BobAmount` scales it**, and that is already 0 on every non-crowd material — gates,
+  rails, road markings, the finish line and the boss are untouched.
+- **An x-band as well as a height test.** Legs sit at |x| = 0.105; every weapon starts at
+  |x| ≥ 0.23. Without the band a spear butt — which hangs to y = 0.10, well under the hip —
+  would swing with the right leg while its head stayed put, and the shaft would visibly
+  **bend at the hip line**. The x test is what makes the swing mean "legs" rather than
+  "everything low".
+
+`_ToneSpread` breaks up the armour tone per unit off the same instance phase, and is **off
+by default**: the phase is decoded from instance scale, and every other object on this
+shader sits far outside the crowd's 0.44–0.50 window, so their phase pins to 1.0 and they
+would all have silently brightened by 30%.
+
 ## Deliberately not done yet
 
 Nothing in the render stack. The remaining gaps are content and production: real art in

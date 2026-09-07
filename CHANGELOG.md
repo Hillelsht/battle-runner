@@ -32,6 +32,18 @@ army stands on the road instead of hovering over it — and a procedural cobbled
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
 corner notches, a gradient backdrop and readable disabled states, across every screen.
+**The army stopped being a field of crosses.** `BuildUnit` was a torso box with pauldrons
+jutting to ±0.24 at head height and NO LEGS — one box from the ground to the shoulders,
+which is a plus sign with a head on it. Now: separated legs, pauldrons in to ±0.19 and down
+to the shoulder line, and four archetypes (spear, shield, axe, banner) assigned by a hash of
+the slot index so a soldier keeps his identity as the army grows. Banners are one in eight,
+because a banner over every fourth man is a parade. Four instanced draws instead of one.
+
+**And it marches.** Legs rotate about a hip pivot, the two sides in antiphase via `sign(x)`,
+in the same macro the shadow pass uses so shadows stay welded to the feet. Gated on
+`_BobAmount` (already 0 everywhere but the crowd) and on an x-band — without the band a
+spear butt hangs below the hip and the shaft would visibly bend as the right leg swung.
+
 **The shield is an actual barrier now.** The player reported no shield effect; the
 screenshots show `ShieldWard` firing exactly as built, army lit cyan and `SHIELDED` in the
 HUD. Both are true — recolouring the army reads as the army changing colour, not as a
