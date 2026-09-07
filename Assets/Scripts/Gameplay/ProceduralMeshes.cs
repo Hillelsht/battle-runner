@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -21,6 +22,7 @@ namespace BattleRunner.Gameplay
         private static Mesh _unit;
         private static Mesh _boss;
         private static Mesh _cube;
+        private static Mesh _ring;
 
         public static Mesh Unit
         {
@@ -50,6 +52,21 @@ namespace BattleRunner.Gameplay
             {
                 if (_cube == null) _cube = BuildBox(Vector3.zero, Vector3.one);
                 return _cube;
+            }
+        }
+
+        /// <summary>
+        /// A flat annulus in the XZ plane, outer radius 1, for additive shockwaves. UV.x
+        /// runs 0 at the inner edge to 1 at the outer, which is what BattleRunner/Vfx
+        /// shapes its radial falloff from — so this is the one mesh here that MUST carry
+        /// UVs, and the only reason it is not built through AddHull.
+        /// </summary>
+        public static Mesh Ring
+        {
+            get
+            {
+                if (_ring == null) _ring = BuildRing(0.62f, 1f, 56);
+                return _ring;
             }
         }
 
@@ -130,6 +147,46 @@ namespace BattleRunner.Gameplay
             AddOrientedBox(v, t, new Vector3(0.44f, 0.87f, -0.06f), new Vector3(0.22f, 0.28f, 0.045f), tilt);
 
             return Finish(v, t, "BossGreybox");
+        }
+
+        private static Mesh BuildRing(float innerRadius, float outerRadius, int segments)
+        {
+            var vertices = new List<Vector3>(segments * 2 + 2);
+            var uvs = new List<Vector2>(segments * 2 + 2);
+            var triangles = new List<int>(segments * 6);
+
+            // Duplicate the seam vertex rather than wrapping the index buffer back to 0:
+            // the UV has to run continuously around, and a shared seam vertex would have
+            // to carry two different values.
+            for (int i = 0; i <= segments; i++)
+            {
+                float angle = (float)(i * 2.0 * Math.PI / segments);
+                float sin = Mathf.Sin(angle);
+                float cos = Mathf.Cos(angle);
+                vertices.Add(new Vector3(cos * innerRadius, 0f, sin * innerRadius));
+                uvs.Add(new Vector2(0f, i / (float)segments));
+                vertices.Add(new Vector3(cos * outerRadius, 0f, sin * outerRadius));
+                uvs.Add(new Vector2(1f, i / (float)segments));
+            }
+
+            for (int i = 0; i < segments; i++)
+            {
+                int a = i * 2;
+                triangles.Add(a);
+                triangles.Add(a + 1);
+                triangles.Add(a + 2);
+                triangles.Add(a + 1);
+                triangles.Add(a + 3);
+                triangles.Add(a + 2);
+            }
+
+            var mesh = new Mesh { name = "RingGreybox" };
+            mesh.SetVertices(vertices);
+            mesh.SetUVs(0, uvs);
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
         }
 
         public static Mesh BuildBox(Vector3 center, Vector3 size)

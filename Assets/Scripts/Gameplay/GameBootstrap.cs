@@ -107,6 +107,25 @@ namespace BattleRunner.Gameplay
             return fallback;
         }
 
+        /// <summary>
+        /// The additive VFX material, or null if it cannot render here — in which case
+        /// VfxSystem turns itself off entirely.
+        ///
+        /// Deliberately NOT symmetric with LoadCrowdMaterial, which rebuilds a fallback
+        /// from the resolved shader when Resources/Crowd.mat is unusable. There is no
+        /// sensible stand-in for an additive shader: substituting an opaque one would
+        /// flash untinted rectangles across the road, which is worse than the silence.
+        /// The crowd has to be drawn one way or another; a shockwave does not.
+        /// </summary>
+        private static Material LoadVfxMaterial()
+        {
+            if (UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline == null) return null;
+            var material = Resources.Load<Material>("Vfx");
+            if (material != null && material.shader != null && material.shader.isSupported) return material;
+            Debug.LogWarning("[Bootstrap] Resources/Vfx.mat unusable here; effects will be skipped.");
+            return null;
+        }
+
         private void CreateArena(GameContext ctx)
         {
             ctx.ArenaRoot = new GameObject("Arena");
@@ -180,6 +199,11 @@ namespace BattleRunner.Gameplay
             // material, shader or draw call — and adds no shader-stripping risk.
             ctx.Ward = cameraGo.AddComponent<Vfx.ShieldWard>();
             ctx.Ward.Initialize(ctx.Shield, crowdMaterial, heroMaterial);
+
+            var vfxGo = new GameObject("Vfx");
+            vfxGo.transform.SetParent(ctx.ArenaRoot.transform, false);
+            ctx.Effects = vfxGo.AddComponent<Vfx.VfxSystem>();
+            ctx.Effects.Initialize(LoadVfxMaterial());
 
             ctx.ArenaRoot.SetActive(false);
         }

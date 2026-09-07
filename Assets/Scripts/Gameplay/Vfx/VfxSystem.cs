@@ -1,0 +1,258 @@
+using System.Collections.Generic;
+using BattleRunner.Gameplay;
+using UnityEngine;
+
+namespace BattleRunner.Gameplay.Vfx
+{
+    /// <summary>
+    /// Every additive effect in the game: gate shockwaves, the spell's shock ring, debris
+    /// from a pack that bit the army, and the boss's death beat.
+    ///
+    /// Until this existed nothing HAPPENED when you passed a gate — the number changed and
+    /// the camera nudged, and that was the whole of it. A gate-multiplier runner lives on
+    /// the moment the crowd doubles, and that moment had no event.
+    ///
+    /// TWO RULES SHAPE THE IMPLEMENTATION.
+    ///
+    /// It fails to nothing. A fourth shader in Resources is the exact path that shipped
+    /// v0.1.0 as solid magenta, so Initialize validates the material against the ACTIVE
+    /// pipeline and, if anything is off, leaves Enabled false — after which every Play
+    /// call is a no-op. A build with no effects is a disappointment; a build with magenta
+    /// rectangles flashing across the road is unshippable.
+    ///
+    /// It never allocates during a run. Rings and motes are pooled and reused; a burst is
+    /// a loop over already-built GameObjects. The crowd is one instanced draw call and the
+    /// track is a handful of boxes — this is not the place to start generating garbage.
+    /// </summary>
+    public sealed class VfxSystem : MonoBehaviour
+    {
+        /// <summary>False when the additive material could not be resolved. Every Play is then inert.</summary>
+        public bool Enabled { get; private set; }
+
+        private const int RingCapacity = 12;
+        private const int MoteCapacity = 48;
+
+        // Rings lie flat on the road, so they need clearance over it or they z-fight with
+        // the lane decals at 0.005-0.02. Motes start above that and arc.
+        private const float RingHeight = 0.05f;
+
+        private sealed class Ring
+        {
+            public Transform Transform;
+            public MeshRenderer Renderer;
+            public float Age;
+            public float Life;
+            public float FromRadius;
+            public float ToRadius;
+            public Color Tint;
+        }
+
+        private sealed class Mote
+        {
+            public Transform Transform;
+            public MeshRenderer Renderer;
+            public float Age;
+            public float Life;
+            public Vector3 Velocity;
+            public Vector3 Spin;
+            public Color Tint;
+        }
+
+        private readonly List<Ring> _rings = new List<Ring>(RingCapacity);
+        private readonly List<Mote> _motes = new List<Mote>(MoteCapacity);
+        private MaterialPropertyBlock _block;
+
+        // Deterministic, not Random: the same gate should not flicker differently between
+        // two runs of the same seed, and the run loop is otherwise reproducible.
+        private int _scatter;
+
+        public void Initialize(Material vfxMaterial)
+        {
+            if (vfxMaterial == null || vfxMaterial.shader == null || !vfxMaterial.shader.isSupported)
+            {
+                Debug.LogWarning("[Vfx] Additive material unusable here — effects are off for this session.");
+                return;
+            }
+
+            _block = new MaterialPropertyBlock();
+
+            for (int i = 0; i < RingCapacity; i++)
+            {
+                MeshRenderer renderer = Build("Ring", ProceduralMeshes.Ring, vfxMaterial);
+                _rings.Add(new Ring { Transform = renderer.transform, Renderer = renderer });
+            }
+            for (int i = 0; i < MoteCapacity; i++)
+            {
+                MeshRenderer renderer = Build("Mote", ProceduralMeshes.Cube, vfxMaterial);
+                _motes.Add(new Mote { Transform = renderer.transform, Renderer = renderer });
+            }
+
+            Enabled = true;
+        }
+
+        private MeshRenderer Build(string name, Mesh mesh, Material material)
+        {
+            var go = new GameObject(name, typeof(MeshFilter), typeof(MeshRenderer));
+            go.transform.SetParent(transform, false);
+            go.GetComponent<MeshFilter>().sharedMesh = mesh;
+            MeshRenderer renderer = go.GetComponent<MeshRenderer>();
+            renderer.sharedMaterial = material;
+            // Additive geometry with no depth write casts nothing and receives nothing;
+            // asking the shadow pass to consider it is pure cost.
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            renderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
+            renderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
+            go.SetActive(false);
+            return renderer;
+        }
+
+        /// <summary>A ring expanding outward on the ground. The workhorse: gates, spells, deaths.</summary>
+        public void Shock(Vector3 position, Color tint, float fromRadius, float toRadius, float life)
+        {
+            if (!Enabled) return;
+
+            Ring ring = null;
+            for (int i = 0; i < _rings.Count; i++)
+            {
+                if (_rings[i].Age < _rings[i].Life) continue;
+                ring = _rings[i];
+                break;
+            }
+            // Every ring busy: steal the oldest rather than skip. A dropped effect on a
+            // busy frame is exactly the frame the player most needs feedback on.
+            if (ring == null) ring = Oldest();
+
+            ring.Age = 0f;
+            ring.Life = Mathf.Max(0.05f, life);
+            ring.FromRadius = fromRadius;
+            ring.ToRadius = toRadius;
+            ring.Tint = tint;
+            ring.Transform.position = new Vector3(position.x, RingHeight, position.z);
+            ring.Transform.localScale = new Vector3(fromRadius, 1f, fromRadius);
+            ring.Transform.gameObject.SetActive(true);
+            Paint(ring.Renderer, tint, 1f, band: 1f);
+        }
+
+        /// <summary>A scatter of embers thrown out of a point. Debris, not particles.</summary>
+        public void Burst(Vector3 position, Color tint, int count, float speed, float life)
+        {
+            if (!Enabled) return;
+
+            for (int n = 0; n < count; n++)
+            {
+                Mote mote = null;
+                for (int i = 0; i < _motes.Count; i++)
+                {
+                    if (_motes[i].Age < _motes[i].Life) continue;
+                    mote = _motes[i];
+                    break;
+                }
+                // Motes are decoration, not information — unlike a ring, a burst that is a
+                // few embers short reads identically, so a full pool just drops the rest.
+                if (mote == null) return;
+
+                // A cheap deterministic scatter. Golden-angle spread so successive motes
+                // never line up, and a hashed vertical component so the fan is not flat.
+                _scatter++;
+                float angle = _scatter * 2.39996323f;
+                float lift = 0.45f + 0.55f * Frac(_scatter * 0.61803399f);
+                float reach = 0.55f + 0.75f * Frac(_scatter * 0.37718862f);
+
+                mote.Age = 0f;
+                mote.Life = life * (0.7f + 0.6f * Frac(_scatter * 0.24512f));
+                mote.Velocity = new Vector3(Mathf.Cos(angle) * reach, lift, Mathf.Sin(angle) * reach) * speed;
+                mote.Spin = new Vector3(220f * reach, 310f * lift, 170f * reach);
+                mote.Tint = tint;
+                mote.Transform.position = position + Vector3.up * 0.35f;
+                mote.Transform.localRotation = Quaternion.Euler(angle * 57.3f, angle * 31.1f, 0f);
+                mote.Transform.localScale = Vector3.one * (0.10f + 0.09f * reach);
+                mote.Transform.gameObject.SetActive(true);
+                Paint(mote.Renderer, tint, 1f, band: 0f);
+            }
+        }
+
+        /// <summary>Drops everything immediately — a phase change must not leave embers hanging.</summary>
+        public void Clear()
+        {
+            for (int i = 0; i < _rings.Count; i++)
+            {
+                _rings[i].Age = _rings[i].Life;
+                _rings[i].Transform.gameObject.SetActive(false);
+            }
+            for (int i = 0; i < _motes.Count; i++)
+            {
+                _motes[i].Age = _motes[i].Life;
+                _motes[i].Transform.gameObject.SetActive(false);
+            }
+        }
+
+        private void Update()
+        {
+            if (!Enabled) return;
+            float dt = Time.deltaTime;
+
+            for (int i = 0; i < _rings.Count; i++)
+            {
+                Ring ring = _rings[i];
+                if (ring.Age >= ring.Life) continue;
+
+                ring.Age += dt;
+                float t = Mathf.Clamp01(ring.Age / ring.Life);
+                if (t >= 1f)
+                {
+                    ring.Transform.gameObject.SetActive(false);
+                    continue;
+                }
+
+                // Radius eases OUT and brightness falls off faster than linear: a shockwave
+                // sprints away from its origin and is gone before it stops moving. Easing
+                // the radius linearly instead reads as an inflating balloon.
+                float eased = 1f - (1f - t) * (1f - t);
+                float radius = Mathf.Lerp(ring.FromRadius, ring.ToRadius, eased);
+                ring.Transform.localScale = new Vector3(radius, 1f, radius);
+                Paint(ring.Renderer, ring.Tint, (1f - t) * (1f - t), band: 1f);
+            }
+
+            for (int i = 0; i < _motes.Count; i++)
+            {
+                Mote mote = _motes[i];
+                if (mote.Age >= mote.Life) continue;
+
+                mote.Age += dt;
+                float t = Mathf.Clamp01(mote.Age / mote.Life);
+                if (t >= 1f)
+                {
+                    mote.Transform.gameObject.SetActive(false);
+                    continue;
+                }
+
+                mote.Velocity += Vector3.down * (11f * dt);
+                mote.Transform.position += mote.Velocity * dt;
+                mote.Transform.Rotate(mote.Spin * dt, Space.Self);
+                // Shrink as well as dim. A mote that only fades leaves a ghost of its
+                // silhouette at the last frame it is drawn.
+                mote.Transform.localScale = Vector3.one * (0.10f * (1f - t) + 0.03f);
+                Paint(mote.Renderer, mote.Tint, 1f - t, band: 0f);
+            }
+        }
+
+        private void Paint(MeshRenderer renderer, Color tint, float fade, float band)
+        {
+            _block.SetColor("_TintColor", tint);
+            _block.SetFloat("_Fade", Mathf.Clamp01(fade));
+            _block.SetFloat("_Band", band);
+            renderer.SetPropertyBlock(_block);
+        }
+
+        private Ring Oldest()
+        {
+            Ring oldest = _rings[0];
+            for (int i = 1; i < _rings.Count; i++)
+                if (_rings[i].Age > oldest.Age) oldest = _rings[i];
+            return oldest;
+        }
+
+        private static float Frac(float v) => v - Mathf.Floor(v);
+    }
+}

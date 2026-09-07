@@ -32,6 +32,28 @@ army stands on the road instead of hovering over it — and a procedural cobbled
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
 corner notches, a gradient backdrop and readable disabled states, across every screen.
+**Additive VFX — the game finally reacts to itself.** Until now nothing HAPPENED when you
+passed a gate: the number changed, the camera nudged, and that was the whole event, in a
+game whose appeal is the moment the crowd doubles. Six effects now, all from one shader:
+a shockwave at every gate tinted and sized by the operation, debris off the army when a
+pack bites, a ring that sprints out to the spell's actual clear range, embers off the boss
+on a hit, a bright ring when the shield eats a blow, and a three-wave death beat with
+forty motes when the boss falls.
+
+**The magenta risk is retired, not hoped away.** A fourth shader in `Resources` is exactly
+the path that shipped v0.1.0 solid magenta. `Vfx.shader` sits beside a hand-written
+`Vfx.mat` that references it by GUID (the arrangement `Crowd.mat` has used since v0.1.1),
+carries no `multi_compile` keywords at all so there is exactly one variant, declares
+`Fallback Off`, and `VfxSystem` validates the material against the ACTIVE pipeline and
+turns itself off entirely if anything is wrong. Deliberately no fallback material:
+substituting an opaque shader for an additive one would flash untinted rectangles across
+the road. Worst case is a build with no effects, never magenta ones.
+
+`GateApplied` and `EnemyContact` now carry the world position of what resolved — at 10 m/s
+the gate and the crowd are metres apart by the time the handler runs, and an effect that
+misses its cause reads as an unrelated flash. Impulse sizes reuse `CameraFeel`'s octave
+ratio, so a x2 lands the same at 10 units and at 1000.
+
 **Fog was being interpolated across a 400 m quad.** Turning fog on and stretching the
 ground past the fog wall were both right, and together they produced a new defect: on
 device the near road brightened ~2x and warmed toward the fog colour between the start of

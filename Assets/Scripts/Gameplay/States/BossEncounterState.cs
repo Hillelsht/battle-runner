@@ -18,6 +18,7 @@ namespace BattleRunner.Gameplay.States
         private BossDefinition _boss;
         private float _bossHpMax;
         private float _bossHp;
+        private Vector3 _bossPosition;
         private float _attackTimer;
         private bool _resolved;
         private bool _awaitingPrompt;
@@ -37,7 +38,11 @@ namespace BattleRunner.Gameplay.States
             _bossHp = _bossHpMax;
             _attackTimer = _boss.AttackIntervalSeconds;
 
-            _ctx.BossView.Show(_boss, new Vector3(0f, 0f, _ctx.Crowd.CenterZ + 16f));
+            // Captured, not recomputed. BossView.Show pins the boss HERE for the whole
+            // encounter while the crowd keeps ticking, so deriving the position from
+            // Crowd.CenterZ later would walk the effects away from the body they belong to.
+            _bossPosition = new Vector3(0f, 0f, _ctx.Crowd.CenterZ + 16f);
+            _ctx.BossView.Show(_boss, _bossPosition);
             _ctx.Hud.ShowBossBar(_boss.DisplayName);
             _ctx.Hud.SetBossHp(1f);
 
@@ -66,6 +71,7 @@ namespace BattleRunner.Gameplay.States
 
             _ctx.BossView.Hide();
             _ctx.Hud.HideBossBar();
+            _ctx.Effects.Clear();
         }
 
         public void Tick(float dt)
@@ -100,6 +106,18 @@ namespace BattleRunner.Gameplay.States
             }
         }
 
+        // Peak channels sit near 1.6, not 2.5+. These reach the GPU through a
+        // MaterialPropertyBlock, and whether Unity gamma-expands a Color set that way in a
+        // linear project is the one thing here I could not settle from the container. At
+        // 1.6 the effect clears the 0.85 bloom threshold comfortably if the value is taken
+        // raw, and is hot-but-not-absurd if it is expanded (1.6^2.2 = 2.9). At 2.5 the
+        // expanded case would be 8.5 and the screen would white out. A device screenshot
+        // decides which, and then these can be tuned in one direction with confidence.
+        private static readonly Color SpellTint = new Color(0.40f, 0.70f, 1.60f);
+        private static readonly Color BlockTint = new Color(0.95f, 1.35f, 1.85f);
+        private static readonly Color StrikeTint = new Color(1.65f, 0.34f, 0.21f);
+        private static readonly Color DeathTint = new Color(1.70f, 0.70f, 0.26f);
+
         private void OnFlickUp() => _ctx.Spell.TryCast();
         private void OnFlickDown() => _ctx.Shield.TryRaise();
 
@@ -111,6 +129,11 @@ namespace BattleRunner.Gameplay.States
             _ctx.BossView.FlashHit();
             _ctx.CameraRig.Apply(CameraFeel.Spell);
             _ctx.CameraRig.PunchFov(2.2f);
+
+            // The spell was a number leaving the health bar. A ring at the player's feet
+            // and embers at the boss's give the flick a beginning and an end.
+            _ctx.Effects.Shock(new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.CenterZ), SpellTint, 1.2f, 7f, 0.38f);
+            _ctx.Effects.Burst(_bossPosition, SpellTint, 12, 5.5f, 0.5f);
         }
 
         private void ApplyBossDamage(float amount)
@@ -138,6 +161,15 @@ namespace BattleRunner.Gameplay.States
             }
 
             _ctx.CameraRig.Apply(CameraFeel.ForBossStrike(before, after, blocked));
+
+            // A landed blow throws debris off the ARMY; a blocked one rings off the shield
+            // instead. Two different events that used to look the same except for a number.
+            if (blocked)
+                _ctx.Effects.Shock(new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.CenterZ),
+                    BlockTint, 1.6f, 5.5f, 0.30f);
+            else
+                _ctx.Effects.Burst(new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.CenterZ),
+                    StrikeTint, 16, 4.6f, 0.6f);
             // A blow the shield actually ate. Without this the player has no way to know
             // their flick did anything — the army simply does not shrink, which is
             // indistinguishable from the boss having missed.
@@ -152,6 +184,15 @@ namespace BattleRunner.Gameplay.States
             _ctx.CameraRig.SetTelegraph(0f);
             _ctx.Ward.Clear();
 
+            // The beat the whole level builds to: three rings leaving the body at different
+            // speeds so the wave has depth rather than being one expanding circle, plus a
+            // full pool of debris. This is the one place worth spending every mote.
+            Vector3 foot = _bossPosition;
+            _ctx.Effects.Shock(foot, DeathTint, 1.5f, 16f, 0.55f);
+            _ctx.Effects.Shock(foot, DeathTint, 0.8f, 9f, 0.38f);
+            _ctx.Effects.Shock(foot, new Color(1.75f, 1.25f, 0.66f), 0.5f, 5f, 0.26f);
+            _ctx.Effects.Burst(foot + Vector3.up * 1.5f, DeathTint, 40, 7.5f, 0.9f);
+
             _resolved = true;
             _ctx.Profile.UnspentStatPoints += _ctx.Config.Balance.StatPointsPerBossKill;
             _ctx.Machine.TransitionTo(_ctx.LootState);
@@ -164,6 +205,7 @@ namespace BattleRunner.Gameplay.States
             // ResetForPhase would hand out a free shield on revive.
             _ctx.Shield.CancelActive();
             _ctx.Ward.Clear();
+            _ctx.Effects.Clear();
             _ctx.CameraRig.SetTelegraph(0f);
 
             _awaitingPrompt = true;

@@ -463,13 +463,63 @@ change I was least sure about — recolouring the crowd's own emission rather th
 dome, to avoid a fourth shader in `Resources` — and it is unambiguous in a still frame,
 never mind in motion.
 
+## Additive VFX, and how the magenta risk was actually retired
+
+Until this pass **nothing happened when you passed a gate**. The number changed, the camera
+nudged, and that was the entire event — in a game whose whole appeal is the moment the
+crowd doubles. Same for a pack taking a bite, for the spell, for killing the boss.
+
+`Assets/Resources/Vfx.shader` is the fourth shader in the project and the one with the most
+history behind it: a shader reachable only through `Shader.Find` gets stripped from an
+Android build and renders solid magenta, which is how v0.1.0 shipped. Three things retire
+that risk rather than hoping:
+
+- It lives in `Resources` beside a hand-written `Vfx.mat` that references it **by GUID** —
+  the same arrangement `CrowdInstanced`/`Crowd.mat` has used successfully since v0.1.1.
+- It is **keyword-free**. No `multi_compile` of any kind, so there is exactly one variant
+  and nothing for variant stripping to get wrong.
+- `VfxSystem.Initialize` validates the material against the **active pipeline** and, if
+  anything is off, leaves `Enabled` false — after which every `Shock` and `Burst` is a
+  no-op. And unlike `LoadCrowdMaterial`, there is deliberately **no fallback material**:
+  substituting an opaque shader for an additive one would flash untinted rectangles across
+  the road, which is worse than silence. The crowd has to be drawn one way or another; a
+  shockwave does not. Worst case is a build with no effects, never magenta ones.
+
+`Fallback Off` in the shader says the same thing to Unity.
+
+**One shader, two shapes, no keywords.** `_Band` blends between a flat surface (debris
+motes, which are the cube mesh) and a soft radial band across the ring's UV.x (shockwaves).
+The ring is the one procedural mesh here that carries UVs, and the only one not built
+through `AddHull`. The falloff is `sin(u·π)²` rather than a linear ramp: a hard-edged ring
+reads as a flat disc of colour, and the point of a shockwave is that it is brightest at its
+crest and dies off both ways. The radius eases **out** while brightness falls off faster
+than linear, so a wave sprints away from its origin and is gone before it stops moving —
+easing the radius linearly instead reads as an inflating balloon.
+
+**No fog on it, on purpose.** Fog *lerps toward* the fog colour, which on additive geometry
+ADDS light in the distance instead of removing it. Everything drawn here is within 30 m,
+well inside the 70 m fog start, so the correct amount of fog is none.
+
+**Impulses are sized by the same octave ratio the camera shake uses** (`CameraFeel.Trauma`),
+so a ×2 at 10 units and a ×2 at 1000 throw the same ring, and a +1 barely ripples. The
+enemy-contact debris is scaled to what the pack *actually took* rather than its printed
+cost, because Bramble and Undying cut the bite and the effect should show the bite.
+
+Both `GateApplied` and `EnemyContact` now carry the **world position** of the thing that
+resolved. At 10 m/s the gate and the crowd are metres apart by the time the handler runs,
+and an effect that does not land on its cause reads as an unrelated flash.
+
+The one thing I could not settle from a container: whether Unity gamma-expands a `Color`
+set through a `MaterialPropertyBlock` in a linear project. Peak channels are therefore near
+1.6 rather than 2.5 — comfortably over the 0.85 bloom threshold if the value is taken raw,
+hot but not absurd if it is expanded (1.6^2.2 = 2.9). At 2.5 the expanded case would be 8.5
+and the screen would white out. A device screenshot decides which, and then these tune in
+one direction with confidence.
+
 ## Deliberately not done yet
 
-Additive VFX — the gate-pass shockwave, the spell shock ring, unit-death bodies, the boss
-death beat. All four want a new transparent-additive shader in `Resources`, and a shader
-that reaches the build only through `Shader.Find` is exactly the stripping path that
-shipped v0.1.0 magenta. It gets its own round, with a device screenshot before anything
-is built on top of it.
+Nothing in the render stack. The remaining gaps are content and production: real art in
+place of greybox meshes, audio, and the boss roster beyond two.
 
 ## Verifying a look change from a container
 

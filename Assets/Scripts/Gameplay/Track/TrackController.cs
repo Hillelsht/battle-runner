@@ -14,8 +14,12 @@ namespace BattleRunner.Gameplay.Track
     /// </summary>
     public sealed class TrackController : MonoBehaviour
     {
-        public event Action<GateOp, int> GateApplied;
-        public event Action<int> EnemyContact;
+        // Both carry the WORLD POSITION of the thing that resolved. The run loop needs it
+        // to put a shockwave where the gate was rather than where the crowd is: at 10 m/s
+        // the two are metres apart by the time the event is handled, and an effect that
+        // does not land on its cause reads as an unrelated flash.
+        public event Action<GateOp, int, Vector3> GateApplied;
+        public event Action<int, Vector3> EnemyContact;
         public event Action FinishReached;
 
         private ObjectPool<GateBehaviour> _gatePool;
@@ -328,7 +332,7 @@ namespace BattleRunner.Gameplay.Track
                     if (gate.Lane == crowdLane)
                     {
                         gate.Consume();
-                        GateApplied?.Invoke(gate.Op, gate.Value);
+                        GateApplied?.Invoke(gate.Op, gate.Value, gate.transform.position);
                     }
                 }
 
@@ -357,7 +361,7 @@ namespace BattleRunner.Gameplay.Track
                     if (pack.Lane == crowdLane)
                     {
                         pack.Defeat();
-                        EnemyContact?.Invoke(pack.ForceCost);
+                        EnemyContact?.Invoke(pack.ForceCost, pack.transform.position);
                     }
                 }
 

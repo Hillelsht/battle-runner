@@ -54,6 +54,7 @@ namespace BattleRunner.Gameplay.States
 
             _ctx.Tutorial.Unsubscribe();
             _ctx.Tutorial.EndPhase();
+            _ctx.Effects.Clear();
         }
 
         public void Tick(float dt)
@@ -83,18 +84,44 @@ namespace BattleRunner.Gameplay.States
             _ctx.Hud.SetCooldowns(_ctx.Spell.CooldownRemaining, _ctx.Shield.CooldownRemaining, _ctx.Shield.IsActive);
         }
 
+        // Peak channels sit near 1.6, not 2.5+. These reach the GPU through a
+        // MaterialPropertyBlock, and whether Unity gamma-expands a Color set that way in a
+        // linear project is the one thing here I could not settle from the container. At
+        // 1.6 the effect clears the 0.85 bloom threshold comfortably if the value is taken
+        // raw, and is hot-but-not-absurd if it is expanded (1.6^2.2 = 2.9). At 2.5 the
+        // expanded case would be 8.5 and the screen would white out. A device screenshot
+        // decides which, and then these can be tuned in one direction with confidence.
+        private static readonly Color SpellTint = new Color(0.40f, 0.70f, 1.60f);
+        private static readonly Color LossTint = new Color(1.55f, 0.32f, 0.23f);
+
+        private static Color GateTint(GateOp op) => op switch
+        {
+            GateOp.Multiply => new Color(1.60f, 1.10f, 0.34f),
+            GateOp.Subtract => new Color(1.55f, 0.29f, 0.26f),
+            _ => new Color(0.33f, 0.74f, 1.70f)
+        };
+
         private void OnFlickUp() => _ctx.Spell.TryCast();
         private void OnFlickDown() => _ctx.Shield.TryRaise();
 
         private void OnSpellCast()
         {
-            int cleared = _ctx.TrackController.ClearEnemiesAhead(
-                _ctx.Crowd.CenterZ, _ctx.Config.Spells.ClearRangeMeters);
+            float range = _ctx.Config.Spells.ClearRangeMeters;
+            int cleared = _ctx.TrackController.ClearEnemiesAhead(_ctx.Crowd.CenterZ, range);
+
+            // A ring that sprints out to the spell's ACTUAL clear range, so the player
+            // learns how far the flick reaches by watching it rather than by dying to a
+            // pack that was one metre outside it.
+            _ctx.Effects.Shock(new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.CenterZ),
+                SpellTint, 1.2f, range, 0.42f);
+            _ctx.Effects.Burst(new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.CenterZ + 1.5f),
+                SpellTint, 10, 4.2f, 0.5f);
+
             if (cleared > 0)
                 Debug.Log($"[Run] Spell cleared {cleared} enemy pack(s).");
         }
 
-        private void OnGateApplied(GateOp op, int value)
+        private void OnGateApplied(GateOp op, int value, Vector3 where)
         {
             RunState run = _ctx.Run;
             long before = run.ForceCount;
@@ -110,10 +137,20 @@ namespace BattleRunner.Gameplay.States
             if (run.ForceCount > before)
                 _ctx.CameraRig.PunchFov(1.4f + 2.6f * CameraFeel.ForGate(op, before, run.ForceCount).Trauma);
 
+            // Sized by the same octave ratio the camera uses, so a x2 at 10 units and a x2
+            // at 1000 throw the same ring — and a +1 barely ripples. The gate is the whole
+            // game and until now passing one produced no event at all: the number changed,
+            // the camera nudged, and that was it.
+            float weight = CameraFeel.ForGate(op, before, run.ForceCount).Trauma;
+            Color tint = GateTint(op);
+            _ctx.Effects.Shock(where, tint, 0.8f, 2.6f + 4.4f * weight, 0.34f + 0.16f * weight);
+            if (run.ForceCount > before)
+                _ctx.Effects.Burst(where, tint, 4 + Mathf.RoundToInt(10f * weight), 3.4f, 0.45f);
+
             if (run.ForceCount <= 0) OnForceDepleted();
         }
 
-        private void OnEnemyContact(int forceCost)
+        private void OnEnemyContact(int forceCost, Vector3 where)
         {
             if (_ctx.Shield.IsActive) return;
 
@@ -128,6 +165,12 @@ namespace BattleRunner.Gameplay.States
 
             _ctx.CameraRig.Apply(CameraFeel.ForLoss(beforeBite, run.ForceCount));
 
+            // Debris scaled to what the pack actually took, not to its printed cost —
+            // Bramble and Undying cut the bite, and the effect should show the bite.
+            float loss = CameraFeel.ForLoss(beforeBite, run.ForceCount).Trauma;
+            _ctx.Effects.Shock(where, LossTint, 0.6f, 2.2f + 2.6f * loss, 0.30f);
+            _ctx.Effects.Burst(where, LossTint, 6 + Mathf.RoundToInt(14f * loss), 3.8f, 0.55f);
+
             if (run.ForceCount <= 0) OnForceDepleted();
         }
 
@@ -141,6 +184,8 @@ namespace BattleRunner.Gameplay.States
             // refunding the cooldown, which ResetForPhase would.
             _ctx.Shield.CancelActive();
             _ctx.Ward.Clear();
+            // Embers still arcing behind a modal read as the game continuing underneath it.
+            _ctx.Effects.Clear();
             _ctx.Resurrect.Show(
                 _ctx.Ads.IsRewardedReady(AdPlacement.Resurrect),
                 onResurrect: () =>

@@ -174,7 +174,7 @@ namespace BattleRunner.Gameplay
 
         private void OnSpellCast() => _director.Observe(TutorialSignal.SpellCast);
         private void OnShieldRaised() => _director.Observe(TutorialSignal.ShieldRaised);
-        private void OnGateApplied(Core.Run.GateOp op, int value) =>
+        private void OnGateApplied(Core.Run.GateOp op, int value, UnityEngine.Vector3 where) =>
             _director.Observe(TutorialSignal.GatePassed);
     }
 }
