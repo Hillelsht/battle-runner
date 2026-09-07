@@ -248,8 +248,16 @@ namespace BattleRunner.Meta.UI
             rootGo.transform.SetParent(parent, false);
             var root = (RectTransform)rootGo.transform;
 
-            var viewportGo = new GameObject("Viewport", typeof(RectTransform), typeof(RectMask2D));
+            // The viewport carries a fully transparent Image purely as a RAYCAST TARGET.
+            // Without a graphic the ScrollRect only receives drags that start on a child
+            // button, so a swipe begun in the gap between two cells does nothing — which on
+            // a tree of sixty nodes is most of the screen and reads as a stuck list.
+            var viewportGo = new GameObject("Viewport",
+                typeof(RectTransform), typeof(Image), typeof(RectMask2D));
             viewportGo.transform.SetParent(root, false);
+            var catcher = viewportGo.GetComponent<Image>();
+            catcher.color = new Color(0f, 0f, 0f, 0f);
+            catcher.raycastTarget = true;
             var viewport = (RectTransform)viewportGo.transform;
             Stretch(viewport);
 

@@ -79,6 +79,11 @@ pack bites, a ring that sprints out to the spell's actual clear range, embers of
 on a hit, a bright ring when the shield eats a blow, and a three-wave death beat with
 forty motes when the boss falls.
 
+The tree's scroll column carries a fully transparent `Image` on its viewport purely as a
+raycast target. Without a Graphic the `ScrollRect` is not hit-testable, so only drags that
+began on a child button reached it — and on a column of sixty nodes the gaps between cells
+are most of the screen, which made the list read as stuck rather than as fussy.
+
 **Six bosses that are actually six bosses.** The game shipped with two, and they used the
 SAME MESH: `BossDefinition` differed in name, tint and stats and in nothing else, both
 rendered `ProceduralMeshes.Boss` at 6x, and both ran one pattern — telegraph, then a single
