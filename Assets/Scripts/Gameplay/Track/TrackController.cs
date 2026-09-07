@@ -85,9 +85,17 @@ namespace BattleRunner.Gameplay.Track
 
             _groundMaterial = LoadRoadMaterial(baseMaterial);
 
+            // Same unrestrained rim the gates had. The finish line is a full-width slab
+            // whose only visible face points straight up, at ~80 degrees off the view axis
+            // where the shader's DEFAULT lobe reads 0.64 — so it ran at near-full emission
+            // over a colour already above white, and during the boss fight (which happens
+            // past it) it filled the bottom of the frame with saturated gold.
             _finishMaterial = ShaderSafety.CreateMaterial(baseMaterial);
             _finishMaterial.SetColorSafe("_BaseColor", new Color(0.9f, 0.65f, 0.2f) * 0.5f);
             _finishMaterial.SetColorSafe("_EmissionColor", new Color(1.2f, 0.85f, 0.25f));
+            _finishMaterial.SetFloatSafe("_RimPower", 4f);
+            _finishMaterial.SetFloatSafe("_RimStrength", 0.30f);
+            _finishMaterial.SetFloatSafe("_EmissionFlat", 0.12f);
             _finishMaterial.SetFloatSafe("_BobAmount", 0f);
 
             // Lane lines and speed rungs are 2 cm decals whose only visible face points
@@ -97,11 +105,16 @@ namespace BattleRunner.Gameplay.Track
             // grid, so the lavender cast the road was blamed for was substantially these
             // markings painted over it. Neutral hue, tighter lobe, and the flat term cut.
             _markingMaterial = ShaderSafety.CreateMaterial(baseMaterial);
-            _markingMaterial.SetColorSafe("_BaseColor", new Color(0.16f, 0.16f, 0.17f));
-            _markingMaterial.SetColorSafe("_EmissionColor", new Color(0.34f, 0.33f, 0.32f));
+            // The hue fix was right, the level was not: at 0.34 emission and a 0.08 flat
+            // term these landed at ~0.9x the road's own luminance, i.e. DARKER than the
+            // stone they are painted on, and on device the lane lines all but vanished on
+            // the dark early stretch of a level. In a three-lane game the lane read is not
+            // decoration. Back up to ~1.5x the road, still neutral in hue.
+            _markingMaterial.SetColorSafe("_BaseColor", new Color(0.17f, 0.17f, 0.18f));
+            _markingMaterial.SetColorSafe("_EmissionColor", new Color(0.46f, 0.45f, 0.44f));
             _markingMaterial.SetFloatSafe("_RimPower", 4f);
             _markingMaterial.SetFloatSafe("_RimStrength", 0.35f);
-            _markingMaterial.SetFloatSafe("_EmissionFlat", 0.08f);
+            _markingMaterial.SetFloatSafe("_EmissionFlat", 0.10f);
             _markingMaterial.SetFloatSafe("_BobAmount", 0f);
 
             // The rails were reading as lit blue plastic rather than as stone kerbs.

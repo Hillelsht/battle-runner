@@ -18,6 +18,7 @@ namespace BattleRunner.Meta.UI
         private readonly Text _itemStats;
         private readonly Text _powerLabel;
         private readonly GameObject _doubleButtonGo;
+        private readonly RectTransform _continueRect;
 
         private Action _onContinue;
         private Action _onDouble;
@@ -31,7 +32,7 @@ namespace BattleRunner.Meta.UI
             UiFactory.Place((RectTransform)_header.transform, 0.5f, 0.85f, 900f, 90f);
 
             _card = UiFactory.Panel(root, "Card", UiFactory.InkSoft);
-            UiFactory.Place(_card, 0.5f, 0.62f, 760f, 460f);
+            UiFactory.Place(_card, 0.5f, 0.60f, 760f, 460f);
             // AddFrame had exactly one caller — ActionButton — so the art pass framed every
             // BUTTON and no content panel. The loot card sat 0.001 in red away from the
             // backdrop behind it at its lower edge: an invisible boundary next to framed
@@ -52,12 +53,13 @@ namespace BattleRunner.Meta.UI
             // Same footprint as CONTINUE below. Two buttons stacked in one column at
             // 560x110 and 640x130 read as a mistake, not a hierarchy — the difference is
             // 88 device px of width on a 1080-wide phone.
-            UiFactory.Place((RectTransform)doubleBtn.transform, 0.5f, 0.32f, 640f, 130f);
+            UiFactory.Place((RectTransform)doubleBtn.transform, 0.5f, 0.38f, 640f, 130f);
             _doubleButtonGo = doubleBtn.gameObject;
 
             Button continueBtn = UiFactory.ActionButton(root, "Continue", "AUTO-EQUIP & CONTINUE", UiFactory.Blood,
                 () => _onContinue?.Invoke());
-            UiFactory.Place((RectTransform)continueBtn.transform, 0.5f, 0.18f, 640f, 130f);
+            _continueRect = (RectTransform)continueBtn.transform;
+            PlaceContinue(true);
 
             Hide();
         }
@@ -76,6 +78,7 @@ namespace BattleRunner.Meta.UI
                 ? $"Item Power {itemPower:0}  — equipped!"
                 : $"Item Power {itemPower:0}  — kept in inventory";
             _doubleButtonGo.SetActive(adAvailable);
+            PlaceContinue(adAvailable);
             _root.SetActive(true);
         }
 
@@ -84,7 +87,18 @@ namespace BattleRunner.Meta.UI
         /// <summary>The header a fresh drop gets, before any double-loot ad.</summary>
         public const string DefaultHeader = "THE BOSS YIELDS...";
 
-        public void HideDoubleButton() => _doubleButtonGo.SetActive(false);
+        public void HideDoubleButton()
+        {
+            _doubleButtonGo.SetActive(false);
+            PlaceContinue(false);
+        }
+
+        /// <summary>
+        /// CONTINUE takes the ad button's slot when there is no ad button, so the screen
+        /// does not leave a 700 px hole between the card and the only thing left to tap.
+        /// </summary>
+        private void PlaceContinue(bool sharingWithAd) =>
+            UiFactory.Place(_continueRect, 0.5f, sharingWithAd ? 0.24f : 0.34f, 640f, 130f);
 
         public void Hide() => _root.SetActive(false);
     }

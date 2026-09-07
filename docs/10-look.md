@@ -412,6 +412,57 @@ so for several releases five enemies visually outweighed a 116-strong army. That
 the one comparison the whole game is about. Now `BodyScale = 0.47`, with the cluster
 offsets and the force label scaled to match.
 
+## Fog on a 400-metre quad: the fix that broke the thing it fixed
+
+v0.8.0 turned fog on for the first time and stretched the ground to 180 m past the
+finish. Both were right, and together they produced a new defect: on device the near
+road **brightened about 2x and warmed toward the fog colour between the start of a level
+and its boss**, with nothing about the material or the viewing distance having changed.
+Measured medians across the road width, near row, same build:
+
+| shot | crowd | near road |
+|---|---:|---|
+| early run | 15 | (27, 25, 33) |
+| early run | 20 | (25, 22, 28) |
+| mid run | 68 | (41, 31, 38) |
+| boss | 93 | (51, 36, 40) |
+
+Both shaders computed `ComputeFogFactor(positionCS.z)` **at the vertex**. That is normal
+and correct for ordinary geometry — and completely wrong for this project's ground, whose
+lane lines and rails are each a single stretched box spanning the entire level from eight
+corner vertices. A factor evaluated at those corners and interpolated across 400 m of road
+depends on where the camera sits along the box, not on how far away the pixel is. Early in
+a level the camera is near the box's near corner and the road reads clear; by the boss it
+is halfway along and the whole visible road is dragged toward the fog colour.
+
+Fog is now computed **per pixel**, by recomputing the clip position from the interpolated
+world position in the fragment. That is one matrix multiply, and it uses URP's own
+`ComputeFogFactor` rather than unpacking `unity_FogParams` by hand so it stays correct
+under reversed-Z and any future fog mode. Segmenting the ground into shorter boxes would
+also have worked and would have cost eighteen times the draw calls.
+
+## Two overcorrections in the same pass
+
+**Lane lines went from a lavender wash to invisible.** Neutralising their hue was right;
+the level was not. At `_EmissionColor 0.34` and a 0.08 flat term they landed at ~0.9x the
+road's own luminance — darker than the stone they are painted on — and on the dark early
+stretch of a level they all but disappeared. In a three-lane game the lane read is not
+decoration. Back to ~1.5x, still neutral.
+
+**The finish line had the same unrestrained rim the gates did.** It is a full-width slab
+whose only visible face points straight up, at ~80 degrees off the view axis where the
+shader's default lobe reads 0.64, over a colour already above white. The boss fight
+happens past it, so it filled the bottom of the frame with saturated gold for the whole
+encounter. Same tight lobe the rails and gates now have.
+
+## The shield ward reads
+
+Confirmed on device at last, three builds after it shipped: with the block window open the
+army lights cyan-white, the hero goes near-white, and the HUD reads SHIELDED. It was the
+change I was least sure about — recolouring the crowd's own emission rather than drawing a
+dome, to avoid a fourth shader in `Resources` — and it is unambiguous in a still frame,
+never mind in motion.
+
 ## Deliberately not done yet
 
 Additive VFX — the gate-pass shockwave, the spell shock ring, unit-death bodies, the boss

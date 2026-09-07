@@ -32,6 +32,29 @@ army stands on the road instead of hovering over it — and a procedural cobbled
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
 corner notches, a gradient backdrop and readable disabled states, across every screen.
+**Fog was being interpolated across a 400 m quad.** Turning fog on and stretching the
+ground past the fog wall were both right, and together they produced a new defect: on
+device the near road brightened ~2x and warmed toward the fog colour between the start of
+a level and its boss, with neither the material nor the distance changing. Both shaders
+computed the fog factor at the VERTEX — fine for ordinary geometry, wrong for a ground,
+lane lines and rails that are each one stretched box spanning the whole level from eight
+corners. The factor then depends on where the camera sits along the box. Fog is now
+computed per pixel from the interpolated world position.
+
+**Two overcorrections from the previous pass.** Lane lines and rungs were neutralised in
+hue (right) but cut to ~0.9x the road's luminance (wrong) — darker than the stone they are
+painted on, and effectively invisible on the dark early stretch of a level, in a game whose
+whole read is three lanes. Back to ~1.5x. And the finish line still had the unrestrained
+default rim the gates were just fixed for: a full-width up-facing slab over an above-white
+colour, filling the bottom of the frame with gold for the entire boss fight, which happens
+past it.
+
+**Confirmed on device: the shield ward reads.** Army lights cyan-white, hero near-white,
+HUD reads SHIELDED. Also confirmed: the boss renders as a lit figure, the road runs into
+haze instead of ending in mid-air, the rails and road are neutral, enemy packs match the
+crowd's scale, talent text wraps inside its cell, and a pure-Focus relic now scores Item
+Power 4 instead of ~0.
+
 **The boss was rendering as a black cutout, and three things caused it.** Device shots of
 v0.7.0 showed the Bone Colossus at a uniform #3a3a3a across every face — darker than the
 road under it. `BossView` uploaded `tint * 0.5f`, but these are sRGB values in a linear

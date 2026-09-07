@@ -81,7 +81,6 @@ Shader "BattleRunner/Road"
                 float4 positionCS : SV_POSITION;
                 float3 normalWS : TEXCOORD0;
                 float3 positionWS : TEXCOORD1;
-                half fogFactor : TEXCOORD2;
             };
 
             float Hash21(float2 p)
@@ -112,7 +111,6 @@ Shader "BattleRunner/Road"
                 output.positionWS = positionWS;
                 output.positionCS = TransformWorldToHClip(positionWS);
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
-                output.fogFactor = ComputeFogFactor(output.positionCS.z);
                 return output;
             }
 
@@ -159,7 +157,19 @@ Shader "BattleRunner/Road"
                 half spec = pow(saturate(dot(normalWS, halfVector)), _Gloss);
                 color += _DampColor.rgb * spec * _Wetness * mortar * grime * shadow;
 
-                color = MixFog(color, input.fogFactor);
+                // PER-PIXEL fog, not the interpolated per-vertex factor URP hands you.
+                // The ground, the four lane lines and both rails are each ONE stretched box
+                // spanning the entire level — over 400 m from eight corner vertices — so a
+                // fog factor evaluated at those corners is then interpolated across the
+                // whole visible road. The result depends on where the camera happens to sit
+                // along the box rather than on how far away the pixel actually is: measured
+                // on device, the near road brightened about 2x and warmed toward the fog
+                // colour between the start of a level and its boss, with nothing about the
+                // material or the distance having changed. Recomputing the clip position
+                // here costs one matrix multiply and makes the factor exact. Using URP's own
+                // ComputeFogFactor rather than unpacking unity_FogParams keeps this correct
+                // across reversed-Z and any future fog mode.
+                color = MixFog(color, ComputeFogFactor(TransformWorldToHClip(input.positionWS).z));
                 return half4(color, 1.0h);
             }
             ENDHLSL
