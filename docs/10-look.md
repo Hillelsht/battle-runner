@@ -533,6 +533,72 @@ hot but not absurd if it is expanded (1.6^2.2 = 2.9). At 2.5 the expanded case w
 and the screen would white out. A device screenshot decides which, and then these tune in
 one direction with confidence.
 
+## The shield needed an object, not a colour
+
+The player's report was "no shield effect". The screenshots disagree — the Ember Lich
+frame shows the army lit brilliant cyan with `SHIELDED` in the HUD, so `ShieldWard` fires
+exactly as designed. They were still right about the thing that matters: **recolouring the
+army reads as the army changing colour, not as a shield.** A defensive verb needs a
+defensive object.
+
+So `ShieldDome` draws the shell and the ward stays as the secondary cue. Two channels for
+one event is not redundancy here: the dome says *you are protected*, the ward keeps the
+units readable underneath it while the player is still steering.
+
+Additive plus **fresnel** is the whole trick. The surface facing the camera contributes
+almost nothing, so the army is never hidden; the turning edge lights up and describes the
+sphere. A dome that filled in would be worse than no dome, because it would cover the one
+thing the player is looking at.
+
+Two details that are load-bearing:
+
+- **`abs(dot(n, v))`, not `saturate`.** The pass is `Cull Off`, so the far half of the dome
+  draws too, and its normals point away from the camera. `saturate` clamps that dot to 0
+  and the back hemisphere comes out at *full* fresnel — a bright disc behind the army.
+  `abs` mirrors the term so both shells glow at the rim and stay transparent through the
+  middle.
+- **Normals are set, not recalculated.** On a sphere the outward normal is just the
+  normalised position. `RecalculateNormals` would skew the equator ring, because it only
+  has geometry on one side — and that ring is exactly what the player sees edge-on, where
+  the fresnel term does its most visible work.
+
+The dome is sized from `CrowdMath`'s envelope every frame rather than from a constant: the
+army grows from a handful of units to a few hundred, and a fixed shell would swallow the
+small crowd and clip through the large one.
+
+## The spell needed a middle
+
+Casting used to be a cause with no middle — you flicked, and packs stopped existing. Now a
+**bolt** leaves the army, travels, and detonates at the spell's *actual* clear range, so
+the player learns how far the flick reaches by watching it rather than by dying to a pack
+one metre outside it. In the boss fight the same bolt detonates on the boss, which is the
+difference between a stat change and a hit.
+
+`VfxSystem` fires the wall and the embers **on arrival, from inside the bolt's own update**
+rather than from the caller, so the detonation cannot drift away from where the bolt
+actually landed. The bolt is stretched along its travel direction — a cube reads as a
+floating box, a cube stretched into its velocity reads as something moving fast.
+
+A pool entry is born with `Detonated = true`, which doubles as "inactive". Without that a
+never-fired bolt has `Life = 0`, the update divides age by zero, clamps to 1, and "arrives"
+at the world origin on the first frame of the game.
+
+## A natural experiment for the missing shockwaves
+
+The shockwave walls have now failed to appear in two rounds of screenshots while the debris
+motes on the same material rendered fine (measured at `(87,122,220)` against a `(30,30,45)`
+road). Rather than guess a third time, this build is arranged so the next screenshot
+discriminates on its own:
+
+| what shows | what it means |
+|---|---|
+| bolt + dome + wall | everything works |
+| bolt only | the two hand-built meshes (`ShockWall`, `Dome`) are the problem, not the material |
+| nothing | the additive material is not resolving on device at all |
+
+The bolt uses `ProceduralMeshes.Cube` — the same mesh the working motes use — so it is the
+control in the experiment.
+
 ## Deliberately not done yet
 
 Nothing in the render stack. The remaining gaps are content and production: real art in

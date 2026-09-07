@@ -54,6 +54,7 @@ namespace BattleRunner.Gameplay.States
 
             _ctx.Tutorial.Unsubscribe();
             _ctx.Tutorial.EndPhase();
+            _ctx.Dome.Clear();
             _ctx.Effects.Clear();
         }
 
@@ -109,13 +110,16 @@ namespace BattleRunner.Gameplay.States
             float range = _ctx.Config.Spells.ClearRangeMeters;
             int cleared = _ctx.TrackController.ClearEnemiesAhead(_ctx.Crowd.CenterZ, range);
 
-            // A ring that sprints out to the spell's ACTUAL clear range, so the player
-            // learns how far the flick reaches by watching it rather than by dying to a
-            // pack that was one metre outside it.
-            _ctx.Effects.Shock(new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.CenterZ),
-                SpellTint, 1.2f, range, 0.55f);
-            _ctx.Effects.Burst(new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.CenterZ + 1.5f),
-                SpellTint, 10, 4.2f, 0.5f);
+            // A BOLT, not an instant ring. The spell used to be a cause with no middle: you
+            // flicked, and packs stopped existing. Now something leaves the hero, travels,
+            // and detonates at the spell's ACTUAL clear range — so the player learns how far
+            // the flick reaches by watching it rather than by dying to a pack one metre
+            // outside it. VfxSystem fires the wall and the embers on arrival, so they cannot
+            // drift away from where the bolt actually landed.
+            var origin = new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.FrontZ);
+            _ctx.Effects.Burst(origin, SpellTint, 8, 3.2f, 0.35f);
+            _ctx.Effects.Bolt(origin, new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.CenterZ + range),
+                SpellTint, 45f);
 
             if (cleared > 0)
                 Debug.Log($"[Run] Spell cleared {cleared} enemy pack(s).");
@@ -184,6 +188,7 @@ namespace BattleRunner.Gameplay.States
             // refunding the cooldown, which ResetForPhase would.
             _ctx.Shield.CancelActive();
             _ctx.Ward.Clear();
+            _ctx.Dome.Clear();
             // Embers still arcing behind a modal read as the game continuing underneath it.
             _ctx.Effects.Clear();
             _ctx.Resurrect.Show(

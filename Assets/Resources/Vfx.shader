@@ -20,8 +20,14 @@ Shader "BattleRunner/Vfx"
         [HDR] _TintColor ("Tint", Color) = (1, 1, 1, 1)
         _Fade ("Fade", Range(0, 1)) = 1
         // 0 = draw the whole surface flat (motes), 1 = fade up the shock wall's object-
-        // space height (shockwaves). One shader, two shapes, no keywords.
+        // space height (shockwaves). One shader, three shapes, no keywords.
         _Band ("Height Falloff", Range(0, 1)) = 0
+
+        // The shield dome, and only the dome. A barrier has to be nearly invisible where
+        // you look straight through it and bright where it turns away, or it is an opaque
+        // ball sitting on your army. Off for motes and walls.
+        _Fresnel ("Fresnel (dome)", Range(0, 1)) = 0
+        _FresnelPower ("Fresnel Power", Range(1, 8)) = 2.5
     }
 
     SubShader
@@ -56,6 +62,8 @@ Shader "BattleRunner/Vfx"
                 half4 _TintColor;
                 half _Fade;
                 half _Band;
+                half _Fresnel;
+                half _FresnelPower;
             CBUFFER_END
 
             // NO UV CHANNEL ANYWHERE. The first version shaped the shockwave from the
@@ -69,18 +77,24 @@ Shader "BattleRunner/Vfx"
             struct Attributes
             {
                 float4 positionOS : POSITION;
+                float3 normalOS : NORMAL;
             };
 
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
                 half height : TEXCOORD0;
+                half3 normalWS : TEXCOORD1;
+                float3 positionWS : TEXCOORD2;
             };
 
             Varyings vert(Attributes input)
             {
                 Varyings output;
-                output.positionCS = TransformObjectToHClip(input.positionOS.xyz);
+                float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
+                output.positionWS = positionWS;
+                output.positionCS = TransformWorldToHClip(positionWS);
+                output.normalWS = (half3)TransformObjectToWorldNormal(input.normalOS);
                 output.height = (half)input.positionOS.y;
                 return output;
             }
@@ -92,8 +106,26 @@ Shader "BattleRunner/Vfx"
                 // of reading as a lit cylinder.
                 half wall = 1.0h - saturate(input.height);
                 wall *= wall;
-                half band = lerp(1.0h, wall, _Band);
-                return half4(_TintColor.rgb * band * _Fade, 1.0h);
+                half shape = lerp(1.0h, wall, _Band);
+
+                // Dome only. Additive plus fresnel is what makes a barrier: the surface
+                // facing you contributes almost nothing so the army stays readable through
+                // it, while the turning edge lights up and describes the shell. The ripple
+                // is what stops it reading as a static prop — a barrier the player is
+                // holding up should look like it is being held up.
+                half3 n = normalize(input.normalWS);
+                half3 v = (half3)normalize(GetWorldSpaceViewDir(input.positionWS));
+                // abs(), not saturate(). The pass is Cull Off, so the FAR half of the dome is
+                // drawn too and its normals point away from the camera — dot goes negative,
+                // saturate clamps it to 0, and the back hemisphere would come out at full
+                // fresnel: a bright disc sitting behind the army. abs() mirrors the term, so
+                // both shells glow at their rim and go transparent through their middle,
+                // which is what a double-sided barrier should do.
+                half fres = pow(1.0h - abs(dot(n, v)), _FresnelPower);
+                half ripple = 0.78h + 0.22h * sin(input.height * 16.0h - _Time.y * 5.0h);
+                shape *= lerp(1.0h, saturate(fres * 1.7h) * ripple, _Fresnel);
+
+                return half4(_TintColor.rgb * shape * _Fade, 1.0h);
             }
             ENDHLSL
         }

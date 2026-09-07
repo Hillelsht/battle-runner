@@ -32,6 +32,21 @@ army stands on the road instead of hovering over it — and a procedural cobbled
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
 corner notches, a gradient backdrop and readable disabled states, across every screen.
+**The shield is an actual barrier now.** The player reported no shield effect; the
+screenshots show `ShieldWard` firing exactly as built, army lit cyan and `SHIELDED` in the
+HUD. Both are true — recolouring the army reads as the army changing colour, not as a
+shield. `ShieldDome` draws the shell: an additive hemisphere with a fresnel rim, so the
+surface facing you contributes almost nothing and the army stays readable through it while
+the turning edge describes the sphere. Sized from the crowd's envelope every frame, pops in
+oversized and settles, and takes a hard flash when it eats a blow. The ward stays as the
+secondary cue.
+
+**The spell has a middle.** Casting was a cause with no middle: you flicked and packs
+stopped existing. A bolt now leaves the army, travels, and detonates at the spell's actual
+clear range — and on the boss during an encounter. The wall and embers fire from inside the
+bolt's own update on the frame it arrives, so the detonation cannot drift from where the
+bolt landed.
+
 **The shockwaves never drew, and the screenshots proved it by measurement.** In v0.9.0 the
 debris motes sampled at (83, 122, 217) against a road of ~(30, 30, 45) — clearly present —
 while a scan across the road at four depths found no ring crest in any frame. Same

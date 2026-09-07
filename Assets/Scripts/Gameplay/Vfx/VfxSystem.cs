@@ -36,6 +36,7 @@ namespace BattleRunner.Gameplay.Vfx
 
         private const int RingCapacity = 12;
         private const int MoteCapacity = 48;
+        private const int BoltCapacity = 4;
 
         // The wall's base sits just clear of the road so it does not z-fight the lane
         // decals at 0.005-0.02. Its height shrinks as it expands: a wave that spreads and
@@ -66,8 +67,28 @@ namespace BattleRunner.Gameplay.Vfx
             public Color Tint;
         }
 
+        /// <summary>
+        /// A spell bolt in flight. The spell used to be instantaneous — a number left the
+        /// boss's health bar and enemy packs stopped existing — so the flick had a cause
+        /// and an effect with nothing in between. A travelling object gives it a path, and
+        /// the path is what tells the player how far the spell actually reaches.
+        /// </summary>
+        private sealed class BoltState
+        {
+            public Transform Transform;
+            public MeshRenderer Renderer;
+            public float Age;
+            public float Life;
+            public Vector3 From;
+            public Vector3 To;
+            public Color Tint;
+            /// <summary>Doubles as "inactive". A pool entry starts detonated so it is free.</summary>
+            public bool Detonated;
+        }
+
         private readonly List<Ring> _rings = new List<Ring>(RingCapacity);
         private readonly List<Mote> _motes = new List<Mote>(MoteCapacity);
+        private readonly List<BoltState> _bolts = new List<BoltState>(BoltCapacity);
         private MaterialPropertyBlock _block;
 
         // Deterministic, not Random: the same gate should not flicker differently between
@@ -93,6 +114,17 @@ namespace BattleRunner.Gameplay.Vfx
             {
                 MeshRenderer renderer = Build("Mote", ProceduralMeshes.Cube, vfxMaterial);
                 _motes.Add(new Mote { Transform = renderer.transform, Renderer = renderer });
+            }
+            for (int i = 0; i < BoltCapacity; i++)
+            {
+                MeshRenderer renderer = Build("Bolt", ProceduralMeshes.Cube, vfxMaterial);
+                // Detonated:true from birth. Without it a never-fired bolt has Life = 0, the
+                // update divides Age by zero, clamps to 1 and "arrives" at the world origin
+                // on the first frame of the game.
+                _bolts.Add(new BoltState
+                {
+                    Transform = renderer.transform, Renderer = renderer, Detonated = true
+                });
             }
 
             Enabled = true;
@@ -180,6 +212,36 @@ namespace BattleRunner.Gameplay.Vfx
             }
         }
 
+        /// <summary>
+        /// A bolt that flies from one point to another and detonates on arrival, throwing a
+        /// wall and embers where it lands. The flight time is derived from the distance so
+        /// a spell that reaches further visibly takes longer to get there.
+        /// </summary>
+        public void Bolt(Vector3 from, Vector3 to, Color tint, float speed)
+        {
+            if (!Enabled) return;
+
+            BoltState bolt = null;
+            for (int i = 0; i < _bolts.Count; i++)
+            {
+                if (!_bolts[i].Detonated) continue;
+                bolt = _bolts[i];
+                break;
+            }
+            if (bolt == null) bolt = _bolts[0];
+
+            float distance = Vector3.Distance(from, to);
+            bolt.Age = 0f;
+            bolt.Life = Mathf.Clamp(distance / Mathf.Max(1f, speed), 0.12f, 0.75f);
+            bolt.From = from + Vector3.up * 0.6f;
+            bolt.To = to + Vector3.up * 0.6f;
+            bolt.Tint = tint;
+            bolt.Detonated = false;
+            bolt.Transform.position = bolt.From;
+            bolt.Transform.gameObject.SetActive(true);
+            Paint(bolt.Renderer, tint, 1f, band: 0f);
+        }
+
         /// <summary>Drops everything immediately — a phase change must not leave embers hanging.</summary>
         public void Clear()
         {
@@ -192,6 +254,12 @@ namespace BattleRunner.Gameplay.Vfx
             {
                 _motes[i].Age = _motes[i].Life;
                 _motes[i].Transform.gameObject.SetActive(false);
+            }
+            for (int i = 0; i < _bolts.Count; i++)
+            {
+                _bolts[i].Age = _bolts[i].Life;
+                _bolts[i].Detonated = true;
+                _bolts[i].Transform.gameObject.SetActive(false);
             }
         }
 
@@ -221,6 +289,38 @@ namespace BattleRunner.Gameplay.Vfx
                 float height = Mathf.Lerp(WallHeightNear, WallHeightFar, eased);
                 ring.Transform.localScale = new Vector3(radius, height, radius);
                 Paint(ring.Renderer, ring.Tint, (1f - t) * (1f - t), band: 1f);
+            }
+
+            for (int i = 0; i < _bolts.Count; i++)
+            {
+                BoltState bolt = _bolts[i];
+                if (bolt.Detonated) continue;
+
+                bolt.Age += dt;
+                float bt = Mathf.Clamp01(bolt.Age / bolt.Life);
+
+                if (bt >= 1f)
+                {
+                    // The detonation is the point of the bolt. Fired here rather than by the
+                    // caller so the wall and the embers land where the bolt actually ARRIVED,
+                    // on the frame it arrived, with no way for the two to drift apart.
+                    bolt.Detonated = true;
+                    Shock(bolt.To, bolt.Tint, 1.0f, 7.5f, 0.45f);
+                    Burst(bolt.To, bolt.Tint, 14, 5.5f, 0.6f);
+                    bolt.Transform.gameObject.SetActive(false);
+                    continue;
+                }
+
+                // Eased so it leaves fast and arrives decisively, and stretched along its
+                // own travel direction: a bolt shaped like a cube reads as a floating box,
+                // one stretched into its velocity reads as something moving quickly.
+                Vector3 position = Vector3.Lerp(bolt.From, bolt.To, bt * bt * (3f - 2f * bt));
+                bolt.Transform.position = position;
+                Vector3 heading = bolt.To - bolt.From;
+                if (heading.sqrMagnitude > 1e-4f)
+                    bolt.Transform.rotation = Quaternion.LookRotation(heading, Vector3.up);
+                bolt.Transform.localScale = new Vector3(0.34f, 0.34f, 1.9f);
+                Paint(bolt.Renderer, bolt.Tint, 1f, band: 0f);
             }
 
             for (int i = 0; i < _motes.Count; i++)

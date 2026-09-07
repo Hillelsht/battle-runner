@@ -202,8 +202,13 @@ namespace BattleRunner.Gameplay
 
             var vfxGo = new GameObject("Vfx");
             vfxGo.transform.SetParent(ctx.ArenaRoot.transform, false);
+            Material vfxMaterial = LoadVfxMaterial();
             ctx.Effects = vfxGo.AddComponent<Vfx.VfxSystem>();
-            ctx.Effects.Initialize(LoadVfxMaterial());
+            ctx.Effects.Initialize(vfxMaterial);
+
+            // The dome lives on the same object and shares the one additive material.
+            ctx.Dome = vfxGo.AddComponent<Vfx.ShieldDome>();
+            ctx.Dome.Initialize(ctx.Shield, ctx.Crowd, vfxMaterial);
 
             ctx.ArenaRoot.SetActive(false);
         }

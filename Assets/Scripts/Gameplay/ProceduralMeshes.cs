@@ -23,6 +23,7 @@ namespace BattleRunner.Gameplay
         private static Mesh _boss;
         private static Mesh _cube;
         private static Mesh _shockWall;
+        private static Mesh _dome;
 
         public static Mesh Unit
         {
@@ -158,6 +159,69 @@ namespace BattleRunner.Gameplay
             AddOrientedBox(v, t, new Vector3(0.44f, 0.87f, -0.06f), new Vector3(0.22f, 0.28f, 0.045f), tilt);
 
             return Finish(v, t, "BossGreybox");
+        }
+
+        /// <summary>
+        /// A unit hemisphere standing on y=0, for the shield barrier. Normals are SET, not
+        /// recalculated: on a sphere the outward normal is just the normalised position, and
+        /// RecalculateNormals would skew the equator ring because it only has geometry on
+        /// one side of it — which is exactly the ring the player sees edge-on and where the
+        /// fresnel term is doing its most visible work.
+        ///
+        /// Object-space y runs 0 at the base to 1 at the pole, which is what the Vfx
+        /// shader's ripple rides on.
+        /// </summary>
+        public static Mesh Dome
+        {
+            get
+            {
+                if (_dome == null) _dome = BuildDome(24, 8);
+                return _dome;
+            }
+        }
+
+        private static Mesh BuildDome(int slices, int stacks)
+        {
+            var vertices = new List<Vector3>((slices + 1) * (stacks + 1));
+            var normals = new List<Vector3>((slices + 1) * (stacks + 1));
+            var triangles = new List<int>(slices * stacks * 6);
+
+            for (int ring = 0; ring <= stacks; ring++)
+            {
+                float phi = (float)(ring * Math.PI * 0.5 / stacks); // 0 at the base, PI/2 at the pole
+                float y = Mathf.Sin(phi);
+                float r = Mathf.Cos(phi);
+                for (int i = 0; i <= slices; i++)
+                {
+                    float theta = (float)(i * 2.0 * Math.PI / slices);
+                    var v = new Vector3(Mathf.Cos(theta) * r, y, Mathf.Sin(theta) * r);
+                    vertices.Add(v);
+                    normals.Add(v.normalized);
+                }
+            }
+
+            int stride = slices + 1;
+            for (int ring = 0; ring < stacks; ring++)
+            {
+                for (int i = 0; i < slices; i++)
+                {
+                    int a = ring * stride + i;
+                    int b = a + stride;
+                    triangles.Add(a);
+                    triangles.Add(b);
+                    triangles.Add(a + 1);
+                    triangles.Add(a + 1);
+                    triangles.Add(b);
+                    triangles.Add(b + 1);
+                }
+            }
+
+            var mesh = new Mesh { name = "DomeGreybox" };
+            mesh.SetVertices(vertices);
+            mesh.SetNormals(normals);
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateBounds();
+            return mesh;
         }
 
         private static Mesh BuildShockWall(int segments)

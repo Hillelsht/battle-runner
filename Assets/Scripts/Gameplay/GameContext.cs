@@ -44,6 +44,7 @@ namespace BattleRunner.Gameplay
         public CameraRig CameraRig;
         public Vfx.ShieldWard Ward;
         public Vfx.VfxSystem Effects;
+        public Vfx.ShieldDome Dome;
         public SpellSystem Spell;
         public ShieldSystem Shield;
 

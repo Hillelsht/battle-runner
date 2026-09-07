@@ -71,6 +71,7 @@ namespace BattleRunner.Gameplay.States
 
             _ctx.BossView.Hide();
             _ctx.Hud.HideBossBar();
+            _ctx.Dome.Clear();
             _ctx.Effects.Clear();
         }
 
@@ -130,10 +131,13 @@ namespace BattleRunner.Gameplay.States
             _ctx.CameraRig.Apply(CameraFeel.Spell);
             _ctx.CameraRig.PunchFov(2.2f);
 
-            // The spell was a number leaving the health bar. A ring at the player's feet
-            // and embers at the boss's give the flick a beginning and an end.
-            _ctx.Effects.Shock(new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.CenterZ), SpellTint, 1.2f, 7f, 0.50f);
-            _ctx.Effects.Burst(_bossPosition, SpellTint, 12, 5.5f, 0.5f);
+            // The spell was a number leaving the health bar. Now a bolt leaves the army and
+            // detonates ON the boss, which is the difference between a stat change and a
+            // hit — and it lands exactly where the boss is because the position was pinned
+            // when the encounter began.
+            var origin = new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.FrontZ);
+            _ctx.Effects.Burst(origin, SpellTint, 8, 3.2f, 0.35f);
+            _ctx.Effects.Bolt(origin, _bossPosition, SpellTint, 40f);
         }
 
         private void ApplyBossDamage(float amount)
@@ -173,7 +177,11 @@ namespace BattleRunner.Gameplay.States
             // A blow the shield actually ate. Without this the player has no way to know
             // their flick did anything — the army simply does not shrink, which is
             // indistinguishable from the boss having missed.
-            if (blocked) _ctx.Ward.FlashBlock();
+            if (blocked)
+            {
+                _ctx.Ward.FlashBlock();
+                _ctx.Dome.FlashBlock();
+            }
 
             if (after <= 0) OnCrowdWiped();
         }
@@ -183,6 +191,7 @@ namespace BattleRunner.Gameplay.States
             _ctx.CameraRig.Apply(CameraFeel.BossDefeated);
             _ctx.CameraRig.SetTelegraph(0f);
             _ctx.Ward.Clear();
+            _ctx.Dome.Clear();
 
             // The beat the whole level builds to: three rings leaving the body at different
             // speeds so the wave has depth rather than being one expanding circle, plus a
@@ -205,6 +214,7 @@ namespace BattleRunner.Gameplay.States
             // ResetForPhase would hand out a free shield on revive.
             _ctx.Shield.CancelActive();
             _ctx.Ward.Clear();
+            _ctx.Dome.Clear();
             _ctx.Effects.Clear();
             _ctx.CameraRig.SetTelegraph(0f);
 
