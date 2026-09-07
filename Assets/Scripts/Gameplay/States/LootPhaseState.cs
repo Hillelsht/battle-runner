@@ -81,6 +81,11 @@ namespace BattleRunner.Gameplay.States
             return newestEquipped;
         }
 
+        /// <summary>
+        /// Resets the header as well as the card. SetHeader was sticky: once a double-loot
+        /// ad had run, "THE BOSS YIELDS... TWICE!" stayed on the screen for every drop for
+        /// the rest of the session, because nothing ever put it back.
+        /// </summary>
         private void ShowCard(GearItemModel rolled, bool equipped)
         {
             Dictionary<string, GearItemDefinition> gearById = ProfileStatsResolver.GearById(_ctx.Config);
@@ -91,6 +96,7 @@ namespace BattleRunner.Gameplay.States
                 : string.Empty;
             float power = ItemPower.Compute(rolled, _ctx.Config.Balance.StatWeights());
 
+            _ctx.LootScreen.SetHeader(Meta.UI.LootScreen.DefaultHeader);
             _ctx.LootScreen.Show(rolled, displayName, statsText, power, equipped,
                 adAvailable: !_adUsed && _ctx.Ads.IsRewardedReady(AdPlacement.LootDouble),
                 onContinue: () => _ctx.Machine.TransitionTo(_ctx.UpgradeState),
@@ -112,8 +118,10 @@ namespace BattleRunner.Gameplay.States
                 GearItemModel bonus = RollAndStore();
                 bool equipped = RunAutoEquip();
                 _ctx.SaveProfile();
-                _ctx.LootScreen.SetHeader("THE BOSS YIELDS... TWICE!");
+                // Order matters: ShowCard now restores the default header, so the TWICE
+                // text has to be written AFTER it, not before.
                 ShowCard(bonus, equipped);
+                _ctx.LootScreen.SetHeader("THE BOSS YIELDS... TWICE!");
                 Debug.Log("[Loot] Double-loot reward granted.");
             });
         }

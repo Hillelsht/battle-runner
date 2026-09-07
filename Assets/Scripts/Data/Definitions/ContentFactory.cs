@@ -153,7 +153,11 @@ namespace BattleRunner.Data.Definitions
             colossus.AttackIntervalSeconds = 4f;
             colossus.TelegraphSeconds = 1.2f;
             colossus.HitFraction = 0.3f;
-            colossus.TintColor = new Color(0.55f, 0.5f, 0.45f);
+            // Bone, and bright enough to survive the pipeline. These are sRGB values in a
+            // LINEAR project, so they are gamma-expanded on upload: 0.55 arrives as 0.263
+            // linear, and BossView used to halve it first, landing the boss on a 5%
+            // reflectance — darker than the road it stands on. See BossView.Show.
+            colossus.TintColor = new Color(0.78f, 0.74f, 0.66f);
 
             var lich = ScriptableObject.CreateInstance<BossDefinition>();
             lich.name = "Boss_EmberLich";
@@ -163,7 +167,7 @@ namespace BattleRunner.Data.Definitions
             lich.AttackIntervalSeconds = 3.2f;
             lich.TelegraphSeconds = 1.0f;
             lich.HitFraction = 0.25f;
-            lich.TintColor = new Color(0.9f, 0.4f, 0.15f);
+            lich.TintColor = new Color(0.95f, 0.52f, 0.22f);
 
             return new[] { colossus, lich };
         }

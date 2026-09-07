@@ -24,7 +24,10 @@ namespace BattleRunner.Meta.UI
             _levelLabel = UiFactory.Label(root, "Level", "", 44, UiFactory.Parchment);
             UiFactory.Place((RectTransform)_levelLabel.transform, 0.5f, 0.58f, 900f, 70f);
 
-            _statsLabel = UiFactory.Label(root, "Stats", "", 32, UiFactory.Arcane);
+            // Parchment, not Arcane. The stat readout was the only cool hue on a screen
+            // that is otherwise gold, parchment and blood, and a saturated blue block of
+            // text under a heading reads as a hyperlink, not as a character sheet.
+            _statsLabel = UiFactory.Label(root, "Stats", "", 32, UiFactory.Parchment);
             UiFactory.Place((RectTransform)_statsLabel.transform, 0.5f, 0.50f, 900f, 120f);
 
             Button play = UiFactory.ActionButton(root, "Play", "SET FORTH", UiFactory.Blood, () => onPlay?.Invoke());

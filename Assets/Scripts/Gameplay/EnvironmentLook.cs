@@ -59,13 +59,33 @@ namespace BattleRunner.Gameplay
 
         private static void ApplyAtmosphere()
         {
+            // These values only reach the device because Main.unity's own RenderSettings
+            // now enable fog in the SAME mode. Unity's default fog stripping is Automatic:
+            // it keeps a FOG_* shader variant only if some scene in the build enables that
+            // mode in its lighting settings. The scene had m_Fog: 0, so every fog variant
+            // was stripped, `#pragma multi_compile_fog` only ever compiled the no-fog
+            // branch, and MixFog was a no-op in the player. Everything below was dead code
+            // on device. If the mode here changes, Main.unity:16-21 must change with it.
             RenderSettings.fog = true;
-            RenderSettings.fogMode = FogMode.Exponential;
 
-            // Slightly thinner than before and tinted toward the sky's horizon band, so the
-            // road now fades INTO the sky instead of into a differently-coloured wall.
-            RenderSettings.fogDensity = 0.014f;
-            RenderSettings.fogColor = new Color(0.10f, 0.07f, 0.12f);
+            // LINEAR, not Exponential. The job is to bury the end of the road, and the road
+            // has to be fully gone before the far clip at 222.6 m slices it in the open.
+            // Exponential at 0.014 needs ~280 m to reach 98% — past the clip — and the
+            // density that would reach it by 170 m washes half the contrast out of the road
+            // at 30 m, where the game is actually played. Linear puts a hard wall exactly
+            // where it is wanted and leaves everything nearer untouched: gates read at
+            // ~90 m, labels at 34 m (TrackController.LabelVisibleMeters).
+            RenderSettings.fogMode = FogMode.Linear;
+            RenderSettings.fogStartDistance = 70f;
+            RenderSettings.fogEndDistance = 170f;
+
+            // Warm, and much brighter than the old (0.10, 0.07, 0.12). That value matched
+            // DarkSky's _HorizonColor but NOT what the road actually meets: the sky adds
+            // _GlowColor on top of that band, and looking down the road is exactly where
+            // that glow is at full strength. Fog three stops darker than the sky behind it
+            // cannot dissolve an edge — it draws one. This is _HorizonColor plus ~0.76 of
+            // the glow, which is what the horizon in front of the player really is.
+            RenderSettings.fogColor = new Color(0.44f, 0.30f, 0.23f);
 
             // Trilight, not flat. Flat ambient lights every surface identically, which is
             // why untextured boxes read as cardboard: a face pointing at the sky and a face

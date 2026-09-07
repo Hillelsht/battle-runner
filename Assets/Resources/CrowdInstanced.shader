@@ -134,7 +134,21 @@ Shader "BattleRunner/CrowdInstanced"
                 // shadowed face darkens instead of becoming a black hole — which in a game
                 // this dark would read as a missing polygon rather than as shade.
                 half shadow = lerp(0.15h, 1.0h, mainLight.shadowAttenuation);
-                half halfLambert = saturate(dot(normalWS, mainLight.direction)) * 0.55h + 0.45h;
+                // WRAPPED half-lambert, not a clamped one. saturate(dot) collapses every
+                // back-facing normal onto the same value, so a figure lit from behind had
+                // literally one diffuse number across its whole visible surface: the boss
+                // is backlit (light direction +0.797, +0.530, +0.290; boss faces -Z) and
+                // every camera-facing face on it — torso, head, both pauldrons, the horns —
+                // came out at exactly 0.45. Flat paint on a silhouette.
+                //
+                // dot * 0.5 + 0.5 keeps the gradient running through the back hemisphere
+                // instead of clipping it, and the 0.7/0.3 remap holds a floor so nothing
+                // that used to be visible falls to black: the range is [0.30, 1.00] where
+                // it was [0.45, 1.00], and a face at dot = -0.39 reads 0.51 rather than
+                // 0.45. The crowd's own camera-facing side gets BRIGHTER (0.45 -> 0.55)
+                // and its side faces spread apart, so the army gains shape too.
+                half wrapped = saturate(dot(normalWS, mainLight.direction) * 0.5h + 0.5h);
+                half halfLambert = wrapped * 0.7h + 0.3h;
                 half3 ambient = SampleSH(normalWS);
 
                 half3 color = _BaseColor.rgb * (mainLight.color * halfLambert * shadow + ambient);

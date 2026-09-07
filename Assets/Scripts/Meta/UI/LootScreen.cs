@@ -49,7 +49,10 @@ namespace BattleRunner.Meta.UI
 
             Button doubleBtn = UiFactory.ActionButton(root, "Double", "DOUBLE LOOT  (AD)", UiFactory.Arcane,
                 () => _onDouble?.Invoke());
-            UiFactory.Place((RectTransform)doubleBtn.transform, 0.5f, 0.32f, 560f, 110f);
+            // Same footprint as CONTINUE below. Two buttons stacked in one column at
+            // 560x110 and 640x130 read as a mistake, not a hierarchy — the difference is
+            // 88 device px of width on a 1080-wide phone.
+            UiFactory.Place((RectTransform)doubleBtn.transform, 0.5f, 0.32f, 640f, 130f);
             _doubleButtonGo = doubleBtn.gameObject;
 
             Button continueBtn = UiFactory.ActionButton(root, "Continue", "AUTO-EQUIP & CONTINUE", UiFactory.Blood,
@@ -77,6 +80,9 @@ namespace BattleRunner.Meta.UI
         }
 
         public void SetHeader(string text) => _header.text = text;
+
+        /// <summary>The header a fresh drop gets, before any double-loot ad.</summary>
+        public const string DefaultHeader = "THE BOSS YIELDS...";
 
         public void HideDoubleButton() => _doubleButtonGo.SetActive(false);
 

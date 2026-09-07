@@ -40,9 +40,17 @@ namespace BattleRunner.Gameplay.Track
             var multiply = new Color(1.3f, 0.85f, 0.25f);
             var subtract = new Color(1.1f, 0.2f, 0.2f);
 
-            _addFrame = Tint(baseMaterial, add, emissionFlat: 1.15f, baseScale: 0.35f);
-            _multiplyFrame = Tint(baseMaterial, multiply, emissionFlat: 1.15f, baseScale: 0.35f);
-            _subtractFrame = Tint(baseMaterial, subtract, emissionFlat: 1.15f, baseScale: 0.35f);
+            // 0.70, down from 1.15. The three colours above are already over white and
+            // they are Color properties in a LINEAR project, so they are gamma-EXPANDED on
+            // upload: the brightest channel arrives at 1.49 / 1.78 / 1.23 before the flat
+            // term multiplies it. At 1.15 a face-on frame reached 1.7-2.0 linear against a
+            // bloom threshold of 0.85, and the uprights' grazing inner faces — the ones
+            // that read white-hot in a device screenshot — hit 3.16. At 0.70 the dimmest
+            // gate colour still clears the threshold face-on (0.86), so every gate keeps
+            // blooming; the peak just stops being four times over it.
+            _addFrame = Tint(baseMaterial, add, emissionFlat: 0.70f, baseScale: 0.35f);
+            _multiplyFrame = Tint(baseMaterial, multiply, emissionFlat: 0.70f, baseScale: 0.35f);
+            _subtractFrame = Tint(baseMaterial, subtract, emissionFlat: 0.70f, baseScale: 0.35f);
 
             _addPlate = Tint(baseMaterial, add, emissionFlat: 0.16f, baseScale: 0.18f);
             _multiplyPlate = Tint(baseMaterial, multiply, emissionFlat: 0.16f, baseScale: 0.18f);
@@ -64,6 +72,14 @@ namespace BattleRunner.Gameplay.Track
             mat.SetColorSafe("_BaseColor", emissive * baseScale);
             mat.SetColorSafe("_EmissionColor", emissive);
             mat.SetFloatSafe("_EmissionFlat", emissionFlat);
+            // Gates never set these, so they inherited the shader's WIDE default lobe
+            // (_RimPower 2.5, _RimStrength 0.9) — which on hard-normal boxes is not an
+            // edge term but a per-face constant that floods any face far off the view
+            // axis. On the near gate that is the uprights' inner sides, adding +0.62 to
+            // the emission factor on exactly the surface that reads brightest. The rails
+            // were given this treatment already; the gates were missed.
+            mat.SetFloatSafe("_RimPower", 5f);
+            mat.SetFloatSafe("_RimStrength", 0.35f);
             mat.SetFloatSafe("_BobAmount", 0f); // gate frames must not run-bob
             return mat;
         }

@@ -90,9 +90,18 @@ namespace BattleRunner.Gameplay.Track
             _finishMaterial.SetColorSafe("_EmissionColor", new Color(1.2f, 0.85f, 0.25f));
             _finishMaterial.SetFloatSafe("_BobAmount", 0f);
 
+            // Lane lines and speed rungs are 2 cm decals whose only visible face points
+            // straight up — which puts them at ~80 degrees off the view axis, where the
+            // shader's wide DEFAULT rim lobe reads 0.64, not 0. They were 86% pure
+            // emission at a blue/red ratio of 3.5, and they cover the road in a dense
+            // grid, so the lavender cast the road was blamed for was substantially these
+            // markings painted over it. Neutral hue, tighter lobe, and the flat term cut.
             _markingMaterial = ShaderSafety.CreateMaterial(baseMaterial);
-            _markingMaterial.SetColorSafe("_BaseColor", new Color(0.14f, 0.16f, 0.22f));
-            _markingMaterial.SetColorSafe("_EmissionColor", new Color(0.30f, 0.34f, 0.45f));
+            _markingMaterial.SetColorSafe("_BaseColor", new Color(0.16f, 0.16f, 0.17f));
+            _markingMaterial.SetColorSafe("_EmissionColor", new Color(0.34f, 0.33f, 0.32f));
+            _markingMaterial.SetFloatSafe("_RimPower", 4f);
+            _markingMaterial.SetFloatSafe("_RimStrength", 0.35f);
+            _markingMaterial.SetFloatSafe("_EmissionFlat", 0.08f);
             _markingMaterial.SetFloatSafe("_BobAmount", 0f);
 
             // The rails were reading as lit blue plastic rather than as stone kerbs.
@@ -105,10 +114,16 @@ namespace BattleRunner.Gameplay.Track
             // to stay visible. A tight rim keeps a bright edge on the silhouette while the
             // faces go dark, which is what a stone kerb catching moonlight looks like.
             _railMaterial = ShaderSafety.CreateMaterial(baseMaterial);
-            _railMaterial.SetColorSafe("_BaseColor", new Color(0.26f, 0.27f, 0.33f));
-            _railMaterial.SetColorSafe("_EmissionColor", new Color(0.30f, 0.36f, 0.58f));
+            // The tight rim was right; the strength and the hue were not. A rail's large
+            // visible face is its INNER side, whose normal is perpendicular to the view
+            // axis — so even at _RimPower 5 the term reads 0.52 at 30 m and 0.79 at 80 m.
+            // Multiplied by 0.7 against an emission at a blue/red ratio of 4.0, the rails
+            // were a self-lit periwinkle bar running the length of the frame, and they,
+            // not the road, were the lavender in the device screenshots.
+            _railMaterial.SetColorSafe("_BaseColor", new Color(0.30f, 0.29f, 0.28f));
+            _railMaterial.SetColorSafe("_EmissionColor", new Color(0.34f, 0.34f, 0.38f));
             _railMaterial.SetFloatSafe("_RimPower", 5f);
-            _railMaterial.SetFloatSafe("_RimStrength", 0.7f);
+            _railMaterial.SetFloatSafe("_RimStrength", 0.25f);
             _railMaterial.SetFloatSafe("_EmissionFlat", 0.02f);
             _railMaterial.SetFloatSafe("_BobAmount", 0f);
         }
@@ -130,7 +145,14 @@ namespace BattleRunner.Gameplay.Track
             }
 
             _finishZ = z + 8f;
-            SpawnGroundStrip(-6f, _finishZ + 40f);
+            // +180, not +40. At +40 the world simply STOPPED about 62 m in front of the
+            // camera by the end of a level: a hard horizontal seam across the road with
+            // black void past it, both rails cut off in mid air, visible in every device
+            // screenshot of a late run. 180 m puts the seam past the fog wall
+            // (EnvironmentLook fogEndDistance 170) at every camera position, so the road
+            // walks into haze instead of ending. It costs nothing — the ground, the four
+            // lane lines and the two rails are one 24-vertex box each at ANY length.
+            SpawnGroundStrip(-6f, _finishZ + 180f);
             SpawnFinishLine(_finishZ);
         }
 
@@ -193,8 +215,12 @@ namespace BattleRunner.Gameplay.Track
                     castsShadow: true);
             }
 
-            // Speed rungs span the road itself, not the verge.
-            for (float z = fromZ; z < toZ; z += 6f)
+            // Speed rungs span the road itself, not the verge. They are the ONE thing here
+            // that is per-metre rather than one stretched box, so they get their own bound:
+            // letting them inherit the strip's 180 m of runway would add 30 GameObjects
+            // that are sub-pixel past ~60 m and inside solid fog past 170.
+            float rungEnd = Mathf.Min(toZ, _finishZ + 40f);
+            for (float z = fromZ; z < rungEnd; z += 6f)
             {
                 SpawnStatic("Rung", new Vector3(0f, 0.006f, z),
                     new Vector3(roadHalf * 2f, 0.02f, 0.35f), _markingMaterial);

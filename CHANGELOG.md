@@ -17,7 +17,7 @@ points → save → next level.
 | Game loop | Complete end to end |
 | Content | 5 levels, 2 bosses, 15 gear items, 4 rarities, 12 talents |
 | Art | Greybox — procedural meshes, code-built uGUI, no imported assets |
-| Tests | 162, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 166, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
@@ -32,6 +32,55 @@ army stands on the road instead of hovering over it — and a procedural cobbled
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
 corner notches, a gradient backdrop and readable disabled states, across every screen.
+**The boss was rendering as a black cutout, and three things caused it.** Device shots of
+v0.7.0 showed the Bone Colossus at a uniform #3a3a3a across every face — darker than the
+road under it. `BossView` uploaded `tint * 0.5f`, but these are sRGB values in a linear
+project, so halving in sRGB is a 0.234x cut in linear and the boss landed on a 5%
+reflectance. `saturate(dot(N,L))` then collapsed every camera-facing normal to the same
+0.45, because the boss is backlit. And `_EmissionFlat` at 0.15 against that dead albedo
+was two thirds of every pixel — a term that depends on neither normal nor view. Now: a
+real bone albedo, a wrapped half-lambert (floored at 0.30 so nothing that was visible goes
+black), and the resting flat term cut to 0.03 — with the telegraph driving it back to 0.33,
+because that term was the entire wind-up warning. The widened rim lobe is reverted; it was
+~0.004 on the faces the camera sees whatever its width.
+
+**The lavender was the rails and the lane markings, not the road.** The premise in the
+previous entry was wrong: ambient is `Trilight`, which does not sample the skybox at all,
+and the sky's glow is warm. The rails ran `_EmissionColor` at a blue/red ratio of 4.0 on a
+face whose normal is perpendicular to the view axis, so the "tight" rim still read 0.52 at
+30 m — a self-lit periwinkle bar the length of the frame. The lane lines and rungs were 86%
+pure emission at a ratio of 3.5, in a dense grid over the whole road. Both neutralised.
+
+**Fog was stripped from the Android build entirely.** `Main.unity` had `m_Fog: 0`, and
+Unity's default Automatic stripping keeps a `FOG_*` variant only if a scene enables that
+mode — so `MixFog` was a no-op on device and every fog value in the project was dead code.
+That, plus a ground strip that stopped 40 m past the finish, is why the road visibly ended
+in mid-air 62 m ahead. Scene fog on, ground out to 180 m, and linear fog 70-170 m in a warm
+colour that matches the sky the road actually meets rather than the bare horizon band.
+
+**Gate frames were 1.7-3.8x the bloom threshold.** The gate colours are over white and are
+gamma-EXPANDED on upload, so `_EmissionFlat 1.15` was multiplying 1.23-1.78, and gates
+never overrode the shader's wide default rim lobe. Flat term to 0.70 — the point where the
+dimmest gate still clears the threshold face-on — and the same tight lobe the rails have.
+
+**Enemies were 2.1x the size of the soldiers running at them.** A stale constant, not a
+choice: packs are drawn at scale 1, which matched a crowd drawn at 0.94-1.06, and were
+never brought down when the crowd went to 0.44-0.50.
+
+**Item Power ignored every fraction-valued stat.** The same "kind alone decides the units"
+bug that produced "Focus -0 %", in a second place: a +1% Focus affix scored 0.01 points
+instead of 1, so the Ember Talisman on the loot card read Item Power 2 with its second
+affix contributing nothing, and Auto-Equip ranked every fraction-stat relic as junk. Four
+tests now pin ItemPower's units to `StatFormat.IsFraction`.
+
+**UI**: talent descriptions wrap instead of overflowing their cells and being drawn over by
+the neighbouring column; cells narrowed to 280 so the three columns have a real gutter on
+phones taller than 16:9; CONTINUE centres when FORGET ALL is hidden instead of sitting
+172 px right of centre; the slot screen's PLAY and ERASE no longer overlap by 53 units, and
+PLAY centres on an empty slot; the slot list is rebalanced from a 2.6:1 vertical imbalance;
+the two loot buttons get the same footprint; the loot header stops saying "TWICE!" for the
+rest of the session; the main-menu stat readout is parchment, not hyperlink blue.
+
 **The boss is no longer the soldier mesh at 6x.** `ProceduralMeshes.Boss` is its own
 132-triangle shape: horns (two segments sweeping out on the left, a snapped stub on the
 right), a torso that leans forward onto the player, mismatched pauldrons and a cleaver
@@ -75,7 +124,7 @@ The v0.4.0 screenshots confirmed the art pass landed — sky, stars, shadows, ro
 gates and UI frames all correct on device — and surfaced two bugs that were never about
 art: `Focus -0 %` on the menu and `+0.01 Focus` on the loot card. Both were units chosen
 from the ModifierKind rather than from the stat, plus a hard-coded minus sign in front of
-a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (140 -> 162 tests).
+a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 166 tests today).
 
 A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
 11 survived adversarial refutation. The headline three: the key light pointed the same way

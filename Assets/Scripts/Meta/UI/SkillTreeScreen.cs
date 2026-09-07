@@ -48,6 +48,7 @@ namespace BattleRunner.Meta.UI
         private readonly Text _pointsLabel;
         private readonly Text _detailLabel;
         private readonly Button _respecButton;
+        private readonly RectTransform _continueRect;
         private readonly Text _respecLabel;
         private readonly List<NodeWidget> _widgets = new List<NodeWidget>();
 
@@ -82,7 +83,7 @@ namespace BattleRunner.Meta.UI
             for (int c = 0; c < Columns.Length; c++)
             {
                 Text title = UiFactory.Label(root, $"Col{c}", BranchName(Columns[c]), 30, UiFactory.Arcane);
-                UiFactory.Place((RectTransform)title.transform, ColumnX(c), 0.825f, 330f, 50f);
+                UiFactory.Place((RectTransform)title.transform, ColumnX(c), 0.825f, CellWidth, 50f);
             }
 
             for (int c = 0; c < Columns.Length; c++)
@@ -106,12 +107,26 @@ namespace BattleRunner.Meta.UI
                     string captured = node.Id;
                     Button button = UiFactory.ActionButton(root, $"Node_{node.Id}", string.Empty,
                         Locked, () => OnNodeTapped(captured));
-                    UiFactory.Place((RectTransform)button.transform, ColumnX(c), RowY(row), 330f, 118f);
+                    UiFactory.Place((RectTransform)button.transform, ColumnX(c), RowY(row), CellWidth, 118f);
 
                     widget.Button = button;
                     widget.Background = button.GetComponent<Image>();
                     widget.Label = button.GetComponentInChildren<Text>();
-                    widget.Label.fontSize = 24;
+
+                    // WRAP, not Overflow. UiFactory.Label sets HorizontalWrapMode.Overflow
+                    // for every label in the game, which is right for a heading and wrong
+                    // for a cell in a grid: the capstone descriptions ("+25% Might, +50%
+                    // spell damage") are half again as wide as their cell, so at 24 pt they
+                    // ran out through both edges and were drawn OVER by the neighbouring
+                    // column's opaque panel, which is why they read as clipped mid-word.
+                    // Truncate vertically so a long string can never push out of the button
+                    // either. 20 pt over two lines fits the longest string with room spare.
+                    widget.Label.horizontalOverflow = HorizontalWrapMode.Wrap;
+                    widget.Label.verticalOverflow = VerticalWrapMode.Truncate;
+                    widget.Label.fontSize = 20;
+                    var labelRect = (RectTransform)widget.Label.transform;
+                    labelRect.offsetMin = new Vector2(12f, 6f);
+                    labelRect.offsetMax = new Vector2(-12f, -6f);
                     _widgets.Add(widget);
                 }
             }
@@ -119,15 +134,21 @@ namespace BattleRunner.Meta.UI
             _detailLabel = UiFactory.Label(root, "Detail", string.Empty, 28, UiFactory.Parchment);
             UiFactory.Place((RectTransform)_detailLabel.transform, 0.5f, 0.135f, 980f, 90f);
 
+            // Narrower and further apart than 380@0.26 + 480@0.66. Place() mixes a
+            // NORMALISED centre with a PIXEL width, so the gap between two buttons shrinks
+            // as the canvas narrows: at the 1080-unit reference the pair cleared each other
+            // by 2 units, and on any phone taller than 16:9 the CanvasScaler's match-0.5
+            // shrinks the canvas to ~978 units and they overlapped by 39.
             _respecButton = UiFactory.ActionButton(root, "Respec", RespecIdle,
                 new Color(0.30f, 0.12f, 0.12f), OnRespecPressed);
-            UiFactory.Place((RectTransform)_respecButton.transform, 0.26f, 0.055f, 380f, 110f);
+            UiFactory.Place((RectTransform)_respecButton.transform, 0.24f, 0.055f, 340f, 110f);
             _respecLabel = _respecButton.GetComponentInChildren<Text>();
             _respecLabel.fontSize = 28;
 
             Button continueBtn = UiFactory.ActionButton(root, "Continue", "CONTINUE", UiFactory.Blood,
                 () => _onContinue?.Invoke());
-            UiFactory.Place((RectTransform)continueBtn.transform, 0.66f, 0.055f, 480f, 110f);
+            _continueRect = (RectTransform)continueBtn.transform;
+            PlaceContinue(false);
 
             Hide();
         }
@@ -138,6 +159,17 @@ namespace BattleRunner.Meta.UI
             SkillBranch.Warden => "WARDEN",
             _ => "ZEALOT"
         };
+
+        /// <summary>
+        /// 280, not 330. Columns are pitched 0.32 apart, which is 313 units on the ~978-unit
+        /// canvas a phone taller than 16:9 produces — narrower than the 330-unit cells, so
+        /// the three columns overlapped by 18.7 units and each one's panel drew over its
+        /// neighbour's text. 280 leaves a real gutter on every supported aspect.
+        /// </summary>
+        private const float CellWidth = 280f;
+
+        private void PlaceContinue(bool sharingTheRow) =>
+            UiFactory.Place(_continueRect, sharingTheRow ? 0.68f : 0.5f, 0.055f, 400f, 110f);
 
         private static float ColumnX(int column) => 0.18f + column * 0.32f;
 
@@ -225,7 +257,12 @@ namespace BattleRunner.Meta.UI
                 widget.Button.interactable = isTaken || blocked == null;
             }
 
+            // FORGET ALL only exists once something has been learned, so CONTINUE has to
+            // move when it goes. Leaving it pinned to the right-hand slot put the screen's
+            // only call to action 172 px off centre on a fresh tree — the exact state every
+            // new player meets it in.
             _respecButton.gameObject.SetActive(learned > 0);
+            PlaceContinue(learned > 0);
             _respecLabel.text = _respecIsArmed ? RespecArmed : RespecIdle;
 
             _detailLabel.text = learned == 0

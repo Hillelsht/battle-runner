@@ -24,7 +24,18 @@ namespace BattleRunner.Core.Loot
             foreach (StatModifier m in item.Modifiers)
             {
                 if (!statWeights.TryGetValue(m.StatId, out float weight)) continue;
-                float normalized = m.Kind == ModifierKind.Flat ? m.Value : m.Value * percentScale;
+                // The kind alone does NOT decide the units, and this is the second place
+                // that assumption has been wrong. Fraction-valued stats — Focus, Fortune,
+                // gate yield, run speed, cooldown — are granted as Flat because StatSheet
+                // resolves final = (base + flat) * (1 + percent) and their base is 0, so a
+                // Percent modifier would multiply nothing. Scoring them raw made a "+1%
+                // Focus" affix worth 0.01 points instead of 1: an Ember Talisman with
+                // +2 Might and +1% Focus scored exactly 2, the same as if its second affix
+                // did not exist, and Auto-Equip ranked every fraction-stat relic as junk.
+                // StatFormat.IsFraction is the single source of truth for this and is
+                // already engine-free.
+                bool asPercent = m.Kind == ModifierKind.Percent || StatFormat.IsFraction(m.StatId);
+                float normalized = asPercent ? m.Value * percentScale : m.Value;
                 power += weight * normalized;
             }
             return power;

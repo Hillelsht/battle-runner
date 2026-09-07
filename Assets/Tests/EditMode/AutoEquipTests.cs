@@ -87,5 +87,84 @@ namespace BattleRunner.Tests
             }, Weights);
             Assert.AreEqual("p", picks[GearSlot.Weapon]);
         }
+        // --- Item Power units --------------------------------------------------
+        //
+        // This is the same bug that produced "Focus -0 %" on the loot card, in a second
+        // place. ModifierKind alone does NOT decide a stat's units: fraction-valued stats
+        // are granted Flat because StatSheet resolves final = (base + flat) * (1 + percent)
+        // and their base is 0, so Percent would multiply nothing. ItemPower scored those
+        // raw, making a "+1% Focus" affix worth 0.01 points instead of 1.
+
+        private static GearItemModel Relic(params StatModifier[] mods) =>
+            new GearItemModel("relic", GearSlot.Relic, Rarity.Common, mods);
+
+        [Test]
+        public void FractionStatGrantedFlatIsScoredAsAPercentage()
+        {
+            var weights = new Dictionary<string, float> { [StatIds.SpellPower] = 1f };
+
+            // +40% spell power, granted Flat as 0.40 the way every talent and affix does.
+            float power = ItemPower.Compute(
+                Relic(new StatModifier(StatIds.SpellPower, ModifierKind.Flat, 0.40f)), weights);
+
+            Assert.AreEqual(40f, power, 1e-4f,
+                "0.40 on a fraction stat is 40 points, not 0.40 — it used to score 0.4");
+        }
+
+        [Test]
+        public void AbsoluteStatGrantedFlatIsStillScoredRaw()
+        {
+            var weights = new Dictionary<string, float> { [StatIds.Damage] = 1f };
+
+            float power = ItemPower.Compute(
+                Relic(new StatModifier(StatIds.Damage, ModifierKind.Flat, 4f)), weights);
+
+            Assert.AreEqual(4f, power, 1e-4f, "+4 Might is four points, not four hundred");
+        }
+
+        [Test]
+        public void EveryFractionStatAgreesWithStatFormat()
+        {
+            // The two units rules must not drift apart: whatever StatFormat prints as a
+            // percentage, ItemPower has to score as one, or the card and the number under
+            // it describe different items.
+            string[] all =
+            {
+                StatIds.Damage, StatIds.Health, StatIds.Cooldown, StatIds.GateYield,
+                StatIds.RunSpeed, StatIds.EnemyResist, StatIds.SpellPower, StatIds.Fortune,
+                StatIds.ShieldDuration
+            };
+
+            foreach (string statId in all)
+            {
+                var weights = new Dictionary<string, float> { [statId] = 1f };
+                float scored = ItemPower.Compute(
+                    Relic(new StatModifier(statId, ModifierKind.Flat, 0.5f)), weights);
+                float expected = StatFormat.IsFraction(statId) ? 50f : 0.5f;
+                Assert.AreEqual(expected, scored, 1e-4f, statId);
+            }
+        }
+
+        [Test]
+        public void AFractionAffixCanNowOutrankAFlatOne()
+        {
+            // The Ember Talisman case from the device: +2 Might and +1% Focus scored
+            // exactly 2, identical to an item with no second affix at all.
+            var weights = new Dictionary<string, float>
+            {
+                [StatIds.Damage] = 1f,
+                [StatIds.Fortune] = 1f
+            };
+
+            float withFocus = ItemPower.Compute(Relic(
+                new StatModifier(StatIds.Damage, ModifierKind.Flat, 2f),
+                new StatModifier(StatIds.Fortune, ModifierKind.Flat, 0.01f)), weights);
+            float without = ItemPower.Compute(Relic(
+                new StatModifier(StatIds.Damage, ModifierKind.Flat, 2f)), weights);
+
+            Assert.Greater(withFocus, without, "the second affix has to be worth something");
+            Assert.AreEqual(3f, withFocus, 1e-4f);
+        }
+
     }
 }

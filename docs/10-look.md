@@ -319,6 +319,99 @@ tinting on its own — which is both the fix and the dark-fantasy reference. `_D
 stays cool, because it is a reflection of that same sky, but is pulled back from
 `(0.32, 0.34, 0.48)` so the sheen is not a second full-coverage blue wash on top.
 
+## What the v0.7.0 screenshots cost me: two of my own claims
+
+The boss silhouette worked — horns, mismatched shoulders and a raised cleaver all read at
+26 m. But the device shot showed it rendering at a uniform **#3a3a3a across every face**,
+head and torso and blade within 2/255 of each other, *darker than the road it stands on*.
+A ten-agent diagnosis with two skeptics per finding settled why, and refuted two things
+this document previously asserted.
+
+**The boss was 93% constant.** Three causes stacked:
+
+- `BossView.Show` uploaded `tint * 0.5f`. These are sRGB values in a linear project, so
+  halving in sRGB is a **0.234× cut in linear** — the gamma curve charges for it twice.
+  A (0.55, 0.50, 0.45) tint arrived as a 5% reflectance albedo, roughly coal.
+- `saturate(dot(N, L))` collapses *every* back-facing normal onto one value, and the boss
+  is backlit — light direction (0.797, 0.530, 0.290), boss facing −Z. Torso, head, both
+  pauldrons and the horns all clamped to the same 0.45. One number for the whole figure.
+- `_EmissionFlat` at 0.15 against that dead albedo was **two thirds of every pixel**, and
+  it depends on neither normal nor view. Literally paint sprayed over the silhouette.
+
+The fix is a real albedo, a **wrapped** half-lambert (`dot * 0.5 + 0.5`, remapped to a
+[0.30, 1.00] floor so nothing that used to be visible goes black), and the resting flat
+term cut to the crowd's own 0.03 — with the *telegraph* now driving it back up to 0.33,
+because that term was the entire wind-up warning and cutting it silently would have
+removed the only cue the player gets before a blow lands.
+
+Widening the rim lobe to 1.8 was also just wrong, and the diagnosis refuted my reasoning
+for it: `pow(1 - dot(V,N), k)` is ~0.004 on the faces the camera sees most of, whatever k
+is. Widening only lit the profile faces you can barely see. Shape comes from the diffuse
+term; the rim is back to a tight 3.5 doing what it is good at.
+
+**The lavender was never the road.** The v0.7.0 commit changed the road albedo on the
+premise that "ambient here is `SampleSH` off a deep blue-violet sky dome". That premise
+is **false**: ambient is `AmbientMode.Trilight`, which does not sample the skybox at all,
+and the sky's horizon glow is warm anyway. The albedo change was harmless but it was
+aimed at the wrong thing. The actual lavender is two other surfaces:
+
+- **The rails.** `_EmissionColor` (0.30, 0.36, 0.58) at a blue/red ratio of 4.0, and their
+  large visible face is the *inner side*, whose normal is perpendicular to the view axis —
+  so even at `_RimPower 5` the rim term reads 0.52 at 30 m and 0.79 at 80 m. Not an edge:
+  a self-lit periwinkle bar running the length of the frame.
+- **The lane lines and speed rungs.** 2 cm decals whose only visible face points straight
+  up, at ~80° off the view axis where the shader's *default* wide lobe reads 0.64. 86%
+  pure emission at a blue/red ratio of 3.5, in a dense grid over the whole road.
+
+Both are now neutral in hue with tight lobes. Same treatment the rails got once already —
+the mistake was cutting their flat term and leaving the rim strength at 0.7.
+
+## The end of the world, and why fog could not hide it
+
+The road visibly terminated in mid-air about 62 m in front of the camera by the end of a
+level. Three independent causes, and no two of them are sufficient alone:
+
+1. **Fog was stripped from the Android build entirely.** `EnvironmentLook` sets
+   `RenderSettings.fog = true` at runtime, but `Main.unity` had `m_Fog: 0`. Unity's
+   default fog stripping is *Automatic*: it keeps a `FOG_*` variant only if some scene in
+   the build enables that mode in its lighting settings. No scene did, so
+   `#pragma multi_compile_fog` only ever compiled the no-fog branch and `MixFog` was a
+   no-op on device. Every fog value in this project was dead code. The scene now enables
+   fog in the *same mode* the runtime selects — if one changes, the other must.
+2. **The ground stopped 40 m past the finish.** One `SpawnGroundStrip(-6, _finishZ + 40)`
+   builds the ground, four lane lines and both rails as single stretched boxes, so
+   extending it to +180 m costs nothing — no extra draw calls at any length. Only the
+   speed rungs are per-metre, and they get their own bound.
+3. **Fog was the wrong mode and the wrong colour.** Exponential at 0.014 needs ~280 m to
+   reach 98% — past the 220 m far clip — and the density that would reach it by 170 m
+   washes half the contrast out of the road at 30 m where the game is played. And the fog
+   colour matched `DarkSky`'s `_HorizonColor` but omitted the `_GlowColor` the sky *adds*
+   on top, which is at full strength exactly where the road meets the horizon: fog three
+   stops darker than the sky behind it cannot dissolve an edge, it draws one. Linear fog
+   70→170 m with a warm (0.44, 0.30, 0.23) puts a wall exactly where it is wanted and
+   buries the far clip 50 m inside it.
+
+## The gates were over the bloom knee, but not because they were near
+
+The near gate filling the bottom of the frame is not a proximity problem — a verifier
+measured the shipped pixels and found it marginally *dimmer* than the far one. What is
+real is that gate frames were **1.7–3.8× the bloom threshold** everywhere. The three gate
+colours are already over white and are `Color` properties in a linear project, so they are
+gamma-*expanded* on upload to 1.49 / 1.78 / 1.23 before `_EmissionFlat 1.15` multiplies
+them. And gates never overrode the shader's wide default rim lobe — the treatment the
+rails got and the gates missed — which added +0.62 on exactly the uprights' inner faces.
+`_EmissionFlat` is now 0.70, the point at which the *dimmest* gate colour still clears the
+threshold face-on, so every gate keeps blooming and the peak stops being four times over.
+
+## Enemies were twice the size of the soldiers running at them
+
+Not a design choice — a stale constant. Enemy pack bodies are drawn at `localScale = 1`,
+which was correct when the crowd was drawn at 0.94–1.06. When the formation was pinned
+inside one lane the crowd dropped to 0.44–0.50 and the packs were never brought with it,
+so for several releases five enemies visually outweighed a 116-strong army. That breaks
+the one comparison the whole game is about. Now `BodyScale = 0.47`, with the cluster
+offsets and the force label scaled to match.
+
 ## Deliberately not done yet
 
 Additive VFX — the gate-pass shockwave, the spell shock ring, unit-death bodies, the boss

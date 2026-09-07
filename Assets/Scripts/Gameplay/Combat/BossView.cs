@@ -30,10 +30,15 @@ namespace BattleRunner.Gameplay.Combat
             body.GetComponent<MeshFilter>().sharedMesh = bossMesh;
             _material = ShaderSafety.CreateMaterial(baseMaterial);
             _material.SetFloatSafe("_BobAmount", 0f); // at 6x scale the run-bob would look absurd
-            // The mesh is deliberately not axis-aligned, so the rim term finally has
-            // varied normals to work with. Widen the lobe a little to use them.
-            _material.SetFloatSafe("_RimPower", 1.8f);
-            _material.SetFloatSafe("_RimStrength", 1.15f);
+            // A TIGHT rim, not a wide one. Widening the lobe to 1.8 was the wrong move:
+            // rim is pow(1 - dot(V,N), k), and on the faces the camera actually sees most
+            // of (torso, head, pauldron fronts) dot(V,N) is ~0.97, so the term evaluates to
+            // ~0.004 no matter how wide the lobe or how strong the multiplier. Widening it
+            // only lit the profile faces the camera barely sees. Shape comes from the
+            // wrapped diffuse term in CrowdInstanced instead; the rim goes back to being
+            // what it is good at — a bright edge on the true silhouette.
+            _material.SetFloatSafe("_RimPower", 3.5f);
+            _material.SetFloatSafe("_RimStrength", 0.55f);
             var renderer = body.GetComponent<MeshRenderer>();
             renderer.sharedMaterial = _material;
             // Casts: the boss is the largest silhouette in the game.
@@ -45,8 +50,13 @@ namespace BattleRunner.Gameplay.Combat
         public void Show(BossDefinition def, Vector3 position)
         {
             Color tint = def.TintColor;
-            _material.SetColorSafe("_BaseColor", tint * 0.5f);
-            _baseEmission = tint * 0.9f;
+            // NOT tint * 0.5f. These are sRGB values in a linear project, so halving in
+            // sRGB is a 0.234x cut in linear — the gamma curve charges for it twice. The
+            // old (0.55, 0.50, 0.45) tint arrived as a 5% reflectance albedo: darker than
+            // the road the boss stands on, and the reason a thing called Bone Colossus
+            // rendered as a #3a3a3a cutout. Any future darkening belongs in linear.
+            _material.SetColorSafe("_BaseColor", tint);
+            _baseEmission = tint * 0.5f;
             _material.SetColorSafe("_EmissionColor", _baseEmission);
             transform.position = position;
             _body.localScale = Vector3.one * _baseScale;
@@ -98,7 +108,19 @@ namespace BattleRunner.Gameplay.Combat
             // pointed most directly at the camera — still most of the torso and head —
             // have rim near 0. Without driving the view-independent flat term too, the
             // flash arrives on those faces at 15% strength and is lost.
-            _material.SetFloatSafe("_EmissionFlat", 0.15f + 0.55f * _hitFlash);
+            // 0.03 at rest, not 0.15. The flat term is view- and normal-independent — it
+            // is paint, not light — and at 0.15 against a 5% albedo it WAS the boss: two
+            // thirds of every pixel, identical on the horns, the head and the cleaver. Now
+            // that the albedo is real, the resting term drops to the crowd's own value and
+            // the hit flash goes from a 4x jump over it to a 19x one.
+            // The TELEGRAPH drives this too, not just the hit flash. Dropping the resting
+            // term from 0.15 to 0.03 is right — at a real albedo it is paint, not light —
+            // but the telegraph is the only warning the player gets before a blow lands,
+            // and its whole signal is this term multiplying an orange emission colour. At
+            // 0.03 a fully wound-up boss brightened by a quarter; at 0.33 it goes over the
+            // bloom threshold and visibly heats up, which is what a wind-up should do.
+            _material.SetFloatSafe("_EmissionFlat",
+                0.03f + 0.30f * _telegraphPulse + 0.55f * _hitFlash);
         }
     }
 }
