@@ -32,6 +32,18 @@ army stands on the road instead of hovering over it — and a procedural cobbled
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
 corner notches, a gradient backdrop and readable disabled states, across every screen.
+**The shockwaves never drew, and the screenshots proved it by measurement.** In v0.9.0 the
+debris motes sampled at (83, 122, 217) against a road of ~(30, 30, 45) — clearly present —
+while a scan across the road at four depths found no ring crest in any frame. Same
+material, same shader, same draw path, so the fault was specific to the ring, and only two
+things were unique to it: it was the ONLY mesh in the project carrying UVs (and the shader
+shaped its falloff from `uv.x`, so a channel that never arrived means `sin(0)` and nothing
+drawn), and it was flat, giving it zero-extent bounds and an almost edge-on view from a
+camera 5.5 m up. The shape is now an open cylinder wall that expands and flattens, which
+retires both: no UVs anywhere (the falloff comes from object-space height), real bounds,
+and it faces the camera. Shock lives also went up ~35% — at a third of a second they were
+hard to read and nearly impossible to catch in a screenshot, which is the only oracle here.
+
 **Additive VFX — the game finally reacts to itself.** Until now nothing HAPPENED when you
 passed a gate: the number changed, the camera nudged, and that was the whole event, in a
 game whose appeal is the moment the crowd doubles. Six effects now, all from one shader:

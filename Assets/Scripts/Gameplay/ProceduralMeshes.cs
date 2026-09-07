@@ -22,7 +22,7 @@ namespace BattleRunner.Gameplay
         private static Mesh _unit;
         private static Mesh _boss;
         private static Mesh _cube;
-        private static Mesh _ring;
+        private static Mesh _shockWall;
 
         public static Mesh Unit
         {
@@ -56,17 +56,28 @@ namespace BattleRunner.Gameplay
         }
 
         /// <summary>
-        /// A flat annulus in the XZ plane, outer radius 1, for additive shockwaves. UV.x
-        /// runs 0 at the inner edge to 1 at the outer, which is what BattleRunner/Vfx
-        /// shapes its radial falloff from — so this is the one mesh here that MUST carry
-        /// UVs, and the only reason it is not built through AddHull.
+        /// An open cylinder WALL — radius 1, standing from y=0 to y=1 — for additive
+        /// shockwaves. It replaces a flat annulus that never appeared on device, and it
+        /// removes both candidate reasons why:
+        ///
+        /// The annulus carried UVs, and BattleRunner/Vfx shaped its falloff from UV.x. It
+        /// was the only mesh in this project with a UV channel, and if that channel did not
+        /// reach the shader then uv.x read 0, sin(0) was 0, and the ring drew nothing while
+        /// the UV-free debris motes on the same material drew fine — exactly what the
+        /// screenshots showed. This mesh has NO UVs at all; the shader shapes its falloff
+        /// from object-space height, which every mesh has.
+        ///
+        /// The annulus was also flat, so RecalculateBounds gave it a zero-extent Y and the
+        /// camera saw it nearly edge-on: at 5.5 m up and 10 m back, a ground ring is
+        /// squashed to a thin ellipse. A wall has real height, real bounds, and faces the
+        /// camera — which is how shockwaves are drawn in a 3D scene anyway.
         /// </summary>
-        public static Mesh Ring
+        public static Mesh ShockWall
         {
             get
             {
-                if (_ring == null) _ring = BuildRing(0.62f, 1f, 56);
-                return _ring;
+                if (_shockWall == null) _shockWall = BuildShockWall(48);
+                return _shockWall;
             }
         }
 
@@ -149,40 +160,35 @@ namespace BattleRunner.Gameplay
             return Finish(v, t, "BossGreybox");
         }
 
-        private static Mesh BuildRing(float innerRadius, float outerRadius, int segments)
+        private static Mesh BuildShockWall(int segments)
         {
             var vertices = new List<Vector3>(segments * 2 + 2);
-            var uvs = new List<Vector2>(segments * 2 + 2);
             var triangles = new List<int>(segments * 6);
 
-            // Duplicate the seam vertex rather than wrapping the index buffer back to 0:
-            // the UV has to run continuously around, and a shared seam vertex would have
-            // to carry two different values.
             for (int i = 0; i <= segments; i++)
             {
                 float angle = (float)(i * 2.0 * Math.PI / segments);
                 float sin = Mathf.Sin(angle);
                 float cos = Mathf.Cos(angle);
-                vertices.Add(new Vector3(cos * innerRadius, 0f, sin * innerRadius));
-                uvs.Add(new Vector2(0f, i / (float)segments));
-                vertices.Add(new Vector3(cos * outerRadius, 0f, sin * outerRadius));
-                uvs.Add(new Vector2(1f, i / (float)segments));
+                vertices.Add(new Vector3(cos, 0f, sin));
+                vertices.Add(new Vector3(cos, 1f, sin));
             }
 
+            // Winding is irrelevant — the Vfx shader is Cull Off, and seeing both the near
+            // and the far wall is wanted: additive, they sum through the middle of the wave.
             for (int i = 0; i < segments; i++)
             {
-                int a = i * 2;
-                triangles.Add(a);
-                triangles.Add(a + 1);
-                triangles.Add(a + 2);
-                triangles.Add(a + 1);
-                triangles.Add(a + 3);
-                triangles.Add(a + 2);
+                int v = i * 2;
+                triangles.Add(v);
+                triangles.Add(v + 1);
+                triangles.Add(v + 2);
+                triangles.Add(v + 1);
+                triangles.Add(v + 3);
+                triangles.Add(v + 2);
             }
 
-            var mesh = new Mesh { name = "RingGreybox" };
+            var mesh = new Mesh { name = "ShockWallGreybox" };
             mesh.SetVertices(vertices);
-            mesh.SetUVs(0, uvs);
             mesh.SetTriangles(triangles, 0);
             mesh.RecalculateNormals();
             mesh.RecalculateBounds();

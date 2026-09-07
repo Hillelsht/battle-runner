@@ -487,14 +487,31 @@ that risk rather than hoping:
 
 `Fallback Off` in the shader says the same thing to Unity.
 
-**One shader, two shapes, no keywords.** `_Band` blends between a flat surface (debris
-motes, which are the cube mesh) and a soft radial band across the ring's UV.x (shockwaves).
-The ring is the one procedural mesh here that carries UVs, and the only one not built
-through `AddHull`. The falloff is `sin(u·π)²` rather than a linear ramp: a hard-edged ring
-reads as a flat disc of colour, and the point of a shockwave is that it is brightest at its
-crest and dies off both ways. The radius eases **out** while brightness falls off faster
-than linear, so a wave sprints away from its origin and is gone before it stops moving —
-easing the radius linearly instead reads as an inflating balloon.
+**The first shockwave shape never appeared on device, and the debris did.** v0.9.0
+screenshots settled it by measurement, not by eye: motes sampled at (83, 122, 217) against
+a road of ~(30, 30, 45) — unmistakably there — while a scan across the road at four
+different depths found no ring crest anywhere, in any frame. Same material, same shader,
+same draw path. Only two things were unique to the ring:
+
+- It was **the only mesh in the project carrying UVs**, and the shader shaped its falloff
+  from `uv.x`. If that channel did not reach the shader, `uv.x` read 0, `sin(0)²` was 0,
+  and the ring drew nothing — while the UV-free motes on the same material drew fine.
+  That fits the evidence exactly.
+- It was **flat**, so `RecalculateBounds` gave it zero extent in Y, and at 5.5 m up and
+  10 m back the camera saw it nearly edge-on — a ground ring squashed into a thin ellipse.
+
+Rather than guess between them, the shape changed to an **open cylinder wall** that expands
+and flattens, which retires both: it has no UVs (the shader shapes the falloff from
+object-space height, which every mesh has), it has real bounds, and it faces the camera.
+That is also how shockwaves are drawn in a 3D scene anyway. `_Band` still selects between a
+flat surface for the motes and the falloff for the wall — one shader, two shapes, no
+keywords, and now no UV channel anywhere in the project.
+
+The falloff is squared, not linear: brightest where the wave meets the ground and dying
+away fast up the wall, which gives it a crest instead of reading as a lit cylinder. The
+radius eases **out** while brightness falls off faster than linear, so a wave sprints away
+from its origin and is gone before it stops moving — easing the radius linearly instead
+reads as an inflating balloon.
 
 **No fog on it, on purpose.** Fog *lerps toward* the fog colour, which on additive geometry
 ADDS light in the distance instead of removing it. Everything drawn here is within 30 m,

@@ -132,7 +132,7 @@ namespace BattleRunner.Gameplay.States
 
             // The spell was a number leaving the health bar. A ring at the player's feet
             // and embers at the boss's give the flick a beginning and an end.
-            _ctx.Effects.Shock(new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.CenterZ), SpellTint, 1.2f, 7f, 0.38f);
+            _ctx.Effects.Shock(new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.CenterZ), SpellTint, 1.2f, 7f, 0.50f);
             _ctx.Effects.Burst(_bossPosition, SpellTint, 12, 5.5f, 0.5f);
         }
 
@@ -166,7 +166,7 @@ namespace BattleRunner.Gameplay.States
             // instead. Two different events that used to look the same except for a number.
             if (blocked)
                 _ctx.Effects.Shock(new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.CenterZ),
-                    BlockTint, 1.6f, 5.5f, 0.30f);
+                    BlockTint, 1.6f, 5.5f, 0.45f);
             else
                 _ctx.Effects.Burst(new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.CenterZ),
                     StrikeTint, 16, 4.6f, 0.6f);
@@ -189,8 +189,8 @@ namespace BattleRunner.Gameplay.States
             // full pool of debris. This is the one place worth spending every mote.
             Vector3 foot = _bossPosition;
             _ctx.Effects.Shock(foot, DeathTint, 1.5f, 16f, 0.55f);
-            _ctx.Effects.Shock(foot, DeathTint, 0.8f, 9f, 0.38f);
-            _ctx.Effects.Shock(foot, new Color(1.75f, 1.25f, 0.66f), 0.5f, 5f, 0.26f);
+            _ctx.Effects.Shock(foot, DeathTint, 0.8f, 9f, 0.45f);
+            _ctx.Effects.Shock(foot, new Color(1.75f, 1.25f, 0.66f), 0.5f, 5f, 0.32f);
             _ctx.Effects.Burst(foot + Vector3.up * 1.5f, DeathTint, 40, 7.5f, 0.9f);
 
             _resolved = true;

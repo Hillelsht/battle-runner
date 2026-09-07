@@ -8,6 +8,11 @@ namespace BattleRunner.Gameplay.Vfx
     /// Every additive effect in the game: gate shockwaves, the spell's shock ring, debris
     /// from a pack that bit the army, and the boss's death beat.
     ///
+    /// A shockwave is a cylinder WALL that expands and flattens, not a ring lying on the
+    /// road. The first version was flat and never appeared on device while the debris on
+    /// the same material did — see ProceduralMeshes.ShockWall for the two candidate
+    /// reasons and why this shape retires both.
+    ///
     /// Until this existed nothing HAPPENED when you passed a gate — the number changed and
     /// the camera nudged, and that was the whole of it. A gate-multiplier runner lives on
     /// the moment the crowd doubles, and that moment had no event.
@@ -32,9 +37,12 @@ namespace BattleRunner.Gameplay.Vfx
         private const int RingCapacity = 12;
         private const int MoteCapacity = 48;
 
-        // Rings lie flat on the road, so they need clearance over it or they z-fight with
-        // the lane decals at 0.005-0.02. Motes start above that and arc.
-        private const float RingHeight = 0.05f;
+        // The wall's base sits just clear of the road so it does not z-fight the lane
+        // decals at 0.005-0.02. Its height shrinks as it expands: a wave that spreads and
+        // flattens, rather than an inflating cylinder.
+        private const float RingBaseY = 0.03f;
+        private const float WallHeightNear = 1.15f;
+        private const float WallHeightFar = 0.22f;
 
         private sealed class Ring
         {
@@ -78,7 +86,7 @@ namespace BattleRunner.Gameplay.Vfx
 
             for (int i = 0; i < RingCapacity; i++)
             {
-                MeshRenderer renderer = Build("Ring", ProceduralMeshes.Ring, vfxMaterial);
+                MeshRenderer renderer = Build("Shock", ProceduralMeshes.ShockWall, vfxMaterial);
                 _rings.Add(new Ring { Transform = renderer.transform, Renderer = renderer });
             }
             for (int i = 0; i < MoteCapacity; i++)
@@ -128,8 +136,8 @@ namespace BattleRunner.Gameplay.Vfx
             ring.FromRadius = fromRadius;
             ring.ToRadius = toRadius;
             ring.Tint = tint;
-            ring.Transform.position = new Vector3(position.x, RingHeight, position.z);
-            ring.Transform.localScale = new Vector3(fromRadius, 1f, fromRadius);
+            ring.Transform.position = new Vector3(position.x, RingBaseY, position.z);
+            ring.Transform.localScale = new Vector3(fromRadius, WallHeightNear, fromRadius);
             ring.Transform.gameObject.SetActive(true);
             Paint(ring.Renderer, tint, 1f, band: 1f);
         }
@@ -166,7 +174,7 @@ namespace BattleRunner.Gameplay.Vfx
                 mote.Tint = tint;
                 mote.Transform.position = position + Vector3.up * 0.35f;
                 mote.Transform.localRotation = Quaternion.Euler(angle * 57.3f, angle * 31.1f, 0f);
-                mote.Transform.localScale = Vector3.one * (0.10f + 0.09f * reach);
+                mote.Transform.localScale = Vector3.one * (0.15f + 0.12f * reach);
                 mote.Transform.gameObject.SetActive(true);
                 Paint(mote.Renderer, tint, 1f, band: 0f);
             }
@@ -210,7 +218,8 @@ namespace BattleRunner.Gameplay.Vfx
                 // the radius linearly instead reads as an inflating balloon.
                 float eased = 1f - (1f - t) * (1f - t);
                 float radius = Mathf.Lerp(ring.FromRadius, ring.ToRadius, eased);
-                ring.Transform.localScale = new Vector3(radius, 1f, radius);
+                float height = Mathf.Lerp(WallHeightNear, WallHeightFar, eased);
+                ring.Transform.localScale = new Vector3(radius, height, radius);
                 Paint(ring.Renderer, ring.Tint, (1f - t) * (1f - t), band: 1f);
             }
 
@@ -232,7 +241,7 @@ namespace BattleRunner.Gameplay.Vfx
                 mote.Transform.Rotate(mote.Spin * dt, Space.Self);
                 // Shrink as well as dim. A mote that only fades leaves a ghost of its
                 // silhouette at the last frame it is drawn.
-                mote.Transform.localScale = Vector3.one * (0.10f * (1f - t) + 0.03f);
+                mote.Transform.localScale = Vector3.one * (0.15f * (1f - t) + 0.04f);
                 Paint(mote.Renderer, mote.Tint, 1f - t, band: 0f);
             }
         }

@@ -113,7 +113,7 @@ namespace BattleRunner.Gameplay.States
             // learns how far the flick reaches by watching it rather than by dying to a
             // pack that was one metre outside it.
             _ctx.Effects.Shock(new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.CenterZ),
-                SpellTint, 1.2f, range, 0.42f);
+                SpellTint, 1.2f, range, 0.55f);
             _ctx.Effects.Burst(new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.CenterZ + 1.5f),
                 SpellTint, 10, 4.2f, 0.5f);
 
@@ -143,7 +143,7 @@ namespace BattleRunner.Gameplay.States
             // the camera nudged, and that was it.
             float weight = CameraFeel.ForGate(op, before, run.ForceCount).Trauma;
             Color tint = GateTint(op);
-            _ctx.Effects.Shock(where, tint, 0.8f, 2.6f + 4.4f * weight, 0.34f + 0.16f * weight);
+            _ctx.Effects.Shock(where, tint, 0.8f, 2.6f + 4.4f * weight, 0.45f + 0.20f * weight);
             if (run.ForceCount > before)
                 _ctx.Effects.Burst(where, tint, 4 + Mathf.RoundToInt(10f * weight), 3.4f, 0.45f);
 
@@ -168,7 +168,7 @@ namespace BattleRunner.Gameplay.States
             // Debris scaled to what the pack actually took, not to its printed cost —
             // Bramble and Undying cut the bite, and the effect should show the bite.
             float loss = CameraFeel.ForLoss(beforeBite, run.ForceCount).Trauma;
-            _ctx.Effects.Shock(where, LossTint, 0.6f, 2.2f + 2.6f * loss, 0.30f);
+            _ctx.Effects.Shock(where, LossTint, 0.6f, 2.2f + 2.6f * loss, 0.42f);
             _ctx.Effects.Burst(where, LossTint, 6 + Mathf.RoundToInt(14f * loss), 3.8f, 0.55f);
 
             if (run.ForceCount <= 0) OnForceDepleted();

@@ -19,9 +19,9 @@ Shader "BattleRunner/Vfx"
     {
         [HDR] _TintColor ("Tint", Color) = (1, 1, 1, 1)
         _Fade ("Fade", Range(0, 1)) = 1
-        // 0 = draw the whole surface flat (motes), 1 = soft radial band across the
-        // ring's UV.x (shockwaves). One shader, two shapes, no keywords.
-        _Band ("Radial Band", Range(0, 1)) = 0
+        // 0 = draw the whole surface flat (motes), 1 = fade up the shock wall's object-
+        // space height (shockwaves). One shader, two shapes, no keywords.
+        _Band ("Height Falloff", Range(0, 1)) = 0
     }
 
     SubShader
@@ -58,34 +58,41 @@ Shader "BattleRunner/Vfx"
                 half _Band;
             CBUFFER_END
 
+            // NO UV CHANNEL ANYWHERE. The first version shaped the shockwave from the
+            // ring mesh's UV.x, which made that mesh the only one in the project carrying
+            // UVs — and on device the rings drew nothing at all while the UV-free debris
+            // motes on the same material drew fine. Whether the channel failed to reach
+            // the shader or the flat ring was simply invisible edge-on, deriving the
+            // falloff from object-space height instead removes the question: every mesh
+            // has a position, and the shock wall is built to run y = 0 at its base to
+            // y = 1 at its top.
             struct Attributes
             {
                 float4 positionOS : POSITION;
-                float2 uv : TEXCOORD0;
             };
 
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
-                float2 uv : TEXCOORD0;
+                half height : TEXCOORD0;
             };
 
             Varyings vert(Attributes input)
             {
                 Varyings output;
                 output.positionCS = TransformObjectToHClip(input.positionOS.xyz);
-                output.uv = input.uv;
+                output.height = (half)input.positionOS.y;
                 return output;
             }
 
             half4 frag(Varyings input) : SV_Target
             {
-                // sin() squared, not a linear ramp: a hard-edged ring reads as a flat
-                // disc of colour, and the whole point of a shockwave is that it is
-                // brightest at its crest and dies off both ways.
-                half ring = sin(saturate(input.uv.x) * 3.14159265h);
-                ring *= ring;
-                half band = lerp(1.0h, ring, _Band);
+                // Squared, not linear: brightest where the wave meets the ground and
+                // falling away fast up the wall, which is what gives it a crest instead
+                // of reading as a lit cylinder.
+                half wall = 1.0h - saturate(input.height);
+                wall *= wall;
+                half band = lerp(1.0h, wall, _Band);
                 return half4(_TintColor.rgb * band * _Fade, 1.0h);
             }
             ENDHLSL
