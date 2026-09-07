@@ -158,7 +158,7 @@ namespace BattleRunner.Gameplay
             var bossGo = new GameObject("Boss");
             bossGo.transform.SetParent(ctx.ArenaRoot.transform, false);
             ctx.BossView = bossGo.AddComponent<BossView>();
-            ctx.BossView.Initialize(ProceduralMeshes.Unit, ctx.CrowdMaterial);
+            ctx.BossView.Initialize(ProceduralMeshes.Boss, ctx.CrowdMaterial);
 
             var cameraGo = new GameObject("GameCamera");
             ctx.CameraRig = cameraGo.AddComponent<CameraRig>();

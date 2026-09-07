@@ -73,6 +73,9 @@ namespace BattleRunner.Editor
             Debug.Log("[BattleRunner] URP pipeline created and assigned (Assets/Settings).");
         }
 
+        /// <summary>Far enough to include the boss at 26.1 m; see Tune for the arithmetic.</summary>
+        private const float ShadowDistanceMeters = 28f;
+
         /// <summary>
         /// The look settings, in one place so a fresh asset and an existing one cannot drift.
         /// Returns true if anything actually changed.
@@ -94,7 +97,12 @@ namespace BattleRunner.Editor
         /// </summary>
         private static bool Tune(UniversalRenderPipelineAsset pipeline)
         {
-            bool changed = !pipeline.supportsHDR || pipeline.msaaSampleCount != 4;
+            // shadowDistance is in the dirty test, not just assigned. Everything below is
+            // written unconditionally, but only `changed` decides whether the asset is
+            // saved — so on a machine that already generated this asset at the old
+            // distance, a bump here would be applied in memory and thrown away.
+            bool changed = !pipeline.supportsHDR || pipeline.msaaSampleCount != 4
+                || !Mathf.Approximately(pipeline.shadowDistance, ShadowDistanceMeters);
 
             pipeline.supportsHDR = true;
             pipeline.msaaSampleCount = 4;
@@ -108,9 +116,16 @@ namespace BattleRunner.Editor
             // box turned inside out and each body survived as a splinter a 5x5 PCF averaged
             // away to nothing.
             //
-            // 24 m covers the army comfortably (the camera sits 10 m back and the formation
-            // reaches ~3.7 m ahead of its centre) at ~17 mm per texel.
-            pipeline.shadowDistance = 24f;
+            // 24 m covered the army comfortably (the camera sits 10 m back and the
+            // formation reaches ~3.7 m ahead of its centre) at ~17 mm per texel — but it
+            // stopped 2 m short of the boss, which stands at CenterZ + 16 while the camera
+            // sits at CenterZ - 10: 26.1 m away including the height difference. The
+            // largest silhouette in the game was outside the shadow map entirely, casting
+            // nothing and receiving nothing, and BossView has been asking for
+            // ShadowCastingMode.On the whole time. 28 m reaches it with margin at ~20 mm
+            // per texel, still five times finer than the 110 mm half-depth that decides
+            // whether a caster turns inside out.
+            pipeline.shadowDistance = ShadowDistanceMeters;
 
             // Still off: nothing here samples scene depth or colour, and both cost a full
             // extra pass on mobile.

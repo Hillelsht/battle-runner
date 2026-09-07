@@ -17,7 +17,7 @@ points → save → next level.
 | Game loop | Complete end to end |
 | Content | 5 levels, 2 bosses, 15 gear items, 4 rarities, 12 talents |
 | Art | Greybox — procedural meshes, code-built uGUI, no imported assets |
-| Tests | 148, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 162, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
@@ -32,6 +32,28 @@ army stands on the road instead of hovering over it — and a procedural cobbled
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
 corner notches, a gradient backdrop and readable disabled states, across every screen.
+**The boss is no longer the soldier mesh at 6x.** `ProceduralMeshes.Boss` is its own
+132-triangle shape: horns (two segments sweeping out on the left, a snapped stub on the
+right), a torso that leans forward onto the player, mismatched pauldrons and a cleaver
+held out past the road edge. It is built from sheared hulls rather than axis-aligned
+boxes, so the rim term has varied normals to shade for the first time. `BossView`'s
+180-degree yaw is gone with it — harmless while the mesh was symmetric, it would now
+show the player the boss's back.
+
+**The boss was outside the shadow map.** It stands 26.1 m from the camera and the
+shadow distance was 24 m, so the largest silhouette in the game cast nothing and
+received nothing — while `BossView` had been asking for `ShadowCastingMode.On` the whole
+time. Now 28 m, at ~20 mm per texel, still five times finer than the half-depth that
+decides whether a caster turns inside out. The distance is also part of the URP asset's
+dirty test now: it was assigned unconditionally but never marked the asset changed, so a
+machine that had already generated the asset would have kept the old value.
+
+**The road was lavender twice over.** `_BaseColor` was violet (blue highest, green
+lowest) *and* the ambient term samples a blue-violet sky, so the largest surface in the
+frame got tinted by both. The stone albedo is now warm-neutral and the cold ambient does
+the tinting alone; the damp sheen stays cool but is pulled back from a second full
+coverage blue wash.
+
 **Every talent capstone was off-screen.** Found in v0.6.0 device screenshots: the tree
 showed only three rows. `SkillTreeScreen` stepped rows 0, 2, 4, 6 — both arms of an
 if/else did `row++` and the body incremented again — so `RowY(6)` resolved to −0.115,

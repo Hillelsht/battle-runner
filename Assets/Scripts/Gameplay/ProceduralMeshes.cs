@@ -6,11 +6,20 @@ namespace BattleRunner.Gameplay
     /// <summary>
     /// Greybox meshes built in code — no model assets, nothing to strip or import.
     /// The unit mesh is a chunky low-poly "warrior" (body + head, ~48 tris) sized
-    /// about 1 unit tall so crowd spacing math reads directly in meters.
+    /// about 1 unit tall so crowd spacing math reads directly in meters. The boss
+    /// gets its own mesh at the same 1-unit convention.
+    ///
+    /// Everything is built from six-sided hulls with duplicated corner vertices, so
+    /// normals are hard and per-face. That matters beyond style: CrowdInstanced's rim
+    /// term is dot(normal, view)-driven, so a shape assembled only from axis-aligned
+    /// boxes presents the camera one flat face whose rim is a single constant — the
+    /// reason the boss read as a featureless slab. AddPrism and AddOrientedBox exist to
+    /// put slanted faces in the silhouette and give that term something to shade.
     /// </summary>
     public static class ProceduralMeshes
     {
         private static Mesh _unit;
+        private static Mesh _boss;
         private static Mesh _cube;
 
         public static Mesh Unit
@@ -19,6 +28,19 @@ namespace BattleRunner.Gameplay
             {
                 if (_unit == null) _unit = BuildUnit();
                 return _unit;
+            }
+        }
+
+        /// <summary>
+        /// The boss body. Not the soldier at 6x — horned, hunched, deliberately
+        /// lopsided, and carrying a cleaver.
+        /// </summary>
+        public static Mesh Boss
+        {
+            get
+            {
+                if (_boss == null) _boss = BuildBoss();
+                return _boss;
             }
         }
 
@@ -44,12 +66,70 @@ namespace BattleRunner.Gameplay
             AddBox(vertices, triangles, new Vector3(-0.24f, 0.62f, 0f), new Vector3(0.12f, 0.12f, 0.2f));
             AddBox(vertices, triangles, new Vector3(0.24f, 0.62f, 0f), new Vector3(0.12f, 0.12f, 0.2f));
 
-            var mesh = new Mesh { name = "UnitGreybox" };
-            mesh.SetVertices(vertices);
-            mesh.SetTriangles(triangles, 0);
-            mesh.RecalculateNormals();
-            mesh.RecalculateBounds();
-            return mesh;
+            return Finish(vertices, triangles, "UnitGreybox");
+        }
+
+        /// <summary>
+        /// The boss, ~1.11 units tall so BossView's 6x renders a figure just under 7 m.
+        ///
+        /// It faces -Z, toward the camera and the oncoming army, using the same front
+        /// convention as the unit mesh. That is load-bearing now: every previous boss
+        /// was the unit mesh, which is symmetric about both X and Z, so the 180-degree
+        /// yaw BossView used to apply was a no-op. This mesh is asymmetric on purpose
+        /// and would be turned to face away.
+        ///
+        /// Widths are budgeted against the road. Lanes are 2.2 m and the road spans
+        /// +/-3.3 m, so at 6x nothing may exceed x = 0.55. The body stops at 0.410
+        /// (2.46 m, the left pauldron) and only the cleaver's outer corner reaches 0.584,
+        /// or 3.51 m — 21 cm of overhang, which is the point of a weapon too big for the
+        /// street. 132 triangles.
+        /// </summary>
+        private static Mesh BuildBoss()
+        {
+            var v = new List<Vector3>();
+            var t = new List<int>();
+
+            // Legs: planted wide, tapering IN as they rise, so the stance reads heavy.
+            AddPrism(v, t, new Vector3(-0.16f, 0f, 0.02f), new Vector2(0.19f, 0.22f),
+                           new Vector3(-0.12f, 0.32f, 0f), new Vector2(0.15f, 0.19f));
+            AddPrism(v, t, new Vector3(0.16f, 0f, 0.02f), new Vector2(0.19f, 0.22f),
+                           new Vector3(0.12f, 0.32f, 0f), new Vector2(0.15f, 0.19f));
+
+            // Torso: narrow waist to broad shoulders, and leaning forward onto the
+            // player. The lean is what separates this profile from a box at range —
+            // a vertical trunk reads as a pillar however wide the top is.
+            AddPrism(v, t, new Vector3(0f, 0.28f, 0.01f), new Vector2(0.30f, 0.24f),
+                           new Vector3(0f, 0.72f, -0.05f), new Vector2(0.44f, 0.30f));
+
+            // Head: small, sunk between the shoulders and pushed out ahead of them.
+            AddPrism(v, t, new Vector3(0f, 0.70f, -0.09f), new Vector2(0.20f, 0.20f),
+                           new Vector3(0f, 0.87f, -0.10f), new Vector2(0.17f, 0.17f));
+
+            // Pauldrons, deliberately mismatched: the left one is larger and rides
+            // higher. Bilateral symmetry is what made the old boss read as scenery.
+            AddPrism(v, t, new Vector3(-0.28f, 0.58f, -0.03f), new Vector2(0.26f, 0.28f),
+                           new Vector3(-0.33f, 0.80f, -0.03f), new Vector2(0.13f, 0.15f));
+            AddPrism(v, t, new Vector3(0.27f, 0.56f, -0.02f), new Vector2(0.22f, 0.25f),
+                           new Vector3(0.30f, 0.70f, -0.02f), new Vector2(0.11f, 0.13f));
+
+            // Horns. Two segments on the left so the sweep bends outward and forward;
+            // the right one is a snapped stub. This is the single strongest cue that
+            // the thing at the end of the lane is not another soldier, and it is the
+            // highest point on the mesh — nothing else competes with it.
+            AddPrism(v, t, new Vector3(-0.09f, 0.83f, -0.09f), new Vector2(0.08f, 0.08f),
+                           new Vector3(-0.17f, 0.98f, -0.05f), new Vector2(0.055f, 0.055f));
+            AddPrism(v, t, new Vector3(-0.17f, 0.98f, -0.05f), new Vector2(0.055f, 0.055f),
+                           new Vector3(-0.22f, 1.11f, 0.02f), new Vector2(0.018f, 0.018f));
+            AddPrism(v, t, new Vector3(0.09f, 0.83f, -0.09f), new Vector2(0.08f, 0.08f),
+                           new Vector3(0.15f, 0.94f, -0.06f), new Vector2(0.05f, 0.05f));
+
+            // Cleaver, held out on the right. Haft and head share the same 16-degree
+            // tilt so they stay one object.
+            Quaternion tilt = Quaternion.Euler(0f, 0f, -16f);
+            AddOrientedBox(v, t, new Vector3(0.36f, 0.52f, -0.06f), new Vector3(0.05f, 0.66f, 0.05f), tilt);
+            AddOrientedBox(v, t, new Vector3(0.44f, 0.87f, -0.06f), new Vector3(0.22f, 0.28f, 0.045f), tilt);
+
+            return Finish(v, t, "BossGreybox");
         }
 
         public static Mesh BuildBox(Vector3 center, Vector3 size)
@@ -57,7 +137,12 @@ namespace BattleRunner.Gameplay
             var vertices = new List<Vector3>();
             var triangles = new List<int>();
             AddBox(vertices, triangles, center, size);
-            var mesh = new Mesh { name = "BoxGreybox" };
+            return Finish(vertices, triangles, "BoxGreybox");
+        }
+
+        private static Mesh Finish(List<Vector3> vertices, List<int> triangles, string name)
+        {
+            var mesh = new Mesh { name = name };
             mesh.SetVertices(vertices);
             mesh.SetTriangles(triangles, 0);
             mesh.RecalculateNormals();
@@ -68,13 +153,57 @@ namespace BattleRunner.Gameplay
         private static void AddBox(List<Vector3> vertices, List<int> triangles, Vector3 center, Vector3 size)
         {
             Vector3 h = size * 0.5f;
-            Vector3[] corners =
+            AddHull(vertices, triangles, new[]
             {
                 center + new Vector3(-h.x, -h.y, -h.z), center + new Vector3(h.x, -h.y, -h.z),
                 center + new Vector3(h.x, -h.y, h.z), center + new Vector3(-h.x, -h.y, h.z),
                 center + new Vector3(-h.x, h.y, -h.z), center + new Vector3(h.x, h.y, -h.z),
                 center + new Vector3(h.x, h.y, h.z), center + new Vector3(-h.x, h.y, h.z)
+            });
+        }
+
+        /// <summary>
+        /// A box whose top face may be a different size and sit off to one side: taper
+        /// plus lean in one primitive. Sizes are XZ footprints; the Y span comes from
+        /// the two centers, so a segment can be chained by reusing the previous top as
+        /// the next bottom.
+        /// </summary>
+        private static void AddPrism(List<Vector3> vertices, List<int> triangles,
+            Vector3 bottomCenter, Vector2 bottomSize, Vector3 topCenter, Vector2 topSize)
+        {
+            Vector2 b = bottomSize * 0.5f;
+            Vector2 t = topSize * 0.5f;
+            AddHull(vertices, triangles, new[]
+            {
+                bottomCenter + new Vector3(-b.x, 0f, -b.y), bottomCenter + new Vector3(b.x, 0f, -b.y),
+                bottomCenter + new Vector3(b.x, 0f, b.y), bottomCenter + new Vector3(-b.x, 0f, b.y),
+                topCenter + new Vector3(-t.x, 0f, -t.y), topCenter + new Vector3(t.x, 0f, -t.y),
+                topCenter + new Vector3(t.x, 0f, t.y), topCenter + new Vector3(-t.x, 0f, t.y)
+            });
+        }
+
+        /// <summary>A box rotated about its own center — for parts that are not axis-aligned.</summary>
+        private static void AddOrientedBox(List<Vector3> vertices, List<int> triangles,
+            Vector3 center, Vector3 size, Quaternion rotation)
+        {
+            Vector3 h = size * 0.5f;
+            var local = new[]
+            {
+                new Vector3(-h.x, -h.y, -h.z), new Vector3(h.x, -h.y, -h.z),
+                new Vector3(h.x, -h.y, h.z), new Vector3(-h.x, -h.y, h.z),
+                new Vector3(-h.x, h.y, -h.z), new Vector3(h.x, h.y, -h.z),
+                new Vector3(h.x, h.y, h.z), new Vector3(-h.x, h.y, h.z)
             };
+            for (int i = 0; i < local.Length; i++) local[i] = center + rotation * local[i];
+            AddHull(vertices, triangles, local);
+        }
+
+        /// <summary>
+        /// Six quads over eight corners, ordered 0-3 bottom then 4-7 top, each corner
+        /// duplicated per face so RecalculateNormals produces hard edges.
+        /// </summary>
+        private static void AddHull(List<Vector3> vertices, List<int> triangles, Vector3[] corners)
+        {
             int[][] faces =
             {
                 new[] { 0, 1, 2, 3 }, // bottom
@@ -88,7 +217,6 @@ namespace BattleRunner.Gameplay
             foreach (int[] face in faces)
             {
                 int baseIndex = vertices.Count;
-                // Duplicate vertices per face for hard normals.
                 vertices.Add(corners[face[0]]);
                 vertices.Add(corners[face[1]]);
                 vertices.Add(corners[face[2]]);

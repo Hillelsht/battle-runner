@@ -4,7 +4,7 @@ using UnityEngine;
 namespace BattleRunner.Gameplay.Combat
 {
     /// <summary>
-    /// The boss's body: a hulking unit mesh with a telegraph pulse. Encounter LOGIC
+    /// The boss's body: ProceduralMeshes.Boss with a telegraph pulse. Encounter LOGIC
     /// lives in BossEncounterState via BossSim — this class is pure presentation, so
     /// the encounter stays drivable from a hand-authored RunResult (R9).
     /// </summary>
@@ -17,14 +17,23 @@ namespace BattleRunner.Gameplay.Combat
         private float _baseScale = 6f;
         private float _hitFlash;
 
-        public void Initialize(Mesh unitMesh, Material baseMaterial)
+        public void Initialize(Mesh bossMesh, Material baseMaterial)
         {
             var body = new GameObject("BossMesh", typeof(MeshFilter), typeof(MeshRenderer));
             body.transform.SetParent(transform, false);
-            body.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
-            body.GetComponent<MeshFilter>().sharedMesh = unitMesh;
+            // Identity, not a 180-degree yaw. ProceduralMeshes.Boss is built facing -Z
+            // like every other mesh here, which is toward the camera and the oncoming
+            // army. The old yaw was inherited from when the boss WAS the unit mesh —
+            // symmetric about both axes, so turning it around changed nothing. It would
+            // now show the player the boss's back.
+            body.transform.localRotation = Quaternion.identity;
+            body.GetComponent<MeshFilter>().sharedMesh = bossMesh;
             _material = ShaderSafety.CreateMaterial(baseMaterial);
             _material.SetFloatSafe("_BobAmount", 0f); // at 6x scale the run-bob would look absurd
+            // The mesh is deliberately not axis-aligned, so the rim term finally has
+            // varied normals to work with. Widen the lobe a little to use them.
+            _material.SetFloatSafe("_RimPower", 1.8f);
+            _material.SetFloatSafe("_RimStrength", 1.15f);
             var renderer = body.GetComponent<MeshRenderer>();
             renderer.sharedMaterial = _material;
             // Casts: the boss is the largest silhouette in the game.
@@ -61,9 +70,10 @@ namespace BattleRunner.Gameplay.Combat
         {
             if (_body == null) return;
             _hitFlash = 1f;
-            // 0.96 was a 0.23-unit dip on a 5.7-unit figure, recovered in 2.4 frames at
-            // the existing rate of 6/s — literally invisible. 0.90 is 0.57 units over
-            // about 6 frames, which reads as a flinch.
+            // 0.96 was a 0.23-unit dip on the old 5.7-unit figure, recovered in 2.4
+            // frames at the existing rate of 6/s — literally invisible. 0.90 is 0.67
+            // units on the 6.7-unit boss mesh, over about 7 frames, which reads as a
+            // flinch.
             _body.localScale = Vector3.one * (_baseScale * 0.90f);
         }
 
@@ -84,9 +94,10 @@ namespace BattleRunner.Gameplay.Combat
             _material.SetColorSafe("_EmissionColor", emission);
 
             // The gate that makes the flash actually land. CrowdInstanced adds
-            // _EmissionColor * (rim * _RimStrength + _EmissionFlat), and the boss's
-            // camera-facing slab has rim ~= 0 — so without driving the view-independent
-            // flat term too, the whole flash arrives at 15% strength and is lost.
+            // _EmissionColor * (rim * _RimStrength + _EmissionFlat), and the faces
+            // pointed most directly at the camera — still most of the torso and head —
+            // have rim near 0. Without driving the view-independent flat term too, the
+            // flash arrives on those faces at 15% strength and is lost.
             _material.SetFloatSafe("_EmissionFlat", 0.15f + 0.55f * _hitFlash);
         }
     }

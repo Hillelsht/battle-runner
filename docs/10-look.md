@@ -263,9 +263,69 @@ default rim lobe flooded their grazing faces on top of it, which bloom then turn
 light. Cut, but deliberately not to zero: they are the peripheral cue for where the road
 ends. A tight rim keeps a bright edge on the silhouette while the faces go dark.
 
+## The boss stopped being a soldier at 6x
+
+Through v0.6.1 the boss was literally `ProceduralMeshes.Unit` with `localScale = 6`. Same
+four axis-aligned boxes as every one of the two hundred units running at it, just bigger.
+Nothing about it said *boss* except size, and size alone does not read at 26 m through a
+36-degree horizontal field of view.
+
+`ProceduralMeshes.Boss` is its own mesh — 132 triangles, 6.66 m tall at the same 6x. What
+it adds is all silhouette, because silhouette is the only channel that survives that
+distance:
+
+- **Horns.** Two segments on the left that sweep out and forward, a snapped stub on the
+  right. They are the highest point on the mesh and nothing competes with them.
+- **A forward lean.** The torso is a prism, narrow at the waist and wide at the shoulders,
+  with the top edge pushed 6 cm toward the player. A vertical trunk reads as a pillar
+  however wide you make the top; a leaning one reads as a body.
+- **Asymmetry.** Mismatched pauldrons, and a cleaver held out on the right whose outer
+  corner clears the road edge by 21 cm. Bilateral symmetry is most of why the old shape
+  read as scenery.
+
+Two things fell out of it that are not cosmetic. The mesh is built from *sheared* hulls
+(`AddPrism`, `AddOrientedBox`) rather than axis-aligned boxes, so its faces finally present
+the camera varied normals — which is what the rim term needs, and why the boss could widen
+its lobe to `_RimPower 1.8 / _RimStrength 1.15` and gain shape instead of a flat wash. And
+because the mesh is asymmetric, `BossView`'s inherited 180-degree yaw stopped being a no-op:
+it was harmless only while the boss *was* the unit mesh, which is symmetric about both axes.
+Left in, it would have shown the player the boss's back. Every mesh here faces −Z; the boss
+now does too, and the yaw is gone.
+
+Widths are budgeted against the road, not eyeballed: lanes are 2.2 m and the road spans
+±3.3 m, so at 6x nothing may exceed x = 0.55. The body stops at 0.410 and only the cleaver
+passes it.
+
+Giving it a silhouette exposed that it had never cast a shadow. The boss stands at
+`CenterZ + 16` and the camera at `CenterZ - 10`, which is 26.1 m apart including the
+height difference — and `shadowDistance` was 24 m. It was outside the map entirely,
+casting nothing and receiving nothing, while `BossView` set `ShadowCastingMode.On`.
+28 m reaches it at ~20 mm per texel, still five times finer than the 110 mm half-depth
+that decides whether a caster inverts. The distance is now part of the asset's dirty
+test as well: it was being assigned on every run but never counted as a change, so any
+machine that had already generated the URP asset would have written the new value into
+memory and thrown it away unsaved.
+
+## The road was lavender, and the albedo was only half of why
+
+`_BaseColor` was `(0.30, 0.28, 0.35)` — blue highest, green lowest, which is violet by
+definition. But the compounding mattered more than the value. The road's ambient term is
+`SampleSH(normalWS)`, fed straight off a sky dome that is deep blue-violet, so a violet
+albedo was being multiplied by a violet light and the largest surface in the frame came
+back tinted twice.
+
+The albedo is now warm-neutral, `(0.31, 0.295, 0.285)`, and the cold ambient does the
+tinting on its own — which is both the fix and the dark-fantasy reference. `_DampColor`
+stays cool, because it is a reflection of that same sky, but is pulled back from
+`(0.32, 0.34, 0.48)` so the sheen is not a second full-coverage blue wash on top.
+
 ## Deliberately not done yet
 
-Gates as real portals, camera juice and VFX. That is stage 3.
+Additive VFX — the gate-pass shockwave, the spell shock ring, unit-death bodies, the boss
+death beat. All four want a new transparent-additive shader in `Resources`, and a shader
+that reaches the build only through `Shader.Find` is exactly the stripping path that
+shipped v0.1.0 magenta. It gets its own round, with a device screenshot before anything
+is built on top of it.
 
 ## Verifying a look change from a container
 

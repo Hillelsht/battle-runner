@@ -15,9 +15,17 @@ Shader "BattleRunner/Road"
         // darker than charcoal. No material can be that dark, and no grade could rescue
         // it: the lower half of the frame was black because the albedo was impossible.
         // Darkness in a night scene has to come from the light level, not the albedo.
-        _BaseColor ("Stone", Color) = (0.30, 0.28, 0.35, 1)
-        _MortarColor ("Mortar", Color) = (0.15, 0.14, 0.18, 1)
-        _DampColor ("Damp Sheen", Color) = (0.32, 0.34, 0.48, 1)
+        // Warm-neutral, NOT violet. SampleSH feeds this surface ambient straight off
+        // the sky dome, which is a deep blue-violet, so an albedo that is itself
+        // blue-violet (b > r > g, as this was) compounds the tint and the whole street
+        // comes back lavender. Letting the cold ambient do the tinting against warm
+        // stone is both the fix and the dark-fantasy reference.
+        _BaseColor ("Stone", Color) = (0.31, 0.295, 0.285, 1)
+        _MortarColor ("Mortar", Color) = (0.145, 0.138, 0.135, 1)
+        // Still cool — it is a reflection of that same sky, and localised to wet stone
+        // tops by spec * mortar * grime — but pulled back so the sheen is not a second
+        // full-coverage blue wash.
+        _DampColor ("Damp Sheen", Color) = (0.30, 0.33, 0.44, 1)
         _Tiling ("Cobbles Per Metre", Float) = 1.6
         _MortarWidth ("Mortar Width", Range(0.01, 0.3)) = 0.075
         _StoneVariation ("Stone Tone Variation", Range(0, 1)) = 0.45
