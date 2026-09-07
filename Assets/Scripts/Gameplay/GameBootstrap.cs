@@ -179,10 +179,14 @@ namespace BattleRunner.Gameplay
             ctx.TrackController.Initialize(ctx.CrowdMaterial, enemyMaterial, ProceduralMeshes.Unit,
                 UiFactory.Font, ctx.Config.Balance.LaneWidthMeters);
 
+            // Loaded HERE rather than beside the Vfx system further down: the boss's own
+            // ward shell needs the same additive material, and BossView is built first.
+            Material vfxMaterial = LoadVfxMaterial();
+
             var bossGo = new GameObject("Boss");
             bossGo.transform.SetParent(ctx.ArenaRoot.transform, false);
             ctx.BossView = bossGo.AddComponent<BossView>();
-            ctx.BossView.Initialize(ProceduralMeshes.Boss, ctx.CrowdMaterial);
+            ctx.BossView.Initialize(ctx.CrowdMaterial, vfxMaterial);
 
             var cameraGo = new GameObject("GameCamera");
             ctx.CameraRig = cameraGo.AddComponent<CameraRig>();
@@ -207,7 +211,6 @@ namespace BattleRunner.Gameplay
 
             var vfxGo = new GameObject("Vfx");
             vfxGo.transform.SetParent(ctx.ArenaRoot.transform, false);
-            Material vfxMaterial = LoadVfxMaterial();
             ctx.Effects = vfxGo.AddComponent<Vfx.VfxSystem>();
             ctx.Effects.Initialize(vfxMaterial);
 

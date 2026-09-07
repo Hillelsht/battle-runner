@@ -98,11 +98,21 @@ namespace BattleRunner.Core.Run
             return 1f + baseBonus * (1f + Math.Max(0f, bank));
         }
 
-        /// <summary>A boss this far into its last breath simply falls over.</summary>
+        /// <summary>
+        /// A boss this far into its last breath simply falls over.
+        ///
+        /// The threshold is computed in DOUBLE with a relative epsilon, and that is not
+        /// fussiness: float intermediates round differently across runtimes, and this exact
+        /// comparison shipped as a test that passed under .NET and failed under Mono —
+        /// 100f * 0.08f lands a hair BELOW 8, so a boss sitting on exactly 8% of its health
+        /// executed on one runtime and not the other. Same fix, same reason, as the rounding
+        /// nudge in BossSim.ApplyBossHit.
+        /// </summary>
         public static bool Executes(float bossHp, float bossHpMax, float threshold)
         {
-            if (threshold <= 0f || bossHpMax <= 0f) return false;
-            return bossHp > 0f && bossHp <= bossHpMax * threshold;
+            if (threshold <= 0f || bossHpMax <= 0f || bossHp <= 0f) return false;
+            double cut = (double)bossHpMax * threshold;
+            return bossHp <= cut + Math.Abs(cut) * 1e-6;
         }
 
         /// <summary>

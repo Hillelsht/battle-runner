@@ -67,17 +67,26 @@ namespace BattleRunner.Editor
                 foreach (GearItemDefinition gear in config.AllGear)
                     Save(gear, $"{ContentRoot}/Gear/{gear.name}.asset");
 
-                // Shared across levels: the loot table and boss definitions come from
-                // the first level's references. Tracked in code — AssetDatabase paths
-                // are not reliable inside a StartAssetEditing batch (review C3).
+                // Shared across levels: the loot table comes from the first level's
+                // references. Tracked in code — AssetDatabase paths are not reliable
+                // inside a StartAssetEditing batch (review C3).
                 if (config.Levels.Length > 0)
-                {
                     Save(config.Levels[0].LootTable, $"{ContentRoot}/LootTable.asset");
-                    var savedBosses = new System.Collections.Generic.HashSet<BossDefinition>();
-                    foreach (LevelDefinition level in config.Levels)
-                        if (level.Boss != null && savedBosses.Add(level.Boss))
-                            Save(level.Boss, $"{ContentRoot}/{level.Boss.name}.asset");
-                }
+
+                // The ROSTER, not the levels' references. GameConfig.BossFor rotates the
+                // roster by round, so a boss that no level happens to point at is still
+                // fought — and would otherwise be a dangling in-memory object that never
+                // reaches disk, which is exactly the failure this whole method was written
+                // to avoid. Levels still reference their own bosses; the HashSet keeps that
+                // from writing any of them twice.
+                var savedBosses = new System.Collections.Generic.HashSet<BossDefinition>();
+                if (config.Bosses != null)
+                    foreach (BossDefinition boss in config.Bosses)
+                        if (boss != null && savedBosses.Add(boss))
+                            Save(boss, $"{ContentRoot}/{boss.name}.asset");
+                foreach (LevelDefinition level in config.Levels)
+                    if (level.Boss != null && savedBosses.Add(level.Boss))
+                        Save(level.Boss, $"{ContentRoot}/{level.Boss.name}.asset");
 
                 foreach (LevelDefinition level in config.Levels)
                 {

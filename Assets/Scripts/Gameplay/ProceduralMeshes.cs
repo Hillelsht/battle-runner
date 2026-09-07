@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using BattleRunner.Core.Boss;
 using UnityEngine;
 
 namespace BattleRunner.Gameplay
@@ -20,7 +21,8 @@ namespace BattleRunner.Gameplay
     public static class ProceduralMeshes
     {
         private static Mesh _unit;
-        private static Mesh _boss;
+        private static readonly Mesh[] _bosses =
+            new Mesh[System.Enum.GetValues(typeof(BossArchetype)).Length];
         private static Mesh _cube;
         private static Mesh _shockWall;
         private static Mesh _dome;
@@ -35,16 +37,23 @@ namespace BattleRunner.Gameplay
         }
 
         /// <summary>
-        /// The boss body. Not the soldier at 6x — horned, hunched, deliberately
-        /// lopsided, and carrying a cleaver.
+        /// One body per archetype. Not one mesh recoloured six times — the roster shipped
+        /// as two bosses that used the SAME mesh and differed only in tint, and the report
+        /// was, correctly, that the boss never changes.
+        ///
+        /// What separates them is the SILHOUETTE, because that is all that survives the
+        /// distance: the boss stands about 16 m out at 6x scale, backlit against fog, and
+        /// under those conditions a different shoulder width is invisible while a different
+        /// number of legs is unmistakable. So the six differ in the things an outline can
+        /// carry — leg count, height, how far forward the mass leans, and what breaks the
+        /// skyline above the head.
         /// </summary>
-        public static Mesh Boss
+        public static Mesh Boss(BossArchetype archetype)
         {
-            get
-            {
-                if (_boss == null) _boss = BuildBoss();
-                return _boss;
-            }
+            int i = (int)archetype;
+            if (i < 0 || i >= _bosses.Length) i = 0;
+            if (_bosses[i] == null) _bosses[i] = BuildBoss((BossArchetype)i);
+            return _bosses[i];
         }
 
         public static Mesh Cube
@@ -199,7 +208,17 @@ namespace BattleRunner.Gameplay
         /// or 3.51 m — 21 cm of overhang, which is the point of a weapon too big for the
         /// street. 132 triangles.
         /// </summary>
-        private static Mesh BuildBoss()
+        private static Mesh BuildBoss(BossArchetype archetype) => archetype switch
+        {
+            BossArchetype.Volley => BuildLich(),
+            BossArchetype.Warded => BuildWarden(),
+            BossArchetype.Drain => BuildLeech(),
+            BossArchetype.Summoner => BuildShepherd(),
+            BossArchetype.Enrage => BuildHound(),
+            _ => BuildColossus()
+        };
+
+        private static Mesh BuildColossus()
         {
             var v = new List<Vector3>();
             var t = new List<int>();
@@ -244,7 +263,247 @@ namespace BattleRunner.Gameplay
             AddOrientedBox(v, t, new Vector3(0.36f, 0.52f, -0.06f), new Vector3(0.05f, 0.66f, 0.05f), tilt);
             AddOrientedBox(v, t, new Vector3(0.44f, 0.87f, -0.06f), new Vector3(0.22f, 0.28f, 0.045f), tilt);
 
-            return Finish(v, t, "BossGreybox");
+            return Finish(v, t, "Boss_Colossus");
+        }
+
+        /// <summary>
+        /// EMBER LICH — the volley. No legs at all: a robe cone widening to the ground, so
+        /// it reads as gliding rather than walking, which is the cheapest way to say
+        /// "undead" in an outline. Tallest of the six, and the only one whose weapon rises
+        /// ABOVE its head — a staff with a heavy orb, which is what the eye tracks during a
+        /// three-blow telegraph.
+        /// </summary>
+        private static Mesh BuildLich()
+        {
+            var v = new List<Vector3>();
+            var t = new List<int>();
+
+            // Robe: a wide skirt narrowing to a thin waist. One prism does the whole
+            // lower body, which is exactly why there is no walk to animate.
+            AddPrism(v, t, new Vector3(0f, 0f, 0f), new Vector2(0.52f, 0.44f),
+                           new Vector3(0f, 0.52f, -0.01f), new Vector2(0.24f, 0.20f));
+
+            // Chest, narrow and upright. This one does NOT lean — the hunch belongs to
+            // the Leech, and two bosses with the same posture read as the same boss.
+            AddPrism(v, t, new Vector3(0f, 0.50f, -0.01f), new Vector2(0.26f, 0.20f),
+                           new Vector3(0f, 0.82f, -0.03f), new Vector2(0.34f, 0.22f));
+
+            // Hood: a tall wedge coming to a point ahead of the shoulders.
+            AddPrism(v, t, new Vector3(0f, 0.80f, -0.05f), new Vector2(0.22f, 0.22f),
+                           new Vector3(0f, 1.02f, -0.09f), new Vector2(0.09f, 0.09f));
+
+            // Three thin crown spikes, splayed. Small, but they are the highest thing on
+            // the head and they break the hood's clean wedge.
+            for (int i = -1; i <= 1; i++)
+                AddPrism(v, t, new Vector3(i * 0.09f, 0.86f, -0.04f), new Vector2(0.045f, 0.045f),
+                               new Vector3(i * 0.15f, 1.06f, -0.02f), new Vector2(0.012f, 0.012f));
+
+            // Shoulder mantle, flat and wide — a lich is broad at the shoulder and
+            // nowhere else.
+            AddPrism(v, t, new Vector3(-0.30f, 0.74f, -0.02f), new Vector2(0.24f, 0.24f),
+                           new Vector3(-0.34f, 0.84f, -0.02f), new Vector2(0.12f, 0.14f));
+            AddPrism(v, t, new Vector3(0.30f, 0.74f, -0.02f), new Vector2(0.24f, 0.24f),
+                           new Vector3(0.34f, 0.84f, -0.02f), new Vector2(0.12f, 0.14f));
+
+            // Staff, planted and leaning out, with the orb over the head.
+            Quaternion lean = Quaternion.Euler(0f, 0f, 9f);
+            AddOrientedBox(v, t, new Vector3(-0.40f, 0.62f, -0.04f), new Vector3(0.05f, 1.24f, 0.05f), lean);
+            AddBox(v, t, new Vector3(-0.50f, 1.26f, -0.04f), new Vector3(0.17f, 0.17f, 0.17f));
+
+            return Finish(v, t, "Boss_Lich");
+        }
+
+        /// <summary>
+        /// GRAVE WARDEN — the ward. Squat and immensely wide, and the tower shield is held
+        /// OUT IN FRONT rather than at the side: it is the first thing the geometry presents
+        /// to the camera, so a player looking down the lane sees a wall before they see a
+        /// body, which is the entire read.
+        /// </summary>
+        private static Mesh BuildWarden()
+        {
+            var v = new List<Vector3>();
+            var t = new List<int>();
+
+            // Short, very thick legs. Wide stance, barely any taper — this one is rooted.
+            AddPrism(v, t, new Vector3(-0.22f, 0f, 0.04f), new Vector2(0.26f, 0.28f),
+                           new Vector3(-0.19f, 0.26f, 0.02f), new Vector2(0.23f, 0.25f));
+            AddPrism(v, t, new Vector3(0.22f, 0f, 0.04f), new Vector2(0.26f, 0.28f),
+                           new Vector3(0.19f, 0.26f, 0.02f), new Vector2(0.23f, 0.25f));
+
+            // Torso: broad at the bottom too, so the whole figure is a block rather than
+            // the wedge every other boss here is.
+            AddPrism(v, t, new Vector3(0f, 0.22f, 0.02f), new Vector2(0.44f, 0.30f),
+                           new Vector3(0f, 0.62f, 0f), new Vector2(0.50f, 0.32f));
+
+            // Head sunk almost to the shoulder line, with a low flat crest.
+            AddPrism(v, t, new Vector3(0f, 0.60f, -0.04f), new Vector2(0.20f, 0.20f),
+                           new Vector3(0f, 0.74f, -0.05f), new Vector2(0.18f, 0.18f));
+            AddBox(v, t, new Vector3(0f, 0.78f, -0.05f), new Vector3(0.06f, 0.10f, 0.26f));
+
+            // Pauldrons, matched and huge — the only symmetric boss in the set, because
+            // symmetry is what makes a thing read as a fortification.
+            AddPrism(v, t, new Vector3(-0.44f, 0.52f, 0f), new Vector2(0.28f, 0.30f),
+                           new Vector3(-0.48f, 0.70f, 0f), new Vector2(0.16f, 0.18f));
+            AddPrism(v, t, new Vector3(0.44f, 0.52f, 0f), new Vector2(0.28f, 0.30f),
+                           new Vector3(0.48f, 0.70f, 0f), new Vector2(0.16f, 0.18f));
+
+            // The tower shield: a tall slab forward of the body, tilted back a little so
+            // it catches the key light instead of facing flat into shadow.
+            Quaternion tilt = Quaternion.Euler(-11f, 0f, 0f);
+            AddOrientedBox(v, t, new Vector3(0.06f, 0.46f, -0.30f), new Vector3(0.62f, 0.86f, 0.07f), tilt);
+            AddOrientedBox(v, t, new Vector3(0.06f, 0.46f, -0.35f), new Vector3(0.12f, 0.90f, 0.05f), tilt);
+
+            return Finish(v, t, "Boss_Warden");
+        }
+
+        /// <summary>
+        /// HOLLOW LEECH — the drain. Bent almost horizontal, head thrust forward BELOW the
+        /// shoulder line, and two long arms reaching past it toward the army. Nothing else
+        /// in the set leans; at range that forward mass is the whole identity, and it is
+        /// also the honest picture of what the fight does to you.
+        /// </summary>
+        private static Mesh BuildLeech()
+        {
+            var v = new List<Vector3>();
+            var t = new List<int>();
+
+            // Long thin legs, splayed back — the weight is all in front of them.
+            AddPrism(v, t, new Vector3(-0.17f, 0f, 0.10f), new Vector2(0.13f, 0.15f),
+                           new Vector3(-0.14f, 0.44f, 0.02f), new Vector2(0.12f, 0.14f));
+            AddPrism(v, t, new Vector3(0.17f, 0f, 0.10f), new Vector2(0.13f, 0.15f),
+                           new Vector3(0.14f, 0.44f, 0.02f), new Vector2(0.12f, 0.14f));
+
+            // Torso, hunched: it RISES only a little while travelling a long way forward.
+            AddPrism(v, t, new Vector3(0f, 0.40f, 0.06f), new Vector2(0.26f, 0.22f),
+                           new Vector3(0f, 0.64f, -0.22f), new Vector2(0.34f, 0.26f));
+
+            // Head, out past the shoulders and DOWN — the posture of something feeding.
+            AddPrism(v, t, new Vector3(0f, 0.60f, -0.26f), new Vector2(0.18f, 0.18f),
+                           new Vector3(0f, 0.52f, -0.44f), new Vector2(0.11f, 0.11f));
+
+            // Two long arms reaching further forward still, ending in splayed claws.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                AddPrism(v, t, new Vector3(side * 0.30f, 0.60f, -0.18f), new Vector2(0.12f, 0.12f),
+                               new Vector3(side * 0.34f, 0.40f, -0.52f), new Vector2(0.07f, 0.07f));
+                for (int finger = -1; finger <= 1; finger++)
+                    AddPrism(v, t, new Vector3(side * 0.34f, 0.40f, -0.52f), new Vector2(0.05f, 0.05f),
+                                   new Vector3(side * 0.34f + finger * 0.07f, 0.30f, -0.66f),
+                                   new Vector2(0.015f, 0.015f));
+            }
+
+            // Spines up the back, rising behind the hunch so the outline is serrated
+            // instead of smooth.
+            for (int i = 0; i < 4; i++)
+            {
+                float f = i / 3f;
+                AddPrism(v, t, new Vector3(0f, 0.50f + f * 0.14f, 0.06f - f * 0.20f),
+                               new Vector2(0.07f, 0.07f),
+                               new Vector3(0f, 0.66f + f * 0.20f, 0.14f - f * 0.20f),
+                               new Vector2(0.02f, 0.02f));
+            }
+
+            return Finish(v, t, "Boss_Leech");
+        }
+
+        /// <summary>
+        /// PALE SHEPHERD — the summoner. Tall, thin and vertical, under a HALO ring that
+        /// floats clear of the head. The ring is the point: it is the only closed shape in
+        /// the roster, it sits in empty sky where nothing occludes it, and it is where the
+        /// adds visibly come from.
+        /// </summary>
+        private static Mesh BuildShepherd()
+        {
+            var v = new List<Vector3>();
+            var t = new List<int>();
+
+            // Narrow robe, nearly a column.
+            AddPrism(v, t, new Vector3(0f, 0f, 0f), new Vector2(0.34f, 0.30f),
+                           new Vector3(0f, 0.58f, 0f), new Vector2(0.22f, 0.19f));
+
+            AddPrism(v, t, new Vector3(0f, 0.56f, 0f), new Vector2(0.24f, 0.20f),
+                           new Vector3(0f, 0.86f, -0.02f), new Vector2(0.28f, 0.20f));
+
+            AddPrism(v, t, new Vector3(0f, 0.84f, -0.03f), new Vector2(0.17f, 0.17f),
+                           new Vector3(0f, 1.00f, -0.04f), new Vector2(0.15f, 0.15f));
+
+            // The halo: eight blocks on a circle above the head. Eight is enough to read
+            // as a ring in silhouette and cheap enough not to care.
+            const int spokes = 8;
+            for (int i = 0; i < spokes; i++)
+            {
+                float a = (float)(i * 2.0 * Math.PI / spokes);
+                AddOrientedBox(v, t,
+                    new Vector3(Mathf.Cos(a) * 0.30f, 1.16f, Mathf.Sin(a) * 0.30f),
+                    new Vector3(0.11f, 0.05f, 0.05f),
+                    Quaternion.Euler(0f, -a * Mathf.Rad2Deg, 0f));
+            }
+
+            // Two braziers on tall poles, held out to either side — the sources.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                AddPrism(v, t, new Vector3(side * 0.36f, 0.10f, 0.02f), new Vector2(0.05f, 0.05f),
+                               new Vector3(side * 0.42f, 0.86f, 0.02f), new Vector2(0.04f, 0.04f));
+                AddPrism(v, t, new Vector3(side * 0.42f, 0.86f, 0.02f), new Vector2(0.16f, 0.16f),
+                               new Vector3(side * 0.42f, 1.00f, 0.02f), new Vector2(0.20f, 0.20f));
+            }
+
+            return Finish(v, t, "Boss_Shepherd");
+        }
+
+        /// <summary>
+        /// GORE HOUND — the enrage. FOUR LEGS, which is the single most legible difference
+        /// available: at 16 m every other boss in this set is an upright biped, and a
+        /// horizontal four-legged mass with its head low and forward cannot be mistaken for
+        /// any of them even as a black shape.
+        ///
+        /// Deliberately the shortest of the six. It is not the least dangerous.
+        /// </summary>
+        private static Mesh BuildHound()
+        {
+            var v = new List<Vector3>();
+            var t = new List<int>();
+
+            // Four legs: front pair thicker and further apart, back pair tucked in.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                AddPrism(v, t, new Vector3(side * 0.26f, 0f, -0.22f), new Vector2(0.15f, 0.16f),
+                               new Vector3(side * 0.22f, 0.40f, -0.18f), new Vector2(0.14f, 0.15f));
+                AddPrism(v, t, new Vector3(side * 0.20f, 0f, 0.28f), new Vector2(0.13f, 0.14f),
+                               new Vector3(side * 0.18f, 0.36f, 0.22f), new Vector2(0.13f, 0.15f));
+            }
+
+            // Body: long front to back, low, and slightly higher at the shoulder than at
+            // the hip so the back slopes down and away.
+            AddPrism(v, t, new Vector3(0f, 0.32f, 0.24f), new Vector2(0.34f, 0.26f),
+                           new Vector3(0f, 0.42f, -0.24f), new Vector2(0.40f, 0.30f));
+
+            // Neck and head, thrust forward and DOWN off the front of the body.
+            AddPrism(v, t, new Vector3(0f, 0.44f, -0.26f), new Vector2(0.24f, 0.22f),
+                           new Vector3(0f, 0.38f, -0.50f), new Vector2(0.20f, 0.19f));
+            AddPrism(v, t, new Vector3(0f, 0.38f, -0.50f), new Vector2(0.20f, 0.19f),
+                           new Vector3(0f, 0.31f, -0.68f), new Vector2(0.13f, 0.12f));
+
+            // A pair of short back-swept horns off the skull.
+            for (int side = -1; side <= 1; side += 2)
+                AddPrism(v, t, new Vector3(side * 0.09f, 0.46f, -0.50f), new Vector2(0.06f, 0.06f),
+                               new Vector3(side * 0.15f, 0.62f, -0.34f), new Vector2(0.018f, 0.018f));
+
+            // Ridge of spines along the spine, tallest over the shoulder.
+            for (int i = 0; i < 5; i++)
+            {
+                float f = i / 4f;
+                float z = Mathf.Lerp(-0.20f, 0.26f, f);
+                float h = Mathf.Lerp(0.26f, 0.10f, f);
+                AddPrism(v, t, new Vector3(0f, 0.40f, z), new Vector2(0.08f, 0.09f),
+                               new Vector3(0f, 0.40f + h, z + 0.05f), new Vector2(0.02f, 0.02f));
+            }
+
+            // Tail, low and trailing.
+            AddPrism(v, t, new Vector3(0f, 0.34f, 0.30f), new Vector2(0.14f, 0.14f),
+                           new Vector3(0f, 0.22f, 0.58f), new Vector2(0.04f, 0.04f));
+
+            return Finish(v, t, "Boss_Hound");
         }
 
         /// <summary>
@@ -380,10 +639,23 @@ namespace BattleRunner.Gameplay
         /// plus lean in one primitive. Sizes are XZ footprints; the Y span comes from
         /// the two centers, so a segment can be chained by reusing the previous top as
         /// the next bottom.
+        ///
+        /// The two ends are SWAPPED when the caller's "top" is actually lower. AddHull
+        /// takes corners 0-3 as the bottom face and winds every quad from that assumption,
+        /// so a segment that descends — a head thrust down and forward, a trailing tail —
+        /// would come out inside-out: normals pointing inward, every face backface-culled,
+        /// and the limb rendering as a hole. Swapping is the whole fix and it changes
+        /// nothing for a segment that rises.
         /// </summary>
         private static void AddPrism(List<Vector3> vertices, List<int> triangles,
             Vector3 bottomCenter, Vector2 bottomSize, Vector3 topCenter, Vector2 topSize)
         {
+            if (topCenter.y < bottomCenter.y)
+            {
+                Vector3 swapC = bottomCenter; bottomCenter = topCenter; topCenter = swapC;
+                Vector2 swapS = bottomSize; bottomSize = topSize; topSize = swapS;
+            }
+
             Vector2 b = bottomSize * 0.5f;
             Vector2 t = topSize * 0.5f;
             AddHull(vertices, triangles, new[]

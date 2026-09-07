@@ -15,9 +15,9 @@ points → save → next level.
 | Area | State |
 |---|---|
 | Game loop | Complete end to end |
-| Content | 5 levels, 2 bosses, 15 gear items, 4 rarities, ~60 talents + endless paragon |
+| Content | 6 levels, 6 bosses (6 archetypes), 15 gear items, 4 rarities, ~60 talents + endless paragon |
 | Art | Greybox — procedural meshes, code-built uGUI, no imported assets |
-| Tests | 194, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 213, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
@@ -78,6 +78,46 @@ a shockwave at every gate tinted and sized by the operation, debris off the army
 pack bites, a ring that sprints out to the spell's actual clear range, embers off the boss
 on a hit, a bright ring when the shield eats a blow, and a three-wave death beat with
 forty motes when the boss falls.
+
+**Six bosses that are actually six bosses.** The game shipped with two, and they used the
+SAME MESH: `BossDefinition` differed in name, tint and stats and in nothing else, both
+rendered `ProceduralMeshes.Boss` at 6x, and both ran one pattern — telegraph, then a single
+hit. `GameConfig.LevelFor` then clamped past the last authored level, so from round six
+onward it was that same fight forever with only the HP curve moving.
+
+Now there are six archetypes, and an archetype is a silhouette AND a power, deliberately
+coupled: a player has about a second of telegraph to decide what to do, and they will only
+ever learn "the hunched one drains you" if the hunched one is always the one that drains.
+*Bone Colossus* slams (the fight that already existed, unchanged). *Ember Lich* throws a
+three-blow volley worth more in total than a slam and less per blow, so one well-timed
+shield turns the worst attack in the game into the best one to defend. *Grave Warden*
+carries a ward that soaks damage until it breaks, and a spell strips it three times faster
+than the crowd's grind does — so breaking it is an action rather than something that happens
+while you wait. *Hollow Leech* bleeds force every frame and only a raised shield stops it.
+*Pale Shepherd* calls adds that bite on the next cycle unless a spell clears them; the
+shield deliberately does NOT answer them, or one flick would handle every archetype and
+there would be no reason to have six. *Gore Hound* compresses its own attack cycle as its
+health falls, down to 45% of the printed interval at the moment it dies.
+
+**What separates them on screen is the SILHOUETTE, because that is all that survives the
+distance.** The boss stands about 16 m out, backlit against fog; a different shoulder width
+is invisible there and a different number of legs is unmistakable. So the six differ in what
+an outline can carry: the lich has no legs at all and a staff above its head, the warden
+presents a tower shield to the camera before it presents a body, the leech is bent almost
+horizontal with its head thrust forward BELOW its shoulders, the shepherd stands under a
+closed halo ring in empty sky, and the hound is a four-legged horizontal mass about 10 m
+long. Measured rather than eyeballed: their object-space heights run 0.66 to 1.34 units, so
+`BossView` derives each one's scale from a target on-screen height instead of a shared 6x —
+otherwise the roster's variety would land in the sizes, where it just looks like a bug,
+instead of in the shapes, where it reads.
+
+`AddPrism` now swaps its two ends when the caller's "top" is lower. `AddHull` takes corners
+0-3 as the bottom face and winds every quad from that assumption, so a descending segment —
+a head thrust down and forward, a trailing tail — came out inside-out: normals inward, every
+face backface-culled, the limb rendering as a hole.
+
+`LevelFor` cycles instead of clamping, and the boss is chosen by ROUND rather than by level,
+so the two cycles run independently and the first six rounds are six different bosses.
 
 **The talent tree ran dry after three boss kills; now it does not run dry at all.** The old
 shape was 3 branches of (1 + 2-exclusive + 1) = 12 nodes with only NINE takeable, at one
@@ -254,7 +294,7 @@ The v0.4.0 screenshots confirmed the art pass landed — sky, stars, shadows, ro
 gates and UI frames all correct on device — and surfaced two bugs that were never about
 art: `Focus -0 %` on the menu and `+0.01 Focus` on the loot card. Both were units chosen
 from the ModifierKind rather than from the stat, plus a hard-coded minus sign in front of
-a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 194 tests today).
+a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 213 tests today).
 
 A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
 11 survived adversarial refutation. The headline three: the key light pointed the same way

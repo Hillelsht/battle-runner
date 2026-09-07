@@ -24,6 +24,15 @@ namespace BattleRunner.Gameplay.States
         private bool _resolved;
         private bool _awaitingPrompt;
 
+        // Archetype state. All of it is inert for a Slam boss, which is the fight the game
+        // already had and which must stay exactly as it was.
+        private BossArchetype _archetype;
+        private float _ward;
+        private float _wardMax;
+        private int _adds;
+        private int _blowsLeft;
+        private float _blowTimer;
+
         public BossEncounterState(GameContext ctx) => _ctx = ctx;
 
         /// <summary>True while the boss is winding up — the window a shield must land in.</summary>
@@ -31,13 +40,23 @@ namespace BattleRunner.Gameplay.States
 
         public void Enter()
         {
-            _boss = _ctx.CurrentLevel.Boss;
+            // BossFor, not CurrentLevel.Boss. Taking the boss from the level tied the two
+            // cycles together, so a player who saw level 3 twice fought its boss twice —
+            // and with the old clamping LevelFor, round six onward was one boss forever.
+            _boss = _ctx.Config.BossFor(_ctx.Profile.CurrentLevelIndex) ?? _ctx.CurrentLevel.Boss;
+            _archetype = _boss.Archetype;
             _resolved = false;
             _awaitingPrompt = false;
 
             _bossHpMax = BossSim.BossHp(_boss.BaseHp, _boss.PerLevelGrowth, _ctx.Profile.CurrentLevelIndex);
             _bossHp = _bossHpMax;
             _attackTimer = _boss.AttackIntervalSeconds;
+
+            _wardMax = BossSim.WardPool(_archetype, _bossHpMax);
+            _ward = _wardMax;
+            _adds = 0;
+            _blowsLeft = 0;
+            _blowTimer = 0f;
 
             // Captured, not recomputed. BossView.Show pins the boss HERE for the whole
             // encounter while the crowd keeps ticking, so deriving the position from
@@ -46,6 +65,7 @@ namespace BattleRunner.Gameplay.States
             _ctx.BossView.Show(_boss, _bossPosition);
             _ctx.Hud.ShowBossBar(_boss.DisplayName);
             _ctx.Hud.SetBossHp(1f);
+            _ctx.BossView.SetWard(_wardMax > 0f ? 1f : 0f);
 
             _ctx.Spell.ResetForPhase();
             _ctx.Shield.ResetForPhase();
@@ -85,12 +105,30 @@ namespace BattleRunner.Gameplay.States
             _ctx.Shield.Tick(dt);
             _ctx.Hud.SetCooldowns(_ctx.Spell.CooldownRemaining, _ctx.Shield.CooldownRemaining, _ctx.Shield.IsActive);
 
-            // Sustained crowd damage.
+            // Sustained crowd damage. Ward multiplier 1 — the grind wears a ward down,
+            // it just does not break one, which is what makes the spell the answer.
             float dps = BossSim.PlayerDps(_ctx.LastResult, _ctx.Config.Balance.SoftCap);
-            ApplyBossDamage(dps * dt);
+            ApplyBossDamage(dps * dt, 1f);
             if (_resolved) return;
 
+            ApplyDrain(dt);
+            if (_resolved || _awaitingPrompt) return;
+
             _ctx.Tutorial.TickBoss(dt, TelegraphActive);
+
+            // A volley's follow-up blows land on their own clock, between telegraphs. One
+            // shield raised on the wind-up covers all three, which is the whole trade.
+            if (_blowsLeft > 0)
+            {
+                _blowTimer -= dt;
+                if (_blowTimer <= 0f)
+                {
+                    _blowsLeft--;
+                    _blowTimer = BossSim.VolleyGapSeconds(_boss.TelegraphSeconds);
+                    LandOneBlow();
+                    if (_resolved || _awaitingPrompt) return;
+                }
+            }
 
             // Attack cycle with telegraph — the shield-timing game.
             _attackTimer -= dt;
@@ -101,12 +139,47 @@ namespace BattleRunner.Gameplay.States
 
             if (_attackTimer <= 0f)
             {
-                _attackTimer = _boss.AttackIntervalSeconds;
+                // Enrage compresses its own cycle as its health falls, so the interval is
+                // read fresh every time rather than taken from the definition.
+                _attackTimer = BossSim.NextInterval(_archetype, _boss.AttackIntervalSeconds,
+                    _bossHpMax > 0f ? _bossHp / _bossHpMax : 0f);
                 _ctx.BossView.SetTelegraph(0f);
                 _ctx.CameraRig.SetTelegraph(0f);
                 LandBossAttack();
             }
         }
+
+        /// <summary>
+        /// The Hollow Leech's tick. A shield stops it outright, which is the only reason
+        /// the shield is worth holding in that fight — there is nothing to time.
+        /// </summary>
+        private void ApplyDrain(float dt)
+        {
+            long before = _ctx.Run.ForceCount;
+            long lost = BossSim.DrainTick(_archetype, before, _boss.HitFraction, dt, _ctx.Shield.IsActive);
+            if (lost <= 0L) return;
+
+            long after = System.Math.Max(0L, before - lost);
+            _ctx.Run.ForceCount = after;
+            _ctx.LastResult.FinalForceCount = after;
+            _ctx.Crowd.SetForce(after);
+            _ctx.Hud.SetForce(after);
+
+            // Deliberately quiet per tick: this fires every frame, and a shockwave at 60 Hz
+            // is a strobe. The bleed is legible from the counter and from the crowd itself
+            // shrinking; the drama belongs to the blows.
+            _drainMotes -= dt;
+            if (_drainMotes <= 0f)
+            {
+                _drainMotes = 0.22f;
+                _ctx.Effects.Burst(new Vector3(_ctx.Crowd.CenterX, 0.4f, _ctx.Crowd.CenterZ),
+                    DrainTint, 3, 2.6f, 0.5f);
+            }
+
+            if (after <= 0) OnCrowdWiped();
+        }
+
+        private float _drainMotes;
 
         // Peak channels sit near 1.6, not 2.5+. These reach the GPU through a
         // MaterialPropertyBlock, and whether Unity gamma-expands a Color set that way in a
@@ -121,6 +194,9 @@ namespace BattleRunner.Gameplay.States
         private static readonly Color DeathTint = new Color(1.70f, 0.70f, 0.26f);
         private static readonly Color EchoTint = new Color(1.10f, 0.52f, 1.70f);
         private static readonly Color ExecuteTint = new Color(1.80f, 0.24f, 0.30f);
+        private static readonly Color DrainTint = new Color(0.42f, 1.55f, 0.60f);
+        private static readonly Color SummonTint = new Color(1.15f, 0.55f, 1.65f);
+        private static readonly Color WardTint = new Color(0.80f, 0.92f, 1.70f);
 
         private void OnFlickUp() => _ctx.Spell.TryCast();
         private void OnFlickDown() => _ctx.Shield.TryRaise();
@@ -129,11 +205,20 @@ namespace BattleRunner.Gameplay.States
         {
             float hit = SpellDamage();
             bool echo = Talents.Rolls(_ctx.CurrentStats.Get(StatIds.SpellEcho), Random.value);
-            ApplyBossDamage(hit);
+
+            // The spell is the ONLY answer to a Pale Shepherd's adds. Not the shield: if
+            // one flick handled every archetype there would be no reason to have six.
+            if (_adds > 0)
+            {
+                _ctx.Effects.Burst(_bossPosition + Vector3.up * 1.6f, SummonTint, 18, 5.5f, 0.6f);
+                _adds = 0;
+            }
+
+            ApplyBossDamage(hit, SpellWardMultiplier);
             // On the boss an echo IS a literal second cast — there is only one target and
             // hitting it twice is exactly what the talent promises. Guarded, because the
             // first hit may already have finished the fight.
-            if (echo && !_resolved) ApplyBossDamage(hit);
+            if (echo && !_resolved) ApplyBossDamage(hit, SpellWardMultiplier);
             _ctx.BossView.FlashHit();
             _ctx.CameraRig.Apply(CameraFeel.Spell);
             _ctx.CameraRig.PunchFov(2.2f);
@@ -148,6 +233,13 @@ namespace BattleRunner.Gameplay.States
             if (echo) _ctx.Effects.Bolt(origin, _bossPosition, EchoTint, 26f);
         }
 
+        /// <summary>
+        /// How much faster a spell strips a ward than the crowd's grind does. Three, so
+        /// "break the ward" is an action the player takes rather than something that
+        /// merely happens to them while they wait.
+        /// </summary>
+        private const float SpellWardMultiplier = 3f;
+
         /// <summary>One spell's worth of damage. Shared with the shield reflect, so the two
         /// can never drift onto different magnitudes.</summary>
         private float SpellDamage()
@@ -157,9 +249,32 @@ namespace BattleRunner.Gameplay.States
                    * (1f + _ctx.CurrentStats.Get(StatIds.SpellPower));
         }
 
-        private void ApplyBossDamage(float amount)
+        private void ApplyBossDamage(float amount, float wardMultiplier)
         {
             if (_resolved) return;
+
+            if (_ward > 0f)
+            {
+                float toHealth = BossSim.ThroughWard(amount, _ward, wardMultiplier, out float left);
+                bool broke = left <= 0f;
+                _ward = left;
+                _ctx.BossView.SetWard(_wardMax > 0f ? _ward / _wardMax : 0f);
+                // Only a SPELL flashes the shell. The crowd's dps arrives every frame, and
+                // a shell that strobes at 60 Hz says nothing about what the player just did.
+                if (wardMultiplier > 1f) _ctx.BossView.FlashWard();
+
+                if (broke)
+                {
+                    _ctx.BossView.SetWard(0f);
+                    _ctx.Effects.Shock(_bossPosition, WardTint, 1.2f, 13f, 0.5f);
+                    _ctx.Effects.Burst(_bossPosition + Vector3.up * 1.8f, WardTint, 26, 6.5f, 0.75f);
+                    _ctx.CameraRig.PunchFov(3.0f);
+                }
+
+                amount = toHealth;
+                if (amount <= 0f) return;
+            }
+
             _bossHp -= amount;
 
             // Execute is checked on every tick of damage, not only on the spell, because the
@@ -175,10 +290,65 @@ namespace BattleRunner.Gameplay.States
             if (_bossHp <= 0f) OnBossDefeated();
         }
 
+        /// <summary>
+        /// One attack cycle, fanned out by archetype. Slam falls through to a single blow,
+        /// unchanged from the fight the game already had.
+        /// </summary>
         private void LandBossAttack()
         {
+            int summons = BossSim.AddsPerCycle(_archetype);
+            if (summons > 0)
+            {
+                // Anything called LAST cycle and not answered bites now, and then it calls
+                // more. A summoner that only ever summoned would be a boss you could ignore.
+                BiteFromAdds();
+                if (_resolved || _awaitingPrompt) return;
+
+                _adds += summons;
+                _ctx.Effects.Shock(_bossPosition, SummonTint, 0.8f, 8f, 0.5f);
+                for (int i = 0; i < summons; i++)
+                    _ctx.Effects.Bolt(_bossPosition + Vector3.up * 1.4f,
+                        new Vector3(_ctx.Crowd.CenterX + (i - 0.5f) * 2.2f, 0f,
+                            _ctx.Crowd.FrontZ + 4f), SummonTint, 16f);
+                return;
+            }
+
+            // Everything else swings. A volley queues its follow-ups on the blow clock.
+            _blowsLeft = BossSim.BlowsPerCycle(_archetype) - 1;
+            _blowTimer = BossSim.VolleyGapSeconds(_boss.TelegraphSeconds);
+            LandOneBlow();
+        }
+
+        /// <summary>
+        /// What the adds took while the player was doing something else. The SHIELD does
+        /// not stop this on purpose — the spell is the answer to a summoner, and a shield
+        /// that covered every archetype would make the other five pointless.
+        /// </summary>
+        private void BiteFromAdds()
+        {
+            if (_adds <= 0) return;
+
             long before = _ctx.Run.ForceCount;
-            long after = BossSim.ApplyBossHit(before, _boss.HitFraction,
+            long bite = BossSim.AddBite(_adds, before);
+            if (bite <= 0L) return;
+
+            long after = System.Math.Max(0L, before - bite);
+            _ctx.Run.ForceCount = after;
+            _ctx.LastResult.FinalForceCount = after;
+            _ctx.Crowd.SetForce(after);
+            _ctx.Hud.SetForce(after);
+
+            _ctx.CameraRig.Apply(CameraFeel.ForLoss(before, after));
+            _ctx.Effects.Burst(new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.CenterZ),
+                SummonTint, 14, 4.2f, 0.55f);
+
+            if (after <= 0) OnCrowdWiped();
+        }
+
+        private void LandOneBlow()
+        {
+            long before = _ctx.Run.ForceCount;
+            long after = BossSim.ApplyBossHit(before, BossSim.BlowFraction(_archetype, _boss.HitFraction),
                 _ctx.LastResult.HeroStats.Get(BattleRunner.Core.Stats.StatIds.Health),
                 _ctx.Shield.IsActive);
 
@@ -219,7 +389,7 @@ namespace BattleRunner.Gameplay.States
                 {
                     _ctx.Effects.Bolt(new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.FrontZ),
                         _bossPosition, BlockTint, 34f);
-                    ApplyBossDamage(reflect);
+                    ApplyBossDamage(reflect, 1f);
                 }
             }
 

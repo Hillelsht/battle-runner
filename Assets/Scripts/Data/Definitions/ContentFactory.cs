@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using BattleRunner.Core.Boss;
 using BattleRunner.Core.Loot;
 using BattleRunner.Core.Run;
 using BattleRunner.Core.Stats;
@@ -32,8 +33,8 @@ namespace BattleRunner.Data.Definitions
             config.AllGear = BuildGear();
 
             LootTableDefinition lootTable = BuildLootTable(config.AllGear);
-            BossDefinition[] bosses = BuildBosses();
-            config.Levels = BuildLevels(bosses, lootTable);
+            config.Bosses = BuildBosses();
+            config.Levels = BuildLevels(config.Bosses, lootTable);
 
             return config;
         }
@@ -143,38 +144,79 @@ namespace BattleRunner.Data.Definitions
             return table;
         }
 
+        /// <summary>
+        /// The roster. SIX bosses, one per archetype, because an archetype is a silhouette
+        /// AND a power and the player only learns "the hunched one drains you" if the
+        /// hunched one always drains.
+        ///
+        /// The game shipped with two, identical but for tint and stats, drawn from the same
+        /// mesh and running the same telegraph-then-hit pattern — and a level lookup that
+        /// clamped, so round six onward was the same fight forever. These differ in what
+        /// they do, what they look like, how fast they swing and what colour they heat to.
+        ///
+        /// Stats climb across the list on purpose. GameConfig.BossFor rotates by round, so
+        /// the order here IS the order a new player meets them, and the first one has to be
+        /// the one that teaches the shield.
+        /// </summary>
         public static BossDefinition[] BuildBosses()
         {
-            var colossus = ScriptableObject.CreateInstance<BossDefinition>();
-            colossus.name = "Boss_BoneColossus";
-            colossus.DisplayName = "Bone Colossus";
-            colossus.BaseHp = 500f;
-            colossus.PerLevelGrowth = 0.25f;
-            colossus.AttackIntervalSeconds = 4f;
-            colossus.TelegraphSeconds = 1.2f;
-            colossus.HitFraction = 0.3f;
-            // Bone, and bright enough to survive the pipeline. These are sRGB values in a
-            // LINEAR project, so they are gamma-expanded on upload: 0.55 arrives as 0.263
-            // linear, and BossView used to halve it first, landing the boss on a 5%
-            // reflectance — darker than the road it stands on. See BossView.Show.
-            colossus.TintColor = new Color(0.78f, 0.74f, 0.66f);
+            return new[]
+            {
+                // Bone, and bright enough to survive the pipeline. These are sRGB values in
+                // a LINEAR project, so they are gamma-expanded on upload: 0.55 arrives as
+                // 0.263 linear, and BossView used to halve it first, landing the boss on a
+                // 5% reflectance — darker than the road it stands on. See BossView.Show.
+                Boss("Boss_BoneColossus", "Bone Colossus", BossArchetype.Slam,
+                    500f, 0.25f, 4.0f, 1.20f, 0.30f,
+                    new Color(0.78f, 0.74f, 0.66f), new Color(1.40f, 0.50f, 0.20f)),
 
-            var lich = ScriptableObject.CreateInstance<BossDefinition>();
-            lich.name = "Boss_EmberLich";
-            lich.DisplayName = "Ember Lich";
-            lich.BaseHp = 800f;
-            lich.PerLevelGrowth = 0.28f;
-            lich.AttackIntervalSeconds = 3.2f;
-            lich.TelegraphSeconds = 1.0f;
-            lich.HitFraction = 0.25f;
-            lich.TintColor = new Color(0.95f, 0.52f, 0.22f);
+                Boss("Boss_EmberLich", "Ember Lich", BossArchetype.Volley,
+                    760f, 0.26f, 4.4f, 1.10f, 0.30f,
+                    new Color(0.95f, 0.52f, 0.22f), new Color(1.60f, 0.62f, 0.18f)),
 
-            return new[] { colossus, lich };
+                Boss("Boss_GraveWarden", "Grave Warden", BossArchetype.Warded,
+                    900f, 0.27f, 3.8f, 1.30f, 0.34f,
+                    new Color(0.52f, 0.62f, 0.72f), new Color(0.45f, 1.10f, 1.55f)),
+
+                Boss("Boss_HollowLeech", "Hollow Leech", BossArchetype.Drain,
+                    820f, 0.27f, 5.0f, 1.10f, 0.26f,
+                    new Color(0.44f, 0.66f, 0.50f), new Color(0.55f, 1.50f, 0.62f)),
+
+                Boss("Boss_PaleShepherd", "Pale Shepherd", BossArchetype.Summoner,
+                    880f, 0.28f, 4.6f, 1.25f, 0.22f,
+                    new Color(0.72f, 0.60f, 0.86f), new Color(1.15f, 0.55f, 1.60f)),
+
+                Boss("Boss_GoreHound", "Gore Hound", BossArchetype.Enrage,
+                    980f, 0.29f, 3.6f, 0.95f, 0.28f,
+                    new Color(0.80f, 0.34f, 0.30f), new Color(1.70f, 0.30f, 0.22f))
+            };
+        }
+
+        private static BossDefinition Boss(string assetName, string displayName,
+            BossArchetype archetype, float baseHp, float growth, float interval,
+            float telegraph, float hitFraction, Color tint, Color telegraphColor)
+        {
+            var boss = ScriptableObject.CreateInstance<BossDefinition>();
+            boss.name = assetName;
+            boss.DisplayName = displayName;
+            boss.Archetype = archetype;
+            boss.BaseHp = baseHp;
+            boss.PerLevelGrowth = growth;
+            boss.AttackIntervalSeconds = interval;
+            boss.TelegraphSeconds = telegraph;
+            boss.HitFraction = hitFraction;
+            boss.TintColor = tint;
+            boss.TelegraphColor = telegraphColor;
+            return boss;
         }
 
         public static LevelDefinition[] BuildLevels(BossDefinition[] bosses, LootTableDefinition lootTable)
         {
-            string[] names = { "The Ashen Road", "Gallows Mire", "The Sunken Crypt", "Ember Fields", "Throne of Dust" };
+            string[] names =
+            {
+                "The Ashen Road", "Gallows Mire", "The Sunken Crypt",
+                "Ember Fields", "Throne of Dust", "The Weeping Gate"
+            };
             var levels = new LevelDefinition[names.Length];
             for (int i = 0; i < names.Length; i++)
             {

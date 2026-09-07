@@ -36,6 +36,129 @@ namespace BattleRunner.Core.Boss
         public static float TimeToKill(float bossHp, float dps) =>
             dps <= 0f ? float.PositiveInfinity : bossHp / dps;
 
+        // ================= ARCHETYPE PATTERNS ==================================
+        // Every one of these is the identity for the archetype it does not apply to, so
+        // adding a pattern cannot change how the archetypes that predate it behave. Slam
+        // is the fight the game already had, and it must stay byte-identical to it.
+
+        /// <summary>Blows a Volley lands per telegraph.</summary>
+        public const int VolleyBlows = 3;
+
+        /// <summary>How much of its own health a Warded boss hides behind a ward.</summary>
+        public const float WardFraction = 0.22f;
+
+        /// <summary>Adds a Summoner calls per cycle.</summary>
+        public const int SummonCount = 2;
+
+        /// <summary>How many blows one attack cycle lands.</summary>
+        public static int BlowsPerCycle(BossArchetype archetype) =>
+            archetype == BossArchetype.Volley ? VolleyBlows : 1;
+
+        /// <summary>
+        /// One blow's share of the printed hit.
+        ///
+        /// A volley is deliberately worth MORE than a slam in total (3 x 0.42 = 1.26) and
+        /// less per blow. That is the whole trade: the pattern punishes a player who never
+        /// learns the timing and rewards one who does, because the single shield window
+        /// covers all three blows and turns the worst attack in the game into the best one
+        /// to defend.
+        /// </summary>
+        public static float BlowFraction(BossArchetype archetype, float hitFraction)
+        {
+            float f = Math.Max(0f, hitFraction);
+            return archetype == BossArchetype.Volley ? f * 0.42f : f;
+        }
+
+        /// <summary>Seconds between blows inside one volley.</summary>
+        public static float VolleyGapSeconds(float telegraphSeconds) =>
+            Math.Max(0.08f, Math.Min(0.30f, telegraphSeconds * 0.22f));
+
+        /// <summary>
+        /// Seconds until the next attack. Enrage compresses its cycle as its own health
+        /// falls, down to 45% of the printed interval at the moment it dies — so the last
+        /// tenth of the fight is the dangerous part, which is where a boss fight should
+        /// put its danger.
+        /// </summary>
+        public static float NextInterval(BossArchetype archetype, float baseInterval,
+            float hpFraction)
+        {
+            if (archetype != BossArchetype.Enrage) return baseInterval;
+            float spent = 1f - Math.Min(1f, Math.Max(0f, hpFraction));
+            return baseInterval * (1f - 0.55f * spent);
+        }
+
+        /// <summary>
+        /// Force a Drain boss bleeds off the crowd over one tick. A raised shield stops it
+        /// completely, which is the only reason the shield is worth holding in that fight.
+        ///
+        /// Proportional to the crowd, so it never trivially wipes a small army nor tickles
+        /// a large one, and rounded UP only when it would otherwise round to nothing — a
+        /// drain that shows as zero for a whole second reads as a broken mechanic.
+        /// </summary>
+        public static long DrainTick(BossArchetype archetype, long force, float hitFraction,
+            float seconds, bool shieldActive)
+        {
+            if (archetype != BossArchetype.Drain || shieldActive || force <= 0 || seconds <= 0f)
+                return 0L;
+            double rate = Math.Max(0f, hitFraction) * 0.20;   // per second, of current force
+            double loss = force * rate * seconds;
+            if (loss <= 0.0) return 0L;
+            return Math.Max(1L, (long)Math.Floor(loss));
+        }
+
+        /// <summary>The ward a Warded boss raises, in HP.</summary>
+        public static float WardPool(BossArchetype archetype, float bossHpMax) =>
+            archetype == BossArchetype.Warded ? Math.Max(0f, bossHpMax) * WardFraction : 0f;
+
+        /// <summary>
+        /// Damage against a warded boss: the ward soaks first and only the remainder
+        /// reaches its health.
+        ///
+        /// <paramref name="wardMultiplier"/> is what a spell brings — it strips a ward
+        /// several times faster than the crowd's grind does, so "break the ward" is an
+        /// action the player takes rather than something that merely happens to them.
+        /// </summary>
+        public static float ThroughWard(float amount, float ward, float wardMultiplier,
+            out float wardLeft)
+        {
+            float incoming = Math.Max(0f, amount);
+            wardLeft = Math.Max(0f, ward);
+            if (wardLeft <= 0f) return incoming;
+
+            float againstWard = incoming * Math.Max(1f, wardMultiplier);
+            if (againstWard < wardLeft)
+            {
+                wardLeft -= againstWard;
+                return 0f;
+            }
+
+            // The overkill crosses back at the ordinary rate, or a single big spell would
+            // shatter the ward AND land its whole multiplied value on the health beneath.
+            float spent = wardLeft / Math.Max(1f, wardMultiplier);
+            wardLeft = 0f;
+            return Math.Max(0f, incoming - spent);
+        }
+
+        /// <summary>Adds called this cycle.</summary>
+        public static int AddsPerCycle(BossArchetype archetype) =>
+            archetype == BossArchetype.Summoner ? SummonCount : 0;
+
+        /// <summary>
+        /// What un-cleared adds cost the crowd when the next cycle comes round.
+        ///
+        /// Proportional per add, with a floor of one unit each: a flat cost would be
+        /// meaningless to a crowd of four hundred and lethal to a crowd of twenty, and the
+        /// same fight has to work at both ends. The floor is what stops "ignore the adds"
+        /// from becoming correct against a small army that has already rounded the
+        /// percentage away to nothing.
+        /// </summary>
+        public static long AddBite(int adds, long force)
+        {
+            if (adds <= 0 || force <= 0) return 0L;
+            long bite = adds * (long)Math.Ceiling(force * 0.06);
+            return Math.Min(force, Math.Max(adds, bite));
+        }
+
         /// <summary>
         /// One boss attack against the crowd. A raised shield negates it entirely;
         /// otherwise the attack removes a fraction of current force, cushioned by the
