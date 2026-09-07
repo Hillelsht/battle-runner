@@ -10,7 +10,7 @@ namespace BattleRunner.Core.Save
     /// </summary>
     public static class SaveMigrator
     {
-        public const int CurrentVersion = 4;
+        public const int CurrentVersion = 5;
 
         private static readonly Dictionary<int, Action<PlayerProfile>> Steps = new Dictionary<int, Action<PlayerProfile>>
         {
@@ -43,6 +43,42 @@ namespace BattleRunner.Core.Save
                         if (spend != null && spend.Points > 0) profile.UnspentStatPoints += spend.Points;
                     profile.StatPoints.Clear();
                 }
+            },
+
+            // v4 -> v5: the tree gained RANKS, so a set of taken ids became a map of
+            // id -> rank. Every old node was worth exactly one point, so each one migrates
+            // to rank 1 — no refund needed and no build is lost.
+            //
+            // Ids that no longer exist are dropped rather than carried: the v5 tree renamed
+            // and re-costed most of the table, and a rank pointing at nothing would be a
+            // point the player paid for and can never see or reclaim. Their cost is handed
+            // back as unspent points so the total stays honest.
+            [4] = profile =>
+            {
+                profile.SkillRanks ??= new List<RankEntry>();
+                profile.ParagonRanks ??= new List<RankEntry>();
+                if (profile.SkillNodes == null) return;
+
+                foreach (string id in profile.SkillNodes)
+                {
+                    if (string.IsNullOrEmpty(id)) continue;
+                    if (Progression.SkillTree.Find(id) == null)
+                    {
+                        profile.UnspentStatPoints += 1;
+                        continue;
+                    }
+
+                    bool merged = false;
+                    foreach (RankEntry entry in profile.SkillRanks)
+                    {
+                        if (entry == null || entry.Id != id) continue;
+                        entry.Rank += 1;
+                        merged = true;
+                        break;
+                    }
+                    if (!merged) profile.SkillRanks.Add(new RankEntry { Id = id, Rank = 1 });
+                }
+                profile.SkillNodes.Clear();
             }
         };
 

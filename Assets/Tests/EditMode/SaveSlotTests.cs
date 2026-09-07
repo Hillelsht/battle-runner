@@ -46,8 +46,8 @@ namespace BattleRunner.Tests
         public void AnExistingFileReportsProgress()
         {
             var profile = new PlayerProfile { CurrentLevelIndex = 2, UnspentStatPoints = 3 };
-            profile.SkillNodes.Add("wl_edge");
-            profile.SkillNodes.Add("wl_cleave");
+            profile.SkillRanks.Add(new RankEntry { Id = "wl_edge", Rank = 1 });
+            profile.SkillRanks.Add(new RankEntry { Id = "wl_cleave", Rank = 1 });
 
             SaveSlotSummary summary = SaveSlots.Summarize(0, profile, fileExists: true);
 
@@ -66,7 +66,7 @@ namespace BattleRunner.Tests
         public void OneTalentReadsAsSingular()
         {
             var profile = new PlayerProfile();
-            profile.SkillNodes.Add("wl_edge");
+            profile.SkillRanks.Add(new RankEntry { Id = "wl_edge", Rank = 1 });
             StringAssert.Contains("1 talent ", SaveSlots.Summarize(0, profile, true).Describe() + " ");
         }
 

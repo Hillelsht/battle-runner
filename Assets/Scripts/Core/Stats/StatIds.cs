@@ -26,10 +26,37 @@ namespace BattleRunner.Core.Stats
         /// <summary>Weights the loot roll toward rarer items.</summary>
         public const string Fortune = "fortune";
 
+        // --- Mechanics the deep tree hooks into ---------------------------------
+        // A tree with hundreds of point-spends cannot be hundreds of "+2 Might" nodes;
+        // that is filler, and a player feels it by tier three. Each of these is a NEW
+        // thing to modify, consumed at exactly one site, so a deep node can hand the
+        // player a toy rather than another number.
+
+        /// <summary>Chance a gate resolves at double value.</summary>
+        public const string GateCrit = "gatecrit";
+        /// <summary>Fraction of banked overflow released as boss damage.</summary>
+        public const string OverflowBank = "overflowbank";
+        /// <summary>Extra yield per consecutive x gate, reset by a subtract gate.</summary>
+        public const string ChainMultiply = "chainmultiply";
+        /// <summary>Widens the lane window a gate will still score from.</summary>
+        public const string Magnetism = "magnetism";
+        /// <summary>Chance an enemy pack costs nothing and shatters.</summary>
+        public const string PackShatter = "packshatter";
+        /// <summary>Fraction of force restored by a free once-per-run revive. 0 disables it.</summary>
+        public const string SecondWind = "secondwind";
+        /// <summary>Boss HP fraction below which it dies outright.</summary>
+        public const string Execute = "execute";
+        /// <summary>Chance the spell fires a second time.</summary>
+        public const string SpellEcho = "spellecho";
+        /// <summary>Fraction of a blocked blow returned to the boss as damage.</summary>
+        public const string ShieldReflect = "shieldreflect";
+
         public static readonly string[] All =
         {
             Damage, Health, Cooldown, SpellPower,
-            GateYield, RunSpeed, EnemyResist, ShieldDuration, Fortune
+            GateYield, RunSpeed, EnemyResist, ShieldDuration, Fortune,
+            GateCrit, OverflowBank, ChainMultiply, Magnetism, PackShatter,
+            SecondWind, Execute, SpellEcho, ShieldReflect
         };
     }
 }

@@ -21,6 +21,14 @@ namespace BattleRunner.Core.Save
         public string InstanceId;
     }
 
+    /// <summary>One id and how many ranks of it are held. See PlayerProfile.SkillRanks.</summary>
+    [Serializable]
+    public class RankEntry
+    {
+        public string Id;
+        public int Rank;
+    }
+
     [Serializable]
     public class StatSpend
     {
@@ -48,8 +56,48 @@ namespace BattleRunner.Core.Save
         public int PityCounter;
         /// <summary>Bitmask of TutorialStep values already taught. 0 = brand new player.</summary>
         public int TutorialMask;
-        /// <summary>Ids of the skill-tree nodes this hero has learned.</summary>
+        /// <summary>
+        /// Legacy: the flat set of node ids learned under schema v4, when every node was a
+        /// single point. Kept as the migration source only — v5 onward reads SkillRanks.
+        /// </summary>
         public List<string> SkillNodes = new List<string>();
+
+        /// <summary>
+        /// Ranks held per skill node, and per paragon track. Lists of id/count pairs rather
+        /// than dictionaries because Unity's JsonUtility cannot serialize a Dictionary, which
+        /// is the same reason Inventory and Equipped are shaped this way.
+        /// </summary>
+        public List<RankEntry> SkillRanks = new List<RankEntry>();
+        public List<RankEntry> ParagonRanks = new List<RankEntry>();
+
+        /// <summary>Map view of SkillRanks for the Core progression rules.</summary>
+        public Dictionary<string, int> SkillRankMap() => ToMap(SkillRanks);
+
+        /// <summary>Map view of ParagonRanks.</summary>
+        public Dictionary<string, int> ParagonRankMap() => ToMap(ParagonRanks);
+
+        private static Dictionary<string, int> ToMap(List<RankEntry> entries)
+        {
+            var map = new Dictionary<string, int>();
+            if (entries == null) return map;
+            foreach (RankEntry entry in entries)
+            {
+                if (entry == null || string.IsNullOrEmpty(entry.Id) || entry.Rank <= 0) continue;
+                // Sum rather than overwrite: a save hand-edited or merged into holding an id
+                // twice should resolve to something sane instead of silently losing points.
+                map[entry.Id] = map.TryGetValue(entry.Id, out int held) ? held + entry.Rank : entry.Rank;
+            }
+            return map;
+        }
+
+        /// <summary>Writes a map back, dropping empty ranks so the file stays small.</summary>
+        public static void WriteMap(List<RankEntry> entries, Dictionary<string, int> map)
+        {
+            entries.Clear();
+            if (map == null) return;
+            foreach (KeyValuePair<string, int> pair in map)
+                if (pair.Value > 0) entries.Add(new RankEntry { Id = pair.Key, Rank = pair.Value });
+        }
 
         public string GetEquipped(GearSlot slot)
         {

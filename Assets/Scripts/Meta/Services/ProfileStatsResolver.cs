@@ -29,7 +29,10 @@ namespace BattleRunner.Meta.Services
 
             // Talents and gear feed the same resolution path, so a node and an affix compose
             // exactly as two affixes do — no second set of rules to keep in step.
-            var modifiers = new List<StatModifier>(SkillTree.ModifiersFor(profile.SkillNodes));
+            var modifiers = new List<StatModifier>(SkillTree.ModifiersFor(profile.SkillRankMap()));
+            // Paragon composes through the same path as everything else, so an endless rank
+            // and a talent and an affix all stack by one set of rules.
+            modifiers.AddRange(Paragon.ModifiersFor(profile.ParagonRankMap()));
 
             Dictionary<string, GearItemDefinition> gearById = GearById(config);
             foreach (GearSlot slot in new[] { GearSlot.Weapon, GearSlot.Armor, GearSlot.Relic })

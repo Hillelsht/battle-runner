@@ -15,9 +15,9 @@ points → save → next level.
 | Area | State |
 |---|---|
 | Game loop | Complete end to end |
-| Content | 5 levels, 2 bosses, 15 gear items, 4 rarities, 12 talents |
+| Content | 5 levels, 2 bosses, 15 gear items, 4 rarities, ~60 talents + endless paragon |
 | Art | Greybox — procedural meshes, code-built uGUI, no imported assets |
-| Tests | 166, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 194, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
@@ -78,6 +78,52 @@ a shockwave at every gate tinted and sized by the operation, debris off the army
 pack bites, a ring that sprints out to the spell's actual clear range, embers off the boss
 on a hit, a bright ring when the shield eats a blow, and a three-wave death beat with
 forty motes when the boss falls.
+
+**The talent tree ran dry after three boss kills; now it does not run dry at all.** The old
+shape was 3 branches of (1 + 2-exclusive + 1) = 12 nodes with only NINE takeable, at one
+point each, against an income of 3 points per boss. Three bosses emptied it, and from the
+fourth on every point earned had nowhere to go. The new tree is four branches (Warlord,
+Warden, Zealot and a Crossroads of hybrids), six tiers deep, ranked: ~60 authored nodes
+carrying over 200 point-spends, three mutually exclusive keystones at the bottom of each
+path, and hybrids gated on real investment in TWO branches so they reward committing
+rather than dabbling. Tiers unlock on points spent in the branch, not on per-node
+prerequisites, which keeps the rule explainable in one sentence and means adding a node
+later can never orphan a save.
+
+**A tier gate counts only what is ABOVE it, and that is load-bearing.** Counting the whole
+branch made a gate self-satisfying, and worse, it made the tree impossible to unwind: two
+tier-3 nodes sitting on exactly eight branch points block each other's refund forever and
+the only escape is FORGET ALL. Measuring points strictly shallower than the node means the
+deepest thing a player holds is always refundable, so any tree can be walked back one rank
+at a time — proven by a test that buys everything buyable and then hands every rank back.
+
+**And past the tree, paragon.** Six endless tracks, unlocked by taking any keystone —
+reaching a keystone is the moment a build has an identity, which is a far better place to
+hand someone an infinite sink than the moment they have taken literally everything. Cost
+escalates (`1 + held/12`) so an endless track cannot outrun the authored tree in an
+evening; value is a diminishing SUM (`PerRank / (1 + rank/25)`) so the total grows without
+bound and a point at round fifty still means something. Boss income scales too —
+`3 + levelIndex/2` — putting the tree at roughly thirty kills rather than eighty.
+
+**Nine new mechanics, so the tree hooks into verbs instead of into numbers.** Gate crits
+(double the GAIN, not the printed value, which is the only definition that reads the same
+for `+` and `x`), multiply chains that escalate and break on a subtract, lane magnetism
+that only ever pulls toward a BENEFICIAL gate, pack shatter, banked overflow, second wind,
+execute, spell echo and shield reflect. All of it is engine-free in `Core/Run/Talents.cs`
+with the random roll passed IN rather than taken — a function that calls `Random` itself
+can only be tested statistically, and a mechanic whose edge cases are merely sampled is a
+mechanic whose edge cases ship. Every one is pinned inert at zero, so a player without the
+talent gets byte-identical behaviour to the game before it existed.
+
+**The tree screen was a fixed 3x4 grid and could not survive this.** Twelve nodes fit on a
+phone; sixty do not. `SkillTreeScreen` is now five tabs over a hand-built `ScrollRect`
+(`RectMask2D`, not `Mask` — a stencil material per graphic would break batching for sixty
+buttons), tier headings as signposts, rank pips on every cell, and a paragon tab. Taking
+and giving back became separate controls, because with ranks a node can be both rankable
+and refundable in the same moment and one tap can no longer mean both.
+
+Save schema v4 -> v5: taken ids become rank-1 entries, and ids that no longer exist are
+refunded as unspent points rather than silently dropped.
 
 **The magenta risk is retired, not hoped away.** A fourth shader in `Resources` is exactly
 the path that shipped v0.1.0 solid magenta. `Vfx.shader` sits beside a hand-written
@@ -208,7 +254,7 @@ The v0.4.0 screenshots confirmed the art pass landed — sky, stars, shadows, ro
 gates and UI frames all correct on device — and surfaced two bugs that were never about
 art: `Focus -0 %` on the menu and `+0.01 Focus` on the loot card. Both were units chosen
 from the ModifierKind rather than from the stat, plus a hard-coded minus sign in front of
-a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 166 tests today).
+a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 194 tests today).
 
 A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
 11 survived adversarial refutation. The headline three: the key light pointed the same way

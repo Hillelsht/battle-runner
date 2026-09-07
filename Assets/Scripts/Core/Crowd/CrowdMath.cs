@@ -150,6 +150,23 @@ namespace BattleRunner.Core.Crowd
             return lane > 1 ? 1 : lane;
         }
 
+        /// <summary>
+        /// Whether a lane's contents reach the crowd, once Lane Magnetism is accounted for.
+        ///
+        /// The lane the crowd OCCUPIES always counts, so at zero magnetism this is exactly
+        /// LaneIndex and the boundary case cannot fall between two lanes and score nothing.
+        /// Magnetism only ever ADDS an adjacent lane, by pushing the acceptance edge
+        /// outward from that lane's centre — a near miss becomes a hit, and a clean dodge
+        /// stays a dodge until the player has invested enough for it not to be.
+        /// </summary>
+        public static bool LaneReaches(float crowdX, int lane, float laneWidth, float magnetism)
+        {
+            if (laneWidth <= 0f) throw new ArgumentOutOfRangeException(nameof(laneWidth));
+            if (LaneIndex(crowdX, laneWidth) == lane) return true;
+            if (magnetism <= 0f) return false;
+            return MathF.Abs(crowdX - lane * laneWidth) <= laneWidth * 0.5f + magnetism;
+        }
+
         /// <summary>How many units to actually render for a logical force count, per device tier cap (doc 01, R2).</summary>
         public static int VisibleUnits(long forceCount, int tierCap)
         {

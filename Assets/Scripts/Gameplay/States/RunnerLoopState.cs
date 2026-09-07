@@ -78,7 +78,7 @@ namespace BattleRunner.Gameplay.States
             _ctx.Crowd.AdvanceZ(speed * dt);
             run.Distance += speed * dt;
             _ctx.Crowd.Tick(dt);
-            _ctx.TrackController.Tick(_ctx.Crowd);
+            _ctx.TrackController.Tick(_ctx.Crowd, _ctx.CurrentStats.Get(StatIds.Magnetism));
 
             _ctx.Spell.Tick(dt);
             _ctx.Shield.Tick(dt);
@@ -94,6 +94,9 @@ namespace BattleRunner.Gameplay.States
         // decides which, and then these can be tuned in one direction with confidence.
         private static readonly Color SpellTint = new Color(0.40f, 0.70f, 1.60f);
         private static readonly Color LossTint = new Color(1.55f, 0.32f, 0.23f);
+        private static readonly Color EchoTint = new Color(1.10f, 0.52f, 1.70f);
+        private static readonly Color CritTint = new Color(1.75f, 1.30f, 0.42f);
+        private static readonly Color ShatterTint = new Color(0.62f, 1.65f, 1.20f);
 
         private static Color GateTint(GateOp op) => op switch
         {
@@ -110,6 +113,12 @@ namespace BattleRunner.Gameplay.States
             float range = _ctx.Config.Spells.ClearRangeMeters;
             int cleared = _ctx.TrackController.ClearEnemiesAhead(_ctx.Crowd.CenterZ, range);
 
+            // An echo on the road clears a SECOND, longer sweep rather than firing the same
+            // one twice: the packs inside the first range are already gone, so a literal
+            // second cast would do nothing at all and the talent would read as broken.
+            bool echo = Talents.Rolls(_ctx.CurrentStats.Get(StatIds.SpellEcho), Random.value);
+            if (echo) cleared += _ctx.TrackController.ClearEnemiesAhead(_ctx.Crowd.CenterZ, range * 1.9f);
+
             // A BOLT, not an instant ring. The spell used to be a cause with no middle: you
             // flicked, and packs stopped existing. Now something leaves the hero, travels,
             // and detonates at the spell's ACTUAL clear range — so the player learns how far
@@ -120,6 +129,10 @@ namespace BattleRunner.Gameplay.States
             _ctx.Effects.Burst(origin, SpellTint, 8, 3.2f, 0.35f);
             _ctx.Effects.Bolt(origin, new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.CenterZ + range),
                 SpellTint, 45f);
+            if (echo)
+                _ctx.Effects.Bolt(origin,
+                    new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.CenterZ + range * 1.9f),
+                    EchoTint, 45f);
 
             if (cleared > 0)
                 Debug.Log($"[Run] Spell cleared {cleared} enemy pack(s).");
@@ -129,8 +142,17 @@ namespace BattleRunner.Gameplay.States
         {
             RunState run = _ctx.Run;
             long before = run.ForceCount;
-            run.ForceCount = GateMath.ApplyGateWithYield(run.ForceCount, op, value,
-                _ctx.Config.Balance.SoftCap, _ctx.CurrentStats.Get(StatIds.GateYield), out long overflow);
+
+            // Chain counts the multiplies ALREADY landed, so it is read before this gate is
+            // folded in — otherwise the first multiply of a run would pay its own bonus.
+            float chain = Talents.ChainYield(run.MultiplyChain,
+                _ctx.CurrentStats.Get(StatIds.ChainMultiply));
+            bool crit = Talents.Rolls(_ctx.CurrentStats.Get(StatIds.GateCrit), Random.value);
+
+            run.ForceCount = Talents.ApplyGate(run.ForceCount, op, value,
+                _ctx.Config.Balance.SoftCap, _ctx.CurrentStats.Get(StatIds.GateYield), chain,
+                crit, out long overflow);
+            run.MultiplyChain = op == GateOp.Multiply ? run.MultiplyChain + 1 : 0;
             run.OverflowAccumulated += overflow;
             run.GatesHit++;
             _ctx.Crowd.SetForce(run.ForceCount);
@@ -146,10 +168,19 @@ namespace BattleRunner.Gameplay.States
             // game and until now passing one produced no event at all: the number changed,
             // the camera nudged, and that was it.
             float weight = CameraFeel.ForGate(op, before, run.ForceCount).Trauma;
-            Color tint = GateTint(op);
+            Color tint = crit ? CritTint : GateTint(op);
             _ctx.Effects.Shock(where, tint, 0.8f, 2.6f + 4.4f * weight, 0.45f + 0.20f * weight);
             if (run.ForceCount > before)
                 _ctx.Effects.Burst(where, tint, 4 + Mathf.RoundToInt(10f * weight), 3.4f, 0.45f);
+
+            // A crit that looks like an ordinary gate is a stat the player never learns they
+            // have. Second ring, hotter tint, extra kick — the same beat, louder.
+            if (crit && run.ForceCount > before)
+            {
+                _ctx.Effects.Shock(where, CritTint, 0.4f, 7.5f, 0.55f);
+                _ctx.Effects.Burst(where, CritTint, 18, 5.5f, 0.7f);
+                _ctx.CameraRig.PunchFov(3.4f);
+            }
 
             if (run.ForceCount <= 0) OnForceDepleted();
         }
@@ -159,15 +190,25 @@ namespace BattleRunner.Gameplay.States
             if (_ctx.Shield.IsActive) return;
 
             RunState run = _ctx.Run;
-            // Resist shrugs off part of the bite; capped so a pack always costs something.
-            float resist = System.Math.Min(0.85f, _ctx.CurrentStats.Get(StatIds.EnemyResist));
-            long bite = (long)System.Math.Ceiling(forceCost * (1.0 - resist));
+            // Resist shrugs off part of the bite; a shattered pack costs nothing at all.
+            bool shattered = Talents.Rolls(_ctx.CurrentStats.Get(StatIds.PackShatter), Random.value);
+            long bite = Talents.PackBite(forceCost, _ctx.CurrentStats.Get(StatIds.EnemyResist), shattered);
             long beforeBite = run.ForceCount;
             run.ForceCount = System.Math.Max(0L, run.ForceCount - bite);
             _ctx.Crowd.SetForce(run.ForceCount);
             _ctx.Hud.SetForce(run.ForceCount);
 
             _ctx.CameraRig.Apply(CameraFeel.ForLoss(beforeBite, run.ForceCount));
+
+            // A shattered pack is not a quieter loss, it is a different event, and it has to
+            // read as one or the talent is invisible: the pack detonates outward in the
+            // Warden's colour instead of throwing red debris off the army.
+            if (shattered)
+            {
+                _ctx.Effects.Shock(where, ShatterTint, 0.5f, 6.5f, 0.5f);
+                _ctx.Effects.Burst(where, ShatterTint, 22, 6.2f, 0.65f);
+                return;
+            }
 
             // Debris scaled to what the pack actually took, not to its printed cost —
             // Bramble and Undying cut the bite, and the effect should show the bite.
@@ -180,6 +221,25 @@ namespace BattleRunner.Gameplay.States
 
         private void OnForceDepleted()
         {
+            // Second Wind stands the army back up before the ad prompt ever appears. Once
+            // per run: a comeback the player earned with points, not a subscription to
+            // immortality, and it fires ahead of the rewarded ad so the talent they bought
+            // is never quietly replaced by a video.
+            long revived = Talents.SecondWindForce(_ctx.CurrentLevel.ParForceAtFinish,
+                _ctx.CurrentStats.Get(StatIds.SecondWind));
+            if (revived > 0 && !_ctx.Run.SecondWindSpent)
+            {
+                _ctx.Run.SecondWindSpent = true;
+                _ctx.Run.ForceCount = revived;
+                _ctx.Crowd.SetForce(revived);
+                _ctx.Hud.SetForce(revived);
+                _ctx.CameraRig.PunchFov(4.5f);
+                var rally = new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.CenterZ);
+                _ctx.Effects.Shock(rally, ShatterTint, 1.0f, 9f, 0.6f);
+                _ctx.Effects.Burst(rally, ShatterTint, 28, 6f, 0.8f);
+                return;
+            }
+
             _awaitingPrompt = true;
             // Tick() stops here, so a live coaching prompt would sit frozen behind the
             // resurrect modal. Drop it; an un-taught step re-arms if the player revives.

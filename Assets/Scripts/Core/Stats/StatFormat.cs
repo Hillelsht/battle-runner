@@ -33,7 +33,17 @@ namespace BattleRunner.Core.Stats
             || statId == StatIds.RunSpeed
             || statId == StatIds.EnemyResist
             || statId == StatIds.SpellPower
-            || statId == StatIds.Fortune;
+            || statId == StatIds.Fortune
+            // The deep-tree mechanics. Every one of these is a probability or a fraction
+            // of something except Magnetism, which is metres of lane window.
+            || statId == StatIds.GateCrit
+            || statId == StatIds.OverflowBank
+            || statId == StatIds.ChainMultiply
+            || statId == StatIds.PackShatter
+            || statId == StatIds.SecondWind
+            || statId == StatIds.Execute
+            || statId == StatIds.SpellEcho
+            || statId == StatIds.ShieldReflect;
 
         /// <summary>The name a player sees. Falls back to the raw id rather than throwing.</summary>
         public static string DisplayName(string statId)
@@ -47,6 +57,15 @@ namespace BattleRunner.Core.Stats
             if (statId == StatIds.EnemyResist) return "Resist";
             if (statId == StatIds.ShieldDuration) return "Shield";
             if (statId == StatIds.Fortune) return "Fortune";
+            if (statId == StatIds.GateCrit) return "Gate Crit";
+            if (statId == StatIds.OverflowBank) return "Overflow";
+            if (statId == StatIds.ChainMultiply) return "Chain";
+            if (statId == StatIds.Magnetism) return "Magnetism";
+            if (statId == StatIds.PackShatter) return "Shatter";
+            if (statId == StatIds.SecondWind) return "Second Wind";
+            if (statId == StatIds.Execute) return "Execute";
+            if (statId == StatIds.SpellEcho) return "Echo";
+            if (statId == StatIds.ShieldReflect) return "Reflect";
             return statId ?? "?";
         }
 

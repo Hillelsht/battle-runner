@@ -197,6 +197,88 @@ namespace BattleRunner.Meta.UI
             rt.offsetMax = Vector2.zero;
         }
 
+        /// <summary>
+        /// Anchor a rect to a normalized RECTANGLE of its parent, so it scales with the
+        /// canvas instead of holding a fixed pixel size.
+        ///
+        /// Place() mixes a normalized centre with a pixel size, which is right for a button
+        /// and wrong for a region: a 1150-px-tall scroll viewport pinned that way overruns
+        /// the tabs above it the moment the CanvasScaler shrinks the canvas on a tall phone.
+        /// </summary>
+        public static void PlaceRegion(RectTransform rt, float xMin, float yMin, float xMax, float yMax)
+        {
+            rt.anchorMin = new Vector2(xMin, yMin);
+            rt.anchorMax = new Vector2(xMax, yMax);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+        }
+
+        /// <summary>
+        /// A cell in a top-down scrolling column: normalized across, pixels down from the
+        /// content's top edge.
+        ///
+        /// Both anchors sit on the parent's top edge, so offsetMax.y and offsetMin.y are
+        /// distances DOWN from it and the cell keeps its height however tall the content
+        /// grows. Anchoring across rather than sizing in pixels is what lets a two-column
+        /// row keep its gutter on every aspect ratio.
+        /// </summary>
+        public static void PlaceCell(RectTransform rt, float xMin, float xMax,
+            float topOffset, float height)
+        {
+            rt.anchorMin = new Vector2(xMin, 1f);
+            rt.anchorMax = new Vector2(xMax, 1f);
+            rt.pivot = new Vector2(0.5f, 1f);
+            rt.offsetMin = new Vector2(0f, -(topOffset + height));
+            rt.offsetMax = new Vector2(0f, -topOffset);
+        }
+
+        /// <summary>
+        /// A vertical scroll region, returning the content rect callers fill with PlaceCell.
+        ///
+        /// Built by hand rather than from a prefab for the same reason as the rest of this
+        /// file, and masked with RectMask2D rather than Mask: Mask needs a stencil material
+        /// per masked graphic, and a tree of sixty buttons would break batching for all of
+        /// them. Content is pivoted to its TOP so growing it downward never shifts what is
+        /// already laid out.
+        /// </summary>
+        public static ScrollRect ScrollColumn(Transform parent, string name, out RectTransform content)
+        {
+            var rootGo = new GameObject(name, typeof(RectTransform), typeof(ScrollRect));
+            rootGo.transform.SetParent(parent, false);
+            var root = (RectTransform)rootGo.transform;
+
+            var viewportGo = new GameObject("Viewport", typeof(RectTransform), typeof(RectMask2D));
+            viewportGo.transform.SetParent(root, false);
+            var viewport = (RectTransform)viewportGo.transform;
+            Stretch(viewport);
+
+            var contentGo = new GameObject("Content", typeof(RectTransform));
+            contentGo.transform.SetParent(viewport, false);
+            content = (RectTransform)contentGo.transform;
+            content.anchorMin = new Vector2(0f, 1f);
+            content.anchorMax = new Vector2(1f, 1f);
+            content.pivot = new Vector2(0.5f, 1f);
+            content.offsetMin = new Vector2(0f, 0f);
+            content.offsetMax = new Vector2(0f, 0f);
+
+            var scroll = rootGo.GetComponent<ScrollRect>();
+            scroll.content = content;
+            scroll.viewport = viewport;
+            scroll.horizontal = false;
+            scroll.vertical = true;
+            scroll.movementType = ScrollRect.MovementType.Elastic;
+            scroll.elasticity = 0.1f;
+            scroll.inertia = true;
+            scroll.decelerationRate = 0.135f;
+            scroll.scrollSensitivity = 30f;
+            return scroll;
+        }
+
+        /// <summary>Set a scroll column's content height in reference pixels.</summary>
+        public static void SetContentHeight(RectTransform content, float height) =>
+            content.sizeDelta = new Vector2(content.sizeDelta.x, height);
+
         /// <summary>Anchor a rect by normalized center + pixel size (reference resolution space).</summary>
         public static void Place(RectTransform rt, float anchorX, float anchorY, float width, float height)
         {

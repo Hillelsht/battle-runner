@@ -19,6 +19,7 @@ namespace BattleRunner.Core.Run
 
         /// <summary>Bonus multiplier earned from over-cap gate chains, applied to boss damage and loot luck.</summary>
         public float OverflowBonus(long softCap) =>
-            GateMath.OverflowToBonusMultiplier(OverflowAccumulated, softCap);
+            Talents.OverflowMultiplier(OverflowAccumulated, softCap,
+                HeroStats?.Get(StatIds.OverflowBank) ?? 0f);
     }
 }

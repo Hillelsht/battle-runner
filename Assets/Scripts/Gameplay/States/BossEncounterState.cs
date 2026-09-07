@@ -1,6 +1,7 @@
 using BattleRunner.Core.Feel;
 using BattleRunner.Core.Boss;
 using BattleRunner.Core.Flow;
+using BattleRunner.Core.Run;
 using BattleRunner.Core.Stats;
 using BattleRunner.Data.Definitions;
 using BattleRunner.Meta.Services;
@@ -118,15 +119,21 @@ namespace BattleRunner.Gameplay.States
         private static readonly Color BlockTint = new Color(0.95f, 1.35f, 1.85f);
         private static readonly Color StrikeTint = new Color(1.65f, 0.34f, 0.21f);
         private static readonly Color DeathTint = new Color(1.70f, 0.70f, 0.26f);
+        private static readonly Color EchoTint = new Color(1.10f, 0.52f, 1.70f);
+        private static readonly Color ExecuteTint = new Color(1.80f, 0.24f, 0.30f);
 
         private void OnFlickUp() => _ctx.Spell.TryCast();
         private void OnFlickDown() => _ctx.Shield.TryRaise();
 
         private void OnSpellCast()
         {
-            float dps = BossSim.PlayerDps(_ctx.LastResult, _ctx.Config.Balance.SoftCap);
-            float spellPower = 1f + _ctx.CurrentStats.Get(StatIds.SpellPower);
-            ApplyBossDamage(dps * _ctx.Config.Spells.BossDamageMultiplier * spellPower);
+            float hit = SpellDamage();
+            bool echo = Talents.Rolls(_ctx.CurrentStats.Get(StatIds.SpellEcho), Random.value);
+            ApplyBossDamage(hit);
+            // On the boss an echo IS a literal second cast — there is only one target and
+            // hitting it twice is exactly what the talent promises. Guarded, because the
+            // first hit may already have finished the fight.
+            if (echo && !_resolved) ApplyBossDamage(hit);
             _ctx.BossView.FlashHit();
             _ctx.CameraRig.Apply(CameraFeel.Spell);
             _ctx.CameraRig.PunchFov(2.2f);
@@ -138,12 +145,33 @@ namespace BattleRunner.Gameplay.States
             var origin = new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.FrontZ);
             _ctx.Effects.Burst(origin, SpellTint, 8, 3.2f, 0.35f);
             _ctx.Effects.Bolt(origin, _bossPosition, SpellTint, 40f);
+            if (echo) _ctx.Effects.Bolt(origin, _bossPosition, EchoTint, 26f);
+        }
+
+        /// <summary>One spell's worth of damage. Shared with the shield reflect, so the two
+        /// can never drift onto different magnitudes.</summary>
+        private float SpellDamage()
+        {
+            float dps = BossSim.PlayerDps(_ctx.LastResult, _ctx.Config.Balance.SoftCap);
+            return dps * _ctx.Config.Spells.BossDamageMultiplier
+                   * (1f + _ctx.CurrentStats.Get(StatIds.SpellPower));
         }
 
         private void ApplyBossDamage(float amount)
         {
+            if (_resolved) return;
             _bossHp -= amount;
-            _ctx.Hud.SetBossHp(_bossHp / _bossHpMax);
+
+            // Execute is checked on every tick of damage, not only on the spell, because the
+            // crowd's sustained dps is what actually walks a boss down into the threshold —
+            // gating it to the spell would make the Headsman keystone fire almost never.
+            if (Talents.Executes(_bossHp, _bossHpMax, _ctx.CurrentStats.Get(StatIds.Execute)))
+            {
+                _bossHp = 0f;
+                _ctx.Effects.Shock(_bossPosition + Vector3.up * 1.2f, ExecuteTint, 0.6f, 11f, 0.4f);
+            }
+
+            _ctx.Hud.SetBossHp(Mathf.Max(0f, _bossHp) / _bossHpMax);
             if (_bossHp <= 0f) OnBossDefeated();
         }
 
@@ -181,6 +209,18 @@ namespace BattleRunner.Gameplay.States
             {
                 _ctx.Ward.FlashBlock();
                 _ctx.Dome.FlashBlock();
+
+                // Martyr and Paladin turn a block into an attack. The bolt travels the other
+                // way down the lane, which is the only way the player can tell this happened
+                // — the boss bar moving on a frame they were defending is easy to miss.
+                float reflect = Talents.ReflectedDamage(SpellDamage(),
+                    _ctx.CurrentStats.Get(StatIds.ShieldReflect));
+                if (reflect > 0f)
+                {
+                    _ctx.Effects.Bolt(new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.FrontZ),
+                        _bossPosition, BlockTint, 34f);
+                    ApplyBossDamage(reflect);
+                }
             }
 
             if (after <= 0) OnCrowdWiped();
@@ -203,7 +243,12 @@ namespace BattleRunner.Gameplay.States
             _ctx.Effects.Burst(foot + Vector3.up * 1.5f, DeathTint, 40, 7.5f, 0.9f);
 
             _resolved = true;
-            _ctx.Profile.UnspentStatPoints += _ctx.Config.Balance.StatPointsPerBossKill;
+            // Income SCALES with depth. At a flat 3 a tree of ~240 point-spends would need
+            // eighty boss kills to fill, which is not progression, it is a wall with a long
+            // approach. Rising by one every two levels puts the tree at roughly thirty kills
+            // and hands the rest to paragon, which never runs out.
+            int award = _ctx.Config.Balance.StatPointsPerBossKill + _ctx.Profile.CurrentLevelIndex / 2;
+            _ctx.Profile.UnspentStatPoints += award;
             _ctx.Machine.TransitionTo(_ctx.LootState);
         }
 

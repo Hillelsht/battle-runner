@@ -56,7 +56,8 @@ namespace BattleRunner.Core.Save
             profile == null ||
             (profile.CurrentLevelIndex == 0 &&
              profile.UnspentStatPoints == 0 &&
-             (profile.SkillNodes == null || profile.SkillNodes.Count == 0) &&
+             (profile.SkillRanks == null || profile.SkillRanks.Count == 0) &&
+             (profile.ParagonRanks == null || profile.ParagonRanks.Count == 0) &&
              (profile.Inventory == null || profile.Inventory.Count == 0) &&
              profile.TutorialMask == 0);
 
@@ -65,7 +66,10 @@ namespace BattleRunner.Core.Save
             if (!fileExists || profile == null)
                 return new SaveSlotSummary(index, false, 0, 0, 0);
 
-            int talents = profile.SkillNodes?.Count ?? 0;
+            // Ranks, not nodes: a slot showing "3 talents" for a hero who has sunk fifteen
+            // points into three nodes would understate the save badly.
+            int talents = Progression.SkillTree.PointsSpent(profile.SkillRankMap())
+                          + Progression.Paragon.TotalRanks(profile.ParagonRankMap());
             return new SaveSlotSummary(index, true, profile.CurrentLevelIndex, talents,
                 profile.UnspentStatPoints);
         }

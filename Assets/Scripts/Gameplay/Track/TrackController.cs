@@ -295,7 +295,13 @@ namespace BattleRunner.Gameplay.Track
         /// existence level with the player instead of sliding past them. A gate now scores
         /// (or does not) at the crowd's plane and keeps drawing until it is behind the camera.
         /// </summary>
-        public void Tick(CrowdController crowd)
+        /// <param name="magnetism">
+        /// Extra metres of reach toward a beneficial gate in a NEIGHBOURING lane, from the
+        /// Zealot tree. Zero restores the exact nearest-lane rule; it never widens the reach
+        /// of an enemy pack or a subtract gate, because a talent that makes the player worse
+        /// at dodging is a bug however it is worded.
+        /// </param>
+        public void Tick(CrowdController crowd, float magnetism = 0f)
         {
             // Resolve where the player can SEE the crowd touching things, not at an
             // arbitrary offset from the centroid.
@@ -329,7 +335,10 @@ namespace BattleRunner.Gameplay.Track
                     // The label reads through everything, so a passed gate would otherwise
                     // paint its number over the crowd on the way by.
                     gate.SetLabelVisible(false);
-                    if (gate.Lane == crowdLane)
+                    bool reaches = gate.Lane == crowdLane
+                        || (Talents.IsBeneficial(gate.Op, gate.Value)
+                            && CrowdMath.LaneReaches(crowd.CenterX, gate.Lane, _laneWidth, magnetism));
+                    if (reaches)
                     {
                         gate.Consume();
                         GateApplied?.Invoke(gate.Op, gate.Value, gate.transform.position);
