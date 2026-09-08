@@ -521,7 +521,8 @@ namespace BattleRunner.Gameplay
         /// These are built from the same prism/oriented-box toolkit as the six bosses, kept
         /// cheap (four to eight hulls each) because a verge carries hundreds of them, and
         /// normalised to roughly one unit tall so the placer can scale them freely. All of
-        /// them are drawn by RoadsideProps in one instanced call per kind.
+        /// them are drawn by SceneryField in one instanced call per kind, mixed through the
+        /// imported Kenney pieces so the verge never reads as purely bought-in.
         /// </summary>
         public static Mesh Prop(PropKind kind)
         {

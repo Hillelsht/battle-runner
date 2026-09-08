@@ -33,6 +33,20 @@ def importer_block(rel_path: str, is_dir: bool) -> str:
         return ("NativeFormatImporter:\n  externalObjects: {}\n  mainObjectFileID: 2100000\n" + TAIL)
     if ext == ".unity":
         return "DefaultImporter:\n  externalObjects: {}\n" + TAIL
+    # Unity loads .bytes and .txt as TextAsset and .wav as AudioClip. Emitting the bare
+    # DefaultImporter for these is not merely untidy: the editor rewrites the block on
+    # first import, so the committed meta would differ from every checkout that has ever
+    # opened the project, and the diff would look like a change nobody made.
+    if ext in (".bytes", ".txt"):
+        return "TextScriptImporter:\n  externalObjects: {}\n" + TAIL
+    if ext in (".wav", ".ogg"):
+        return ("AudioImporter:\n  externalObjects: {}\n  serializedVersion: 7\n"
+                "  defaultSettings:\n    loadType: 0\n    sampleRateSetting: 0\n"
+                "    sampleRateOverride: 44100\n    compressionFormat: 1\n"
+                "    quality: 0.7\n    conversionMode: 0\n    preloadAudioData: 0\n"
+                "  platformSettingOverrides: {}\n  forceToMono: 0\n  normalize: 1\n"
+                "  preloadAudioData: 0\n  loadInBackground: 0\n  ambisonic: 0\n"
+                "  3D: 1\n" + TAIL)
     return "DefaultImporter:\n  externalObjects: {}\n" + TAIL
 
 def write_meta(abs_path: str, rel_path: str, is_dir: bool) -> bool:

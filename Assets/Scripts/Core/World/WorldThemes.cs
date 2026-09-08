@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using BattleRunner.Core.Art;
 
 namespace BattleRunner.Core.World
 {
@@ -51,6 +52,39 @@ namespace BattleRunner.Core.World
                 GroundAlt = new Rgb(0.296f, 0.260f, 0.188f),
                 GroundPatchScale = 0.09f, GroundSpeckle = 0.32f,
                 GroundSheen = new Rgb(0.30f, 0.33f, 0.44f), GroundSheenStrength = 0.10f,
+                Scenery = new SceneryPalette
+                {
+                    Verge = new[]
+                    {
+                        "gr_gravestone-round",
+                        "gr_gravestone-wide",
+                        "gr_gravestone-broken",
+                        "gr_cross",
+                        "gr_grave",
+                        "na_stump_old",
+                        "na_rock_smallA",
+                        "na_grass",
+                    },
+                    Field = new[]
+                    {
+                        "na_tree_default",
+                        "na_tree_thin",
+                        "na_tree_simple",
+                        "gr_iron-fence",
+                        "gr_brick-wall",
+                        "fa_fence-broken",
+                        "na_rock_largeA",
+                    },
+                    Landmarks = new[]
+                    {
+                        Landmarks.Ruin,
+                        Landmarks.Cottage,
+                        Landmarks.Mausoleum,
+                    },
+                    VergeDensity = 15f, FieldDensity = 9f,
+                    LandmarkSpacing = 105f,
+                    VergeTint = 0.74f, FieldTint = 0.3f, LandmarkTint = 0.12f
+                },
                 Props = new[] { PropKind.Gravestone, PropKind.DeadTree, PropKind.BrokenColumn },
                 PropDensity = 9f,
                 PropStone = new Rgb(0.280f, 0.268f, 0.255f),
@@ -77,6 +111,39 @@ namespace BattleRunner.Core.World
                 GroundAlt = new Rgb(0.152f, 0.200f, 0.108f),
                 GroundPatchScale = 0.06f, GroundSpeckle = 0.26f,
                 GroundSheen = new Rgb(0.42f, 0.62f, 0.48f), GroundSheenStrength = 0.55f,
+                Scenery = new SceneryPalette
+                {
+                    Verge = new[]
+                    {
+                        "na_stump_oldTall",
+                        "na_stump_round",
+                        "na_log",
+                        "na_grass_leafs",
+                        "na_plant_bushSmall",
+                        "na_mushroom_redGroup",
+                        "gr_gravestone-debris",
+                        "gr_debris",
+                    },
+                    Field = new[]
+                    {
+                        "na_tree_thin",
+                        "na_tree_tall",
+                        "na_tree_plateau",
+                        "fa_fence-broken",
+                        "su_tent",
+                        "na_crop_carrot",
+                        "fa_planks",
+                    },
+                    Landmarks = new[]
+                    {
+                        Landmarks.Watermill,
+                        Landmarks.Cottage,
+                        Landmarks.Ruin,
+                    },
+                    VergeDensity = 22f, FieldDensity = 13f,
+                    LandmarkSpacing = 95f,
+                    VergeTint = 0.78f, FieldTint = 0.34f, LandmarkTint = 0.14f
+                },
                 Props = new[] { PropKind.DeadTree, PropKind.HangingCage, PropKind.Stump, PropKind.Gravestone },
                 PropDensity = 13f,
                 PropStone = new Rgb(0.200f, 0.215f, 0.170f),
@@ -103,6 +170,39 @@ namespace BattleRunner.Core.World
                 GroundAlt = new Rgb(0.118f, 0.228f, 0.282f),
                 GroundPatchScale = 0.07f, GroundSpeckle = 0.22f,
                 GroundSheen = new Rgb(0.40f, 0.62f, 0.80f), GroundSheenStrength = 0.78f,
+                Scenery = new SceneryPalette
+                {
+                    Verge = new[]
+                    {
+                        "gr_gravestone-bevel",
+                        "gr_gravestone-decorative",
+                        "gr_grave-border",
+                        "gr_candle",
+                        "gr_lantern-candle",
+                        "na_stone_smallA",
+                        "na_rock_smallC",
+                        "gr_rocks",
+                    },
+                    Field = new[]
+                    {
+                        "gr_pillar-large",
+                        "gr_pillar-square",
+                        "gr_crypt-small",
+                        "gr_brick-wall-curve",
+                        "gr_coffin",
+                        "na_statue_column",
+                        "gr_iron-fence-damaged",
+                    },
+                    Landmarks = new[]
+                    {
+                        Landmarks.Mausoleum,
+                        Landmarks.Ruin,
+                        Landmarks.Outcrop,
+                    },
+                    VergeDensity = 17f, FieldDensity = 12f,
+                    LandmarkSpacing = 88f,
+                    VergeTint = 0.7f, FieldTint = 0.24f, LandmarkTint = 0.08f
+                },
                 Props = new[] { PropKind.BrokenColumn, PropKind.Obelisk, PropKind.BoneArch },
                 PropDensity = 10f,
                 PropStone = new Rgb(0.205f, 0.220f, 0.250f),
@@ -129,6 +229,38 @@ namespace BattleRunner.Core.World
                 GroundAlt = new Rgb(0.330f, 0.128f, 0.040f),
                 GroundPatchScale = 0.11f, GroundSpeckle = 0.40f,
                 GroundSheen = new Rgb(1.10f, 0.42f, 0.16f), GroundSheenStrength = 0.30f,
+                Scenery = new SceneryPalette
+                {
+                    Verge = new[]
+                    {
+                        "na_stump_old",
+                        "na_rock_tallA",
+                        "na_rock_smallB",
+                        "gr_debris",
+                        "na_log",
+                        "gr_gravestone-broken",
+                        "na_stone_tallA",
+                    },
+                    Field = new[]
+                    {
+                        "na_rock_largeB",
+                        "na_rock_largeC",
+                        "fa_fence-broken",
+                        "na_log_large",
+                        "su_barrel",
+                        "fa_cart",
+                        "na_tree_small",
+                    },
+                    Landmarks = new[]
+                    {
+                        Landmarks.SiegeCamp,
+                        Landmarks.Ruin,
+                        Landmarks.Windmill,
+                    },
+                    VergeDensity = 12f, FieldDensity = 8f,
+                    LandmarkSpacing = 100f,
+                    VergeTint = 0.66f, FieldTint = 0.22f, LandmarkTint = 0.06f
+                },
                 Props = new[] { PropKind.RockSpire, PropKind.Brazier, PropKind.RuinedWall },
                 PropDensity = 8f,
                 PropStone = new Rgb(0.175f, 0.150f, 0.145f),
@@ -155,6 +287,38 @@ namespace BattleRunner.Core.World
                 GroundAlt = new Rgb(0.458f, 0.432f, 0.362f),
                 GroundPatchScale = 0.05f, GroundSpeckle = 0.18f,
                 GroundSheen = new Rgb(0.55f, 0.52f, 0.44f), GroundSheenStrength = 0.05f,
+                Scenery = new SceneryPalette
+                {
+                    Verge = new[]
+                    {
+                        "gr_gravestone-cross",
+                        "gr_cross",
+                        "gr_gravestone-round",
+                        "na_rock_tallB",
+                        "na_stone_tallA",
+                        "gr_grave",
+                        "na_rock_smallA",
+                    },
+                    Field = new[]
+                    {
+                        "na_statue_obelisk",
+                        "na_statue_ring",
+                        "gr_pillar-large",
+                        "na_rock_largeA",
+                        "gr_brick-wall-end",
+                        "na_tree_thin",
+                        "gr_crypt-small",
+                    },
+                    Landmarks = new[]
+                    {
+                        Landmarks.Outcrop,
+                        Landmarks.Mausoleum,
+                        Landmarks.Keep,
+                    },
+                    VergeDensity = 10f, FieldDensity = 7f,
+                    LandmarkSpacing = 120f,
+                    VergeTint = 0.62f, FieldTint = 0.2f, LandmarkTint = 0.05f
+                },
                 Props = new[] { PropKind.Gravestone, PropKind.BoneArch, PropKind.RockSpire },
                 PropDensity = 7f,
                 PropStone = new Rgb(0.455f, 0.435f, 0.385f),
@@ -181,6 +345,37 @@ namespace BattleRunner.Core.World
                 GroundAlt = new Rgb(0.645f, 0.700f, 0.782f),
                 GroundPatchScale = 0.14f, GroundSpeckle = 0.16f,
                 GroundSheen = new Rgb(0.72f, 0.86f, 1.00f), GroundSheenStrength = 0.68f,
+                Scenery = new SceneryPalette
+                {
+                    Verge = new[]
+                    {
+                        "na_rock_tallA",
+                        "na_rock_smallC",
+                        "na_stump_round",
+                        "na_stone_smallA",
+                        "gr_gravestone-bevel",
+                        "na_rock_smallB",
+                    },
+                    Field = new[]
+                    {
+                        "na_tree_pineTallA",
+                        "na_tree_pineTallB",
+                        "na_tree_pineDefaultA",
+                        "na_tree_pineSmallA",
+                        "na_tree_pineRoundA",
+                        "gr_iron-fence",
+                        "na_rock_largeC",
+                    },
+                    Landmarks = new[]
+                    {
+                        Landmarks.PineStand,
+                        Landmarks.Keep,
+                        Landmarks.Cottage,
+                    },
+                    VergeDensity = 13f, FieldDensity = 15f,
+                    LandmarkSpacing = 98f,
+                    VergeTint = 0.6f, FieldTint = 0.18f, LandmarkTint = 0.05f
+                },
                 Props = new[] { PropKind.RockSpire, PropKind.Obelisk, PropKind.DeadTree },
                 PropDensity = 8f,
                 PropStone = new Rgb(0.390f, 0.450f, 0.510f),
@@ -207,6 +402,38 @@ namespace BattleRunner.Core.World
                 GroundAlt = new Rgb(0.320f, 0.145f, 0.136f),
                 GroundPatchScale = 0.06f, GroundSpeckle = 0.34f,
                 GroundSheen = new Rgb(0.80f, 0.30f, 0.34f), GroundSheenStrength = 0.48f,
+                Scenery = new SceneryPalette
+                {
+                    Verge = new[]
+                    {
+                        "na_stump_oldTall",
+                        "gr_gravestone-debris",
+                        "na_grass_large",
+                        "na_plant_bushDetailed",
+                        "gr_bench-damaged",
+                        "na_log",
+                        "gr_debris",
+                    },
+                    Field = new[]
+                    {
+                        "na_tree_oak",
+                        "na_tree_plateau",
+                        "gr_iron-fence-curve",
+                        "su_fence",
+                        "fa_stall",
+                        "na_crop_melon",
+                        "su_tent",
+                    },
+                    Landmarks = new[]
+                    {
+                        Landmarks.Watermill,
+                        Landmarks.SiegeCamp,
+                        Landmarks.Mausoleum,
+                    },
+                    VergeDensity = 20f, FieldDensity = 12f,
+                    LandmarkSpacing = 92f,
+                    VergeTint = 0.76f, FieldTint = 0.32f, LandmarkTint = 0.13f
+                },
                 Props = new[] { PropKind.Stump, PropKind.HangingCage, PropKind.Gravestone, PropKind.DeadTree },
                 PropDensity = 12f,
                 PropStone = new Rgb(0.225f, 0.150f, 0.150f),
@@ -233,6 +460,38 @@ namespace BattleRunner.Core.World
                 GroundAlt = new Rgb(0.232f, 0.196f, 0.302f),
                 GroundPatchScale = 0.10f, GroundSpeckle = 0.28f,
                 GroundSheen = new Rgb(0.52f, 0.38f, 0.70f), GroundSheenStrength = 0.12f,
+                Scenery = new SceneryPalette
+                {
+                    Verge = new[]
+                    {
+                        "gr_gravestone-decorative",
+                        "gr_bench",
+                        "gr_lantern-candle",
+                        "gr_grave-border",
+                        "na_stone_tallA",
+                        "gr_rocks",
+                        "gr_candle",
+                    },
+                    Field = new[]
+                    {
+                        "gr_pillar-square",
+                        "gr_pillar-large",
+                        "na_statue_column",
+                        "na_statue_ring",
+                        "gr_brick-wall",
+                        "fa_lantern",
+                        "gr_crypt-small",
+                    },
+                    Landmarks = new[]
+                    {
+                        Landmarks.Keep,
+                        Landmarks.Mausoleum,
+                        Landmarks.Ruin,
+                    },
+                    VergeDensity = 16f, FieldDensity = 11f,
+                    LandmarkSpacing = 82f,
+                    VergeTint = 0.68f, FieldTint = 0.26f, LandmarkTint = 0.04f
+                },
                 Props = new[] { PropKind.Obelisk, PropKind.Brazier, PropKind.RuinedWall, PropKind.BoneArch },
                 PropDensity = 9f,
                 PropStone = new Rgb(0.150f, 0.140f, 0.170f),

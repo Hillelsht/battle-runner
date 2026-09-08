@@ -16,8 +16,8 @@ points → save → next level.
 |---|---|
 | Game loop | Complete end to end |
 | Content | 8 worlds, 6 levels, 6 bosses (6 archetypes) x 5 champion affixes = 30 fights, 15 gear items, 4 rarities, ~60 talents + endless paragon |
-| Art | Greybox — procedural meshes, code-built uGUI, no imported assets |
-| Tests | 300, green under both `dotnet test` and Unity's Test Runner |
+| Art | Procedural meshes and code-built uGUI, plus 119 CC0 Kenney models baked into one 563 KB pack |
+| Tests | 323, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
@@ -83,6 +83,72 @@ The tree's scroll column carries a fully transparent `Image` on its viewport pur
 raycast target. Without a Graphic the `ScrollRect` is not hit-testable, so only drags that
 began on a child button reached it — and on a column of sixty nodes the gaps between cells
 are most of the screen, which made the list read as stuck rather than as fussy.
+
+**Castles, farms, mills and crypts, from 119 CC0 Kenney models.** The verge was ten
+procedural meshes, none taller than 1.36 units, in one grey per world, in two fixed bands.
+Two worlds could differ only in WHICH THREE of the ten they drew — which is what "minor
+colors only" actually was.
+
+The models come from `raw.githubusercontent.com/shorepine/kenney`, a complete CC0 mirror and
+**the only asset host reachable from the build container** (kenney.nl, itch.io,
+quaternius.com, OpenGameArt and Freesound all fail to connect; GitHub HTML, the API and the
+zip endpoint return 403). File names had to be probed for: 290 plausible guesses found 95,
+and then `graveyard/iron-fence` gave away that the kits use HYPHENS, and 5,014 hyphenated
+candidates took it to 175.
+
+**Baked offline, not imported.** Unity cannot read .glb, and glTFast or UnityGLTF would bring
+a second material and rendering path alongside the Graphics.RenderMeshInstanced one everything
+here already uses, plus a GUID per model in a repo whose .meta files are all hand-written.
+`tooling/fetch_scenery.py` fetches, parses, bakes vertex colours, welds and packs 119 pieces
+into one 563 KB TextAsset: one committed file, one .meta, no importer, no prefabs.
+
+Colour arrives two ways and both are handled — most kits sample a shared 512x512 atlas, the
+nature kit has no image at all and splits a model into one primitive per material with a
+linear baseColorFactor. Two things cost a run each to find: the atlas needs **no V flip**
+(flipping samples solid black), and the atlases are **8-bit indexed PNGs**, so the decoder
+needed a palette path. Pillow is deliberately not a dependency, so the whole PNG reader is one
+zlib call and five filter cases. Welding is on position, normal AND colour together: welding
+on position alone would smooth every hard edge and turn a castle into a blob.
+
+**The format is read in Core, and it caught two bugs before anything reached a device.**
+Neither would have thrown — a misread buffer does not error, it scatters triangles across the
+level and looks like a physics bug. `RecordBytes` was declared 56 when the record is 64, so
+every vertex was read eight bytes early; and `VertexBytes` was declared 16 when both writers
+emit 14, with a doc comment claiming the pad kept it 4-byte aligned, which 14 is not. The
+reader lives in Core specifically so the test assembly — which references Core and nothing
+else — can round-trip the format with no file path and no engine.
+
+**A landmark is expanded, not baked, and that is the load-bearing choice.** Baked flat the
+castle keep is 7,100 vertices and one draw call, so six keeps are six draws of 7,100. Kept as
+data — `Core/Art/Landmarks.cs`, nine structures as lists of (piece, position, yaw, scale) —
+six keeps are still THREE draw calls, because every castle wall in the level lands in the same
+instancing bucket. It also makes a landmark walkable by a test, and three tests found things:
+four structures had parts reaching past the radius used to keep them clear of the road; the
+mausoleum topped out at 5.7 m, which is a large building and not a landmark; and after fixing
+that an upper bound was added, because at the landmark scale first chosen **the keep stood
+38 m and filled the sky**. At 3.4 it stands 26 m.
+
+**Bright landmarks, dark verge**, as a checked invariant. The pack is baked in Kenney's own
+cheerful palette and each of the three zones is dragged its own distance toward the world's
+stone at runtime — 0.74 / 0.30 / 0.12 on the Ashen Road — so the road you look down stays grim
+while the castle on the skyline carries the colour. A test pins the ordering in every world.
+Because the tint is a runtime uniform, changing the mood of the whole game is a number rather
+than a re-bake.
+
+`Scenery.shader` is CrowdInstanced's lighting with colour read from the vertex and the run-bob
+and scale decode DELETED. That deletion is the point: CrowdInstanced recovers a soldier's bob
+phase from instance scale in a 0.44-0.50 window and anything outside pins to 1.0 and brightens
+30%, and scenery is placed at 1.5x to 3.4x. A separate shader means the trap does not exist
+rather than has to be remembered.
+
+Only landmarks cast shadows. The verge is dense and its shadows fall on ground nobody looks
+at, and the shadow pass is where a field of scenery starts costing milliseconds — but a castle
+that casts nothing sits on the land the way the army used to hover over the road.
+
+Licence: all CC0, `Assets/Art/LICENSE-KENNEY-CC0.txt` verbatim, `Assets/Art/ASSETS.md` mapping
+every piece to its kit, original name, zone, triangle count and height. The .glb sources are
+not committed. `.gitattributes` gained explicit binary entries, because it previously marked
+nine text extensions and nothing as binary.
 
 **The world beside the road did not exist.** Not "was sparse" — did not exist.
 `SpawnGroundStrip` derived every dimension from the lane pitch and built exactly one box,
@@ -533,7 +599,7 @@ The v0.4.0 screenshots confirmed the art pass landed — sky, stars, shadows, ro
 gates and UI frames all correct on device — and surfaced two bugs that were never about
 art: `Focus -0 %` on the menu and `+0.01 Focus` on the loot card. Both were units chosen
 from the ModifierKind rather than from the stat, plus a hard-coded minus sign in front of
-a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 300 tests today).
+a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 323 tests today).
 
 A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
 11 survived adversarial refutation. The headline three: the key light pointed the same way

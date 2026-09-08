@@ -181,7 +181,7 @@ namespace BattleRunner.Gameplay
 
             // On the same object as the track, and after the crowd: the prop field needs the
             // crowd to know which slice of the verge is worth drawing.
-            ctx.Props = trackGo.AddComponent<Track.RoadsideProps>();
+            ctx.Props = trackGo.AddComponent<Track.SceneryField>();
             ctx.Props.Initialize(ctx.Crowd, ctx.CrowdMaterial);
 
             // Loaded HERE rather than beside the Vfx system further down: the boss's own

@@ -1,4 +1,5 @@
 using System;
+using BattleRunner.Core.Art;
 
 namespace BattleRunner.Core.World
 {
@@ -92,6 +93,14 @@ namespace BattleRunner.Core.World
         public float GroundSheenStrength = 0.15f;
 
         // --- what stands beside the road -----------------------------------
+        /// <summary>The imported scenery: verge, field and landmarks. See SceneryPalette.</summary>
+        public SceneryPalette Scenery = new SceneryPalette();
+
+        /// <summary>
+        /// The original ten procedural props. Kept, not replaced: they are the only meshes in
+        /// the game authored FOR this game, they cost nothing, and mixing them through the
+        /// verge stops an imported kit from looking like an imported kit.
+        /// </summary>
         public PropKind[] Props = Array.Empty<PropKind>();
         /// <summary>Roughly how many props per 100 m of one verge.</summary>
         public float PropDensity = 9f;

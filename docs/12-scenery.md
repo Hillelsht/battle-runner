@@ -169,3 +169,184 @@ undrifted colour — the same error at a smaller scale.
 riding on top at 35% so the band drifts between rounds as well as between worlds. Bounded to
 ±40°: past that, the band the player is meant to be running toward is beside them instead of
 ahead. A test pins both the bound and the spread.
+
+---
+
+# Real scenery: castles, farms, and things you go past
+
+## Where it comes from
+
+`https://raw.githubusercontent.com/shorepine/kenney` mirrors Kenney's entire CC0 library with
+one file per path. That matters because it is **the only asset host reachable from the build
+container**: kenney.nl, itch.io, quaternius.com, OpenGameArt and Freesound all fail to
+connect, GitHub's HTML and API return 403, and the zip endpoint is blocked too — so models
+have to be fetched one at a time.
+
+The kit index lists 49 kits and 4,812 glTF-binary models. This game uses 119 of them, drawn
+from castle, fantasy-town, graveyard, nature and survival.
+
+**File names had to be probed for.** There is no directory listing and the API is blocked. A
+first pass of 290 plausible names found 95; the breakthrough was `graveyard/iron-fence`,
+which proves the kits use **hyphens**, and a second pass of 5,014 hyphenated and suffixed
+candidates took it to 175. `tooling/fetch_scenery.py --probe` re-checks the list.
+
+## The bake
+
+Unity cannot import `.glb`, and the packages that can — glTFast, UnityGLTF — bring a second
+material and rendering path alongside the `Graphics.RenderMeshInstanced` one everything here
+already uses, plus a GUID per model in a repo whose `.meta` files are all hand-written. So
+the models are baked offline instead: **one committed file, one `.meta`, no importer, no
+prefabs**, and meshes that arrive in exactly the shape the instanced renderer wants.
+
+`tooling/fetch_scenery.py` fetches (cached, gitignored), parses, bakes and packs.
+
+**Colour arrives two ways, and the baker has to handle both.** Most kits use a single
+`colormap` material pointing at a 512×512 gradient atlas, with every vertex UV'd into a flat
+patch of it. The nature kit has no image at all and instead splits a model into one primitive
+per material, each carrying a linear `baseColorFactor`. Both bake down to a **vertex colour**,
+so the game needs no textures, no UV channel and no per-piece material.
+
+Two things that cost a run to discover:
+
+- **No V flip.** The atlas is authored top-down to match these UVs. Flipping — the reflex when
+  reading glTF — samples solid black, because the top-left of the atlas is empty.
+- **The atlases are 8-bit indexed PNGs**, not truecolour. The decoder needed a `PLTE` path.
+  Pillow is deliberately not a dependency (tooling has to run wherever CI does), so the whole
+  decoder is one `zlib` call and five filter cases.
+
+Vertices are then **welded on position, normal *and* colour together**. Welding on position
+alone would smooth every hard edge in the pack and turn a castle into a blob — Kenney's meshes
+are flat-shaded, so a corner shared by three faces is genuinely three vertices.
+
+Result: 119 pieces, 30,886 vertices, 22,749 triangles, **563 KB**.
+
+## The format, and the two bugs the tests caught
+
+`Assets/Resources/Meshes/scenery.bytes`, read by `Core/Art/MeshPack.cs`:
+
+```
+'B','R','S','P' | version u16 | pieceCount u16
+pieceCount records of 64 bytes:
+    name 24B | vertexStart, vertexCount, indexStart, indexCount (4 x u32) | bounds 6 x f32
+vertex block, 14 bytes each: position 3 x u16 | normal 3 x i8 | pad | colour 4 x u8
+index block, u16 each
+```
+
+Positions quantise **per piece**, across that piece's own bounding box, rather than per pack.
+A gravestone and a castle wall share no scale, and one global quantum would spend all of its
+precision on the castle. Within a piece, u16 is about 0.02 mm on a 1.3 m wall.
+
+The reader lives in Core because that is what makes it testable: the test assembly references
+Core and nothing else, so `MeshPackTests` runs identically under headless `dotnet test` and
+under Unity's runner, with no file path and no engine. `MeshPackWriter` exists purely so the
+format round-trips in a test.
+
+It earned its keep immediately. **Two format bugs were caught before anything reached a
+device**, and neither would have thrown at runtime — a misread buffer does not error, it
+scatters triangles across the level and looks like a physics bug:
+
+1. `RecordBytes` was declared 56 when the record is 64 (24 + 16 + 24). Every vertex was read
+   eight bytes early.
+2. `VertexBytes` was declared 16 when both writers emit 14. The doc comment even claimed the
+   padding byte kept the record 4-byte aligned, which 14 is not.
+
+## Three zones, which are a budget rather than a label
+
+| Zone | Distance | Content | Cap | Shadows |
+|---|---|---|---|---|
+| Verge | 5.2–12 m | gravestones, stumps, rocks, grass, plus the ten original procedural props | 144 | no |
+| Field | 12–40 m | trees, pines, fences, carts, crops, iron railings | 96 | no |
+| Landmark | 26–52 m | castles, cottages, mills, mausoleums, ruins, outcrops | 64 | **yes** |
+
+Only landmarks cast. The verge is dense and its shadows fall on ground nobody looks at, and
+the shadow pass is exactly where a field of scenery starts costing milliseconds — but a castle
+that casts nothing sits on the land the way the army used to hover over the road.
+
+Field distance is drawn with a **squared** distribution. A uniform draw across a 28 m band
+puts as much in the first metre as the last, which crowds the near edge and leaves the far
+one bare.
+
+## A landmark is expanded, not baked
+
+`Core/Art/Landmarks.cs` describes nine structures as **data**: a keep, a cottage, a windmill,
+a watermill, a mausoleum, a ruin, an outcrop, a pine stand, a siege camp. Each is a list of
+`(piece, local position, yaw, scale)`.
+
+This is the load-bearing choice in the whole increment. Baked flat, the keep is 7,100 vertices
+and one draw call — but six keeps on screen are six draws of 7,100. Kept as parts, **six keeps
+are still three draw calls**, because every castle wall in the level lands in the same
+instancing bucket regardless of which castle it belongs to.
+
+It also makes a landmark walkable by a test, and three tests promptly found things:
+
+- `NoLandmarkPartStandsWhereItsOwnFootprintSaysItDoesNot` caught four structures whose parts
+  reached past the radius the placement uses to keep them clear of the road — the cottage
+  fence by 0.1 m, the windmill's crops by 1.5 m. Every radius is now the computed reach.
+- `LandmarkPartsAreStackedOnEachOtherRatherThanFloating` checks that anything raised is sitting
+  on a part that actually reaches that high. Tower courses are stacked by hand from measured
+  module heights (base 1.01, mid 1.01, roof 2.01) and a mistyped course would float.
+- `ScaleTurnsKenneyModulesIntoBuildings` caught the mausoleum topping out at 5.7 m, which is a
+  large building and not a landmark, and — after the fix — an upper bound was added because
+  **at the landmark scale first chosen the castle keep stood 38 m and filled the sky.** At 3.4
+  it stands 26 m, which is a real castle.
+
+## Bright landmarks, dark verge
+
+Kenney's palette is cheerful and saturated. The road the player actually looks down has to
+stay grim or this stops being dark fantasy — but a lit castle on the horizon is worth more
+than either extreme alone. So the pack is baked **honestly**, in Kenney's own colour, and each
+zone is dragged its own distance toward the world's `PropStone` at runtime:
+
+| | verge | field | landmark |
+|---|---:|---:|---:|
+| The Ashen Road | 0.74 | 0.30 | 0.12 |
+| The Frozen Reach | 0.60 | 0.18 | 0.05 |
+| Gallows Mire | 0.78 | 0.34 | 0.14 |
+
+A test pins the ordering — verge grimmer than field grimmer than landmark, in every world —
+so this cannot quietly invert. It is a *lerp* in albedo, not a multiply: multiplying toward
+grey desaturates but also darkens everything equally, which flattens a verge rather than
+making it grim.
+
+Because the tint is a runtime uniform, **changing the mood of the whole game is a number, not
+a re-bake**.
+
+## The shader, and one coupling deleted rather than worked around
+
+`Assets/Resources/Scenery.shader` is `CrowdInstanced`'s lighting — the same wrapped
+half-lambert, the same shadow floor, the same per-pixel fog — with colour read from `COLOR`
+instead of the material, and with the run-bob and the scale decode **removed**.
+
+That removal is the point. `CrowdInstanced` recovers each soldier's bob phase from *instance
+scale* inside a 0.44–0.50 window, and anything outside pins to 1.0 and brightens about 30%.
+Scenery is placed at 1.5× to 3.4×. Borrowing the crowd shader would have meant remembering to
+zero `_ToneSpread` on every scenery material forever; a separate shader means the trap does
+not exist.
+
+The lighting is otherwise identical on purpose: an imported castle and a procedural soldier in
+one frame under two different lighting models is the fastest way to make bought-in art look
+pasted on.
+
+## Eight worlds, dressed differently
+
+The Ashen Road gets graveyard and dead trees under ruins and a cottage. Gallows Mire gets
+stumps, moss and a watermill. The Sunken Crypt gets colonnades and mausoleums. Ember Fields
+gets a siege camp. The Bone Wastes gets obelisks and a keep on the skyline. The Frozen Reach
+gets pine stands and a frozen keep. The Blood Marsh gets swamp huts and a watermill. The
+Throne of Dust gets a full castle.
+
+A test requires that no two worlds share more than three quarters of any band, and that no two
+have identical landmark sets.
+
+## Licence
+
+Everything is **CC0**. `Assets/Art/LICENSE-KENNEY-CC0.txt` carries Kenney's verbatim text —
+*"You can use this content for personal, educational, and commercial purposes"*, with crediting
+explicitly *not* a requirement — and `Assets/Art/ASSETS.md` maps every baked piece to its kit,
+its original Kenney file name, its zone, its triangle count and its height.
+
+The `.glb` sources are **not committed**; `tooling/.cache/` is gitignored and the script
+re-fetches on demand. `.gitattributes` gained explicit `binary` entries, because it previously
+marked nine text extensions and nothing as binary — a new `.bytes` or `.wav` was relying
+entirely on git's content heuristic, and the unconditional `*.asset text eol=lf` would have
+LF-mangled any Unity asset written in binary mode.

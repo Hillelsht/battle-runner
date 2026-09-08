@@ -8,3 +8,12 @@
 *.shader text eol=lf
 *.cs text eol=lf
 *.json text eol=lf
+
+# Binary payloads. Nothing here was marked binary before, so a new .bytes or .wav relied
+# entirely on git's content heuristic — and `*.asset text eol=lf` above is unconditional,
+# which would silently LF-mangle any Unity asset written in binary mode.
+*.bytes binary
+*.wav binary
+*.ogg binary
+*.png binary
+*.glb binary

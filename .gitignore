@@ -38,3 +38,7 @@ tooling/__pycache__/
 # OS noise
 .DS_Store
 Thumbs.db
+
+# Downloaded Kenney source models. The BAKED pack is committed; the .glb files are not —
+# tooling/fetch_scenery.py re-fetches them on demand.
+tooling/.cache/

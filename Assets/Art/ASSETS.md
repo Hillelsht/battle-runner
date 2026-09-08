@@ -1,0 +1,131 @@
+# Imported assets
+
+Every 3D model in this game that was not written as code. All of it is Kenney's, released under **Creative Commons Zero (CC0)** — free for commercial use with no attribution required. We credit anyway.
+
+- Source: <https://kenney.nl> · mirror <https://github.com/shorepine/kenney>
+- Licence: `Assets/Art/LICENSE-KENNEY-CC0.txt`
+- Fetched via `tooling/fetch_scenery.py` (pack sha256 `36877978a9031f71`)
+
+The `.glb` files are not committed. They are baked — vertex colours sampled from each kit's atlas, duplicate vertices welded, positions quantised — into the single binary `Assets/Resources/Meshes/scenery.bytes`. Re-run the script to change the selection.
+
+| Piece | Kit | Kenney name | Zone | Tris | Height |
+|---|---|---|---|---:|---:|
+| `gr_gravestone-round` | graveyard | `gravestone-round` | verge | 178 | 0.57 |
+| `gr_gravestone-wide` | graveyard | `gravestone-wide` | verge | 266 | 0.57 |
+| `gr_gravestone-broken` | graveyard | `gravestone-broken` | verge | 134 | 0.34 |
+| `gr_gravestone-cross` | graveyard | `gravestone-cross` | verge | 222 | 0.91 |
+| `gr_gravestone-bevel` | graveyard | `gravestone-bevel` | verge | 174 | 0.53 |
+| `gr_gravestone-decorative` | graveyard | `gravestone-decorative` | verge | 92 | 0.59 |
+| `gr_gravestone-debris` | graveyard | `gravestone-debris` | verge | 122 | 0.27 |
+| `gr_grave` | graveyard | `grave` | verge | 256 | 0.11 |
+| `gr_grave-border` | graveyard | `grave-border` | verge | 600 | 0.11 |
+| `gr_cross` | graveyard | `cross` | verge | 158 | 1.05 |
+| `gr_debris` | graveyard | `debris` | verge | 240 | 0.16 |
+| `gr_rocks` | graveyard | `rocks` | verge | 364 | 0.38 |
+| `gr_candle` | graveyard | `candle` | verge | 54 | 0.20 |
+| `gr_lantern-candle` | graveyard | `lantern-candle` | verge | 224 | 0.39 |
+| `gr_bench` | graveyard | `bench` | verge | 160 | 0.53 |
+| `gr_bench-damaged` | graveyard | `bench-damaged` | verge | 240 | 0.52 |
+| `na_rock_smallA` | nature | `rock_smallA` | verge | 16 | 0.19 |
+| `na_rock_smallB` | nature | `rock_smallB` | verge | 24 | 0.18 |
+| `na_rock_smallC` | nature | `rock_smallC` | verge | 16 | 0.12 |
+| `na_rock_tallA` | nature | `rock_tallA` | verge | 136 | 1.00 |
+| `na_rock_tallB` | nature | `rock_tallB` | verge | 172 | 0.88 |
+| `na_stump_old` | nature | `stump_old` | verge | 120 | 0.27 |
+| `na_stump_oldTall` | nature | `stump_oldTall` | verge | 120 | 0.67 |
+| `na_stump_round` | nature | `stump_round` | verge | 56 | 0.21 |
+| `na_log` | nature | `log` | verge | 200 | 0.17 |
+| `na_grass` | nature | `grass` | verge | 132 | 0.25 |
+| `na_grass_large` | nature | `grass_large` | verge | 224 | 0.25 |
+| `na_grass_leafs` | nature | `grass_leafs` | verge | 36 | 0.14 |
+| `na_plant_bushSmall` | nature | `plant_bushSmall` | verge | 16 | 0.21 |
+| `na_plant_bushDetailed` | nature | `plant_bushDetailed` | verge | 104 | 0.36 |
+| `na_mushroom_redGroup` | nature | `mushroom_redGroup` | verge | 144 | 0.25 |
+| `na_stone_smallA` | nature | `stone_smallA` | verge | 16 | 0.19 |
+| `na_stone_tallA` | nature | `stone_tallA` | verge | 136 | 1.00 |
+| `na_tree_default` | nature | `tree_default` | field | 114 | 1.71 |
+| `na_tree_oak` | nature | `tree_oak` | field | 196 | 1.23 |
+| `na_tree_tall` | nature | `tree_tall` | field | 72 | 1.69 |
+| `na_tree_thin` | nature | `tree_thin` | field | 228 | 1.49 |
+| `na_tree_small` | nature | `tree_small` | field | 62 | 1.11 |
+| `na_tree_simple` | nature | `tree_simple` | field | 62 | 1.52 |
+| `na_tree_pineDefaultA` | nature | `tree_pineDefaultA` | field | 230 | 1.55 |
+| `na_tree_pineTallA` | nature | `tree_pineTallA` | field | 78 | 1.53 |
+| `na_tree_pineTallB` | nature | `tree_pineTallB` | field | 78 | 1.93 |
+| `na_tree_pineRoundA` | nature | `tree_pineRoundA` | field | 204 | 1.37 |
+| `na_tree_pineSmallA` | nature | `tree_pineSmallA` | field | 164 | 0.97 |
+| `na_tree_plateau` | nature | `tree_plateau` | field | 215 | 1.25 |
+| `na_rock_largeA` | nature | `rock_largeA` | field | 80 | 0.26 |
+| `na_rock_largeB` | nature | `rock_largeB` | field | 85 | 0.43 |
+| `na_rock_largeC` | nature | `rock_largeC` | field | 72 | 0.32 |
+| `na_log_large` | nature | `log_large` | field | 96 | 0.42 |
+| `na_fence_simple` | nature | `fence_simple` | field | 64 | 0.35 |
+| `na_crops_bambooStageA` | nature | `crops_bambooStageA` | field | 276 | 0.55 |
+| `na_crop_carrot` | nature | `crop_carrot` | field | 148 | 0.62 |
+| `na_crop_melon` | nature | `crop_melon` | field | 236 | 0.35 |
+| `na_statue_obelisk` | nature | `statue_obelisk` | field | 38 | 0.88 |
+| `na_statue_column` | nature | `statue_column` | field | 122 | 1.00 |
+| `na_statue_ring` | nature | `statue_ring` | field | 76 | 0.80 |
+| `na_tent_detailedOpen` | nature | `tent_detailedOpen` | field | 232 | 0.56 |
+| `fa_fence` | fantasy-town | `fence` | field | 84 | 0.38 |
+| `fa_fence-broken` | fantasy-town | `fence-broken` | field | 124 | 0.38 |
+| `fa_fence-gate` | fantasy-town | `fence-gate` | field | 560 | 0.55 |
+| `fa_cart` | fantasy-town | `cart` | field | 608 | 0.54 |
+| `fa_stall` | fantasy-town | `stall` | field | 106 | 0.37 |
+| `fa_planks` | fantasy-town | `planks` | field | 96 | 0.06 |
+| `fa_lantern` | fantasy-town | `lantern` | field | 158 | 1.56 |
+| `gr_iron-fence` | graveyard | `iron-fence` | field | 376 | 0.88 |
+| `gr_iron-fence-curve` | graveyard | `iron-fence-curve` | field | 472 | 0.88 |
+| `gr_iron-fence-damaged` | graveyard | `iron-fence-damaged` | field | 336 | 0.88 |
+| `gr_brick-wall` | graveyard | `brick-wall` | field | 192 | 0.73 |
+| `gr_brick-wall-curve` | graveyard | `brick-wall-curve` | field | 348 | 0.73 |
+| `gr_brick-wall-end` | graveyard | `brick-wall-end` | field | 316 | 0.85 |
+| `gr_pillar-large` | graveyard | `pillar-large` | field | 152 | 1.13 |
+| `gr_pillar-square` | graveyard | `pillar-square` | field | 178 | 1.15 |
+| `gr_crypt-small` | graveyard | `crypt-small` | field | 414 | 1.00 |
+| `gr_coffin` | graveyard | `coffin` | field | 256 | 0.20 |
+| `su_tent` | survival | `tent` | field | 124 | 0.49 |
+| `su_barrel` | survival | `barrel` | field | 412 | 0.34 |
+| `su_fence` | survival | `fence` | field | 48 | 0.52 |
+| `ca_wall` | castle | `wall` | mark | 178 | 1.31 |
+| `ca_wall-corner` | castle | `wall-corner` | mark | 168 | 1.31 |
+| `ca_wall-half` | castle | `wall-half` | mark | 126 | 1.31 |
+| `ca_wall-narrow` | castle | `wall-narrow` | mark | 126 | 1.31 |
+| `ca_wall-doorway` | castle | `wall-doorway` | mark | 500 | 1.31 |
+| `ca_tower-base` | castle | `tower-base` | mark | 332 | 1.31 |
+| `ca_tower-square` | castle | `tower-square` | mark | 176 | 1.31 |
+| `ca_tower-square-base` | castle | `tower-square-base` | mark | 28 | 1.01 |
+| `ca_tower-square-mid` | castle | `tower-square-mid` | mark | 76 | 1.01 |
+| `ca_tower-square-top` | castle | `tower-square-top` | mark | 148 | 0.30 |
+| `ca_tower-square-roof` | castle | `tower-square-roof` | mark | 144 | 2.01 |
+| `ca_tower-top` | castle | `tower-top` | mark | 320 | 0.13 |
+| `ca_gate` | castle | `gate` | mark | 146 | 0.91 |
+| `ca_flag` | castle | `flag` | mark | 144 | 0.87 |
+| `ca_flag-wide` | castle | `flag-wide` | mark | 256 | 0.87 |
+| `ca_siege-tower` | castle | `siege-tower` | mark | 1598 | 2.88 |
+| `ca_stairs-stone` | castle | `stairs-stone` | mark | 104 | 0.67 |
+| `fa_wall` | fantasy-town | `wall` | mark | 32 | 1.00 |
+| `fa_wall-half` | fantasy-town | `wall-half` | mark | 32 | 0.50 |
+| `fa_wall-door` | fantasy-town | `wall-door` | mark | 376 | 1.00 |
+| `fa_wall-corner` | fantasy-town | `wall-corner` | mark | 52 | 1.00 |
+| `fa_wall-broken` | fantasy-town | `wall-broken` | mark | 166 | 1.00 |
+| `fa_wall-wood` | fantasy-town | `wall-wood` | mark | 32 | 1.00 |
+| `fa_roof` | fantasy-town | `roof` | mark | 64 | 0.65 |
+| `fa_roof-corner` | fantasy-town | `roof-corner` | mark | 36 | 0.65 |
+| `fa_roof-gable` | fantasy-town | `roof-gable` | mark | 72 | 0.57 |
+| `fa_roof-high` | fantasy-town | `roof-high` | mark | 64 | 1.18 |
+| `fa_roof-point` | fantasy-town | `roof-point` | mark | 44 | 0.50 |
+| `fa_roof-flat` | fantasy-town | `roof-flat` | mark | 20 | 0.13 |
+| `fa_chimney` | fantasy-town | `chimney` | mark | 32 | 1.00 |
+| `fa_windmill` | fantasy-town | `windmill` | mark | 732 | 3.11 |
+| `fa_watermill` | fantasy-town | `watermill` | mark | 600 | 1.80 |
+| `fa_overhang` | fantasy-town | `overhang` | mark | 68 | 0.33 |
+| `gr_crypt` | graveyard | `crypt` | mark | 252 | 0.73 |
+| `gr_crypt-large` | graveyard | `crypt-large` | mark | 626 | 1.00 |
+| `gr_crypt-door` | graveyard | `crypt-door` | mark | 136 | 0.74 |
+| `gr_column-large` | graveyard | `column-large` | mark | 394 | 1.13 |
+| `na_cliff_rock` | nature | `cliff_rock` | mark | 32 | 1.00 |
+| `na_cliff_top_rock` | nature | `cliff_top_rock` | mark | 53 | 1.00 |
+| `na_statue_head` | nature | `statue_head` | mark | 196 | 1.00 |
+| `na_tree_pineDefaultB` | nature | `tree_pineDefaultB` | mark | 246 | 1.55 |
+| `na_tree_pineGroundA` | nature | `tree_pineGroundA` | mark | 82 | 0.91 |
