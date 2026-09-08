@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using BattleRunner.Core.Boss;
+using BattleRunner.Core.World;
 using UnityEngine;
 
 namespace BattleRunner.Gameplay
@@ -21,6 +22,9 @@ namespace BattleRunner.Gameplay
     public static class ProceduralMeshes
     {
         private static Mesh _unit;
+        private static readonly Mesh[] _props =
+            new Mesh[System.Enum.GetValues(typeof(PropKind)).Length];
+
         private static readonly Mesh[] _bosses =
             new Mesh[System.Enum.GetValues(typeof(BossArchetype)).Length];
         private static Mesh _cube;
@@ -504,6 +508,197 @@ namespace BattleRunner.Gameplay
                            new Vector3(0f, 0.22f, 0.58f), new Vector2(0.04f, 0.04f));
 
             return Finish(v, t, "Boss_Hound");
+        }
+
+        /// <summary>
+        /// What stands beside the road.
+        ///
+        /// Measured from the device screenshots, either side of the road was `(10, 8, 12)` in
+        /// every frame — pure black. There was no background to be tired of, because there was
+        /// no background: `SpawnGroundStrip` builds a ground box, four lane lines, two rails
+        /// and rung decals, and nothing at all exists beyond x = +/-4.16 m.
+        ///
+        /// These are built from the same prism/oriented-box toolkit as the six bosses, kept
+        /// cheap (four to eight hulls each) because a verge carries hundreds of them, and
+        /// normalised to roughly one unit tall so the placer can scale them freely. All of
+        /// them are drawn by RoadsideProps in one instanced call per kind.
+        /// </summary>
+        public static Mesh Prop(PropKind kind)
+        {
+            int i = (int)kind;
+            if (i < 0 || i >= _props.Length) i = 0;
+            if (_props[i] == null) _props[i] = BuildProp((PropKind)i);
+            return _props[i];
+        }
+
+        private static Mesh BuildProp(PropKind kind) => kind switch
+        {
+            PropKind.DeadTree => BuildDeadTree(),
+            PropKind.BrokenColumn => BuildBrokenColumn(),
+            PropKind.Brazier => BuildBrazier(),
+            PropKind.Obelisk => BuildObelisk(),
+            PropKind.HangingCage => BuildHangingCage(),
+            PropKind.BoneArch => BuildBoneArch(),
+            PropKind.RockSpire => BuildRockSpire(),
+            PropKind.RuinedWall => BuildRuinedWall(),
+            PropKind.Stump => BuildStump(),
+            _ => BuildGravestone()
+        };
+
+        /// <summary>A leaning slab on a plinth. The lean is what stops a field of them reading as a fence.</summary>
+        private static Mesh BuildGravestone()
+        {
+            var v = new List<Vector3>();
+            var t = new List<int>();
+            AddPrism(v, t, new Vector3(0f, 0f, 0f), new Vector2(0.58f, 0.40f),
+                           new Vector3(0f, 0.10f, 0f), new Vector2(0.50f, 0.34f));
+            AddOrientedBox(v, t, new Vector3(0.03f, 0.55f, 0f), new Vector3(0.42f, 0.92f, 0.13f),
+                Quaternion.Euler(0f, 0f, -6f));
+            AddPrism(v, t, new Vector3(0.06f, 0.98f, 0f), new Vector2(0.40f, 0.13f),
+                           new Vector3(0.07f, 1.06f, 0f), new Vector2(0.26f, 0.10f));
+            return Finish(v, t, "Prop_Gravestone");
+        }
+
+        /// <summary>Trunk and three bare branches, all leaning the same way, as if wind-set.</summary>
+        private static Mesh BuildDeadTree()
+        {
+            var v = new List<Vector3>();
+            var t = new List<int>();
+            AddPrism(v, t, new Vector3(0f, 0f, 0f), new Vector2(0.26f, 0.26f),
+                           new Vector3(0.05f, 0.62f, 0.02f), new Vector2(0.13f, 0.13f));
+            AddPrism(v, t, new Vector3(0.05f, 0.62f, 0.02f), new Vector2(0.13f, 0.13f),
+                           new Vector3(0.11f, 1.18f, 0.04f), new Vector2(0.05f, 0.05f));
+            AddPrism(v, t, new Vector3(0.04f, 0.58f, 0f), new Vector2(0.09f, 0.09f),
+                           new Vector3(-0.34f, 0.92f, 0.10f), new Vector2(0.02f, 0.02f));
+            AddPrism(v, t, new Vector3(0.06f, 0.74f, 0f), new Vector2(0.08f, 0.08f),
+                           new Vector3(0.40f, 1.02f, -0.12f), new Vector2(0.02f, 0.02f));
+            AddPrism(v, t, new Vector3(0.08f, 0.90f, 0.02f), new Vector2(0.06f, 0.06f),
+                           new Vector3(-0.16f, 1.24f, -0.14f), new Vector2(0.015f, 0.015f));
+            return Finish(v, t, "Prop_DeadTree");
+        }
+
+        /// <summary>A shaft snapped off at an angle. Half a column reads older than a whole one.</summary>
+        private static Mesh BuildBrokenColumn()
+        {
+            var v = new List<Vector3>();
+            var t = new List<int>();
+            AddBox(v, t, new Vector3(0f, 0.06f, 0f), new Vector3(0.62f, 0.12f, 0.62f));
+            AddPrism(v, t, new Vector3(0f, 0.12f, 0f), new Vector2(0.40f, 0.40f),
+                           new Vector3(0f, 0.86f, 0f), new Vector2(0.34f, 0.34f));
+            AddOrientedBox(v, t, new Vector3(0f, 0.92f, 0f), new Vector3(0.36f, 0.16f, 0.36f),
+                Quaternion.Euler(13f, 0f, 9f));
+            return Finish(v, t, "Prop_BrokenColumn");
+        }
+
+        /// <summary>Three legs and a bowl. The only prop that looks like someone lit it.</summary>
+        private static Mesh BuildBrazier()
+        {
+            var v = new List<Vector3>();
+            var t = new List<int>();
+            for (int i = 0; i < 3; i++)
+            {
+                float a = i * Mathf.PI * 2f / 3f;
+                var foot = new Vector3(Mathf.Cos(a) * 0.26f, 0f, Mathf.Sin(a) * 0.26f);
+                AddPrism(v, t, foot, new Vector2(0.10f, 0.10f),
+                               new Vector3(0f, 0.52f, 0f), new Vector2(0.08f, 0.08f));
+            }
+            AddPrism(v, t, new Vector3(0f, 0.50f, 0f), new Vector2(0.30f, 0.30f),
+                           new Vector3(0f, 0.74f, 0f), new Vector2(0.50f, 0.50f));
+            return Finish(v, t, "Prop_Brazier");
+        }
+
+        /// <summary>A tall four-sided taper under a pyramid cap. The tallest thing on a verge.</summary>
+        private static Mesh BuildObelisk()
+        {
+            var v = new List<Vector3>();
+            var t = new List<int>();
+            AddBox(v, t, new Vector3(0f, 0.05f, 0f), new Vector3(0.52f, 0.10f, 0.52f));
+            AddPrism(v, t, new Vector3(0f, 0.10f, 0f), new Vector2(0.36f, 0.36f),
+                           new Vector3(0f, 1.18f, 0f), new Vector2(0.17f, 0.17f));
+            AddPrism(v, t, new Vector3(0f, 1.18f, 0f), new Vector2(0.17f, 0.17f),
+                           new Vector3(0f, 1.36f, 0f), new Vector2(0.02f, 0.02f));
+            return Finish(v, t, "Prop_Obelisk");
+        }
+
+        /// <summary>A gibbet: post, arm, chain and an empty cage. Reads at any distance.</summary>
+        private static Mesh BuildHangingCage()
+        {
+            var v = new List<Vector3>();
+            var t = new List<int>();
+            AddPrism(v, t, new Vector3(0f, 0f, 0f), new Vector2(0.20f, 0.20f),
+                           new Vector3(0f, 1.20f, 0f), new Vector2(0.13f, 0.13f));
+            AddOrientedBox(v, t, new Vector3(0.24f, 1.16f, 0f), new Vector3(0.52f, 0.09f, 0.09f),
+                Quaternion.identity);
+            AddBox(v, t, new Vector3(0.46f, 1.02f, 0f), new Vector3(0.035f, 0.24f, 0.035f));
+            // Cage: a lid, a floor and four uprights. Hollow, so the silhouette has holes in
+            // it, which is the entire reason to hang one beside a road.
+            AddBox(v, t, new Vector3(0.46f, 0.90f, 0f), new Vector3(0.30f, 0.05f, 0.30f));
+            AddBox(v, t, new Vector3(0.46f, 0.54f, 0f), new Vector3(0.30f, 0.05f, 0.30f));
+            for (int i = 0; i < 4; i++)
+            {
+                float dx = (i % 2 == 0 ? -1f : 1f) * 0.13f;
+                float dz = (i < 2 ? -1f : 1f) * 0.13f;
+                AddBox(v, t, new Vector3(0.46f + dx, 0.72f, dz), new Vector3(0.04f, 0.36f, 0.04f));
+            }
+            return Finish(v, t, "Prop_HangingCage");
+        }
+
+        /// <summary>Two ribs meeting overhead. Three segments a side so the curve reads as a curve.</summary>
+        private static Mesh BuildBoneArch()
+        {
+            var v = new List<Vector3>();
+            var t = new List<int>();
+            for (int side = -1; side <= 1; side += 2)
+            {
+                AddPrism(v, t, new Vector3(side * 0.52f, 0f, 0f), new Vector2(0.18f, 0.18f),
+                               new Vector3(side * 0.40f, 0.48f, 0f), new Vector2(0.13f, 0.13f));
+                AddPrism(v, t, new Vector3(side * 0.40f, 0.48f, 0f), new Vector2(0.13f, 0.13f),
+                               new Vector3(side * 0.22f, 0.86f, 0f), new Vector2(0.10f, 0.10f));
+                AddPrism(v, t, new Vector3(side * 0.22f, 0.86f, 0f), new Vector2(0.10f, 0.10f),
+                               new Vector3(side * 0.03f, 1.04f, 0f), new Vector2(0.08f, 0.08f));
+            }
+            return Finish(v, t, "Prop_BoneArch");
+        }
+
+        /// <summary>Three stacked leaning blocks. Asymmetric on purpose — rock is never a cone.</summary>
+        private static Mesh BuildRockSpire()
+        {
+            var v = new List<Vector3>();
+            var t = new List<int>();
+            AddPrism(v, t, new Vector3(0f, 0f, 0f), new Vector2(0.62f, 0.54f),
+                           new Vector3(0.07f, 0.52f, 0.04f), new Vector2(0.34f, 0.30f));
+            AddPrism(v, t, new Vector3(0.07f, 0.52f, 0.04f), new Vector2(0.34f, 0.30f),
+                           new Vector3(0.17f, 0.96f, -0.05f), new Vector2(0.18f, 0.16f));
+            AddPrism(v, t, new Vector3(0.17f, 0.96f, -0.05f), new Vector2(0.18f, 0.16f),
+                           new Vector3(0.12f, 1.26f, -0.02f), new Vector2(0.04f, 0.04f));
+            return Finish(v, t, "Prop_RockSpire");
+        }
+
+        /// <summary>Three courses at three heights — a wall that stopped being a wall.</summary>
+        private static Mesh BuildRuinedWall()
+        {
+            var v = new List<Vector3>();
+            var t = new List<int>();
+            AddBox(v, t, new Vector3(-0.52f, 0.30f, 0f), new Vector3(0.52f, 0.60f, 0.26f));
+            AddBox(v, t, new Vector3(0f, 0.43f, 0f), new Vector3(0.50f, 0.86f, 0.26f));
+            AddBox(v, t, new Vector3(0.50f, 0.22f, 0f), new Vector3(0.48f, 0.44f, 0.26f));
+            AddOrientedBox(v, t, new Vector3(0.86f, 0.10f, 0.18f), new Vector3(0.30f, 0.20f, 0.24f),
+                Quaternion.Euler(0f, 24f, 11f));
+            return Finish(v, t, "Prop_RuinedWall");
+        }
+
+        /// <summary>A cut trunk with the splinters still on it. Low, so it breaks up a skyline of tall things.</summary>
+        private static Mesh BuildStump()
+        {
+            var v = new List<Vector3>();
+            var t = new List<int>();
+            AddPrism(v, t, new Vector3(0f, 0f, 0f), new Vector2(0.60f, 0.56f),
+                           new Vector3(0.02f, 0.34f, 0f), new Vector2(0.44f, 0.42f));
+            AddOrientedBox(v, t, new Vector3(-0.10f, 0.44f, 0.05f), new Vector3(0.14f, 0.24f, 0.12f),
+                Quaternion.Euler(0f, 20f, -14f));
+            AddOrientedBox(v, t, new Vector3(0.14f, 0.40f, -0.08f), new Vector3(0.11f, 0.17f, 0.10f),
+                Quaternion.Euler(0f, -35f, 17f));
+            return Finish(v, t, "Prop_Stump");
         }
 
         /// <summary>

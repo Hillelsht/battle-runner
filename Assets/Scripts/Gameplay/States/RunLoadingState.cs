@@ -34,6 +34,12 @@ namespace BattleRunner.Gameplay.States
 
             _ctx.ArenaRoot.SetActive(true);
             _ctx.TrackController.BuildLevel(level);
+
+            // After BuildLevel, because the verge is dressed to the road's actual length.
+            // It runs a little past the ground strip's own end so nothing pops in at the
+            // horizon while the player is still looking at it through fog.
+            _ctx.Props.Build(theme, variant, _ctx.Profile.CurrentLevelIndex,
+                -20f, _ctx.TrackController.FinishZ + 210f);
             _ctx.Crowd.ResetRun(level.StartingForce, 0f);
             _ctx.CameraRig.SnapToCrowd();
 

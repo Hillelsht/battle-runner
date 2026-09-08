@@ -179,6 +179,11 @@ namespace BattleRunner.Gameplay
             ctx.TrackController.Initialize(ctx.CrowdMaterial, enemyMaterial, ProceduralMeshes.Unit,
                 UiFactory.Font, ctx.Config.Balance.LaneWidthMeters);
 
+            // On the same object as the track, and after the crowd: the prop field needs the
+            // crowd to know which slice of the verge is worth drawing.
+            ctx.Props = trackGo.AddComponent<Track.RoadsideProps>();
+            ctx.Props.Initialize(ctx.Crowd, ctx.CrowdMaterial);
+
             // Loaded HERE rather than beside the Vfx system further down: the boss's own
             // ward shell needs the same additive material, and BossView is built first.
             Material vfxMaterial = LoadVfxMaterial();

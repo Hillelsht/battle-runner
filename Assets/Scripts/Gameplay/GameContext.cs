@@ -40,6 +40,9 @@ namespace BattleRunner.Gameplay
         public CrowdController Crowd;
         public HeroVisual Hero;
         public TrackController TrackController;
+
+        /// <summary>What stands beside the road. Dressed per round from the act's world.</summary>
+        public Track.RoadsideProps Props;
         public BossView BossView;
         public CameraRig CameraRig;
         public Vfx.ShieldWard Ward;

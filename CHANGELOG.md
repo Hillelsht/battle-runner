@@ -84,6 +84,27 @@ raycast target. Without a Graphic the `ScrollRect` is not hit-testable, so only 
 began on a child button reached it — and on a column of sixty nodes the gaps between cells
 are most of the screen, which made the list read as stuck rather than as fussy.
 
+**And there is now something standing beside the road.** The measurement that mattered most
+was the third one: either side of the road sampled `(10,8,12)` — black — in every frame. There
+was no background to be tired of, because there was none. Ten procedural props (gravestone,
+dead tree, broken column, brazier, obelisk, hanging cage, bone arch, rock spire, ruined wall,
+stump) now dress both verges in two bands: a near band from 5.2 to 9 m carrying detail the
+player reads as they pass, and a sparser far band from 10.5 to 26 m at larger scales carrying
+mass. Both sit outside the rails, so nothing there can be mistaken for something to steer at.
+
+Drawn exactly as the crowd is — one `Graphics.RenderMeshInstanced` per prop kind, about four
+draw calls for a verge of three hundred, against doc 04's budget of under sixty on the lowest
+tier. Placement is hashed from the round index, so a round is dressed identically every time it
+is played, and the visible slice is re-gathered only after the player has moved eight metres
+rather than every frame. Nothing casts a shadow: the rails are the only static casters today
+and the shadow pass is exactly where a prop field would cost real milliseconds.
+
+Two settings on the prop material are pinned rather than left to a default, and both would have
+been silent bugs: `_BobAmount` would have made a graveyard march in step with the army, and
+`_ToneSpread` decodes its per-unit phase from INSTANCE SCALE inside a 0.44-0.50 window — props
+are scaled 0.8 to 3.2, so every one of them would have pinned to the top of that curve and come
+out about 30% brighter than intended.
+
 **Eight worlds, and rounds that belong to acts.** The report was that every round has the same
 pavement, the same background and the same doors. Sampling nine device frames settles it: the
 sky above the horizon is `(11,10,15) ± 2` in every one, the road in front of the camera is
