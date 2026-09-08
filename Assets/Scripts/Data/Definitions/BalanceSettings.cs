@@ -8,7 +8,10 @@ namespace BattleRunner.Data.Definitions
     public sealed class BalanceSettings : ScriptableObject
     {
         [Header("Force (doc 01, R4)")]
-        public long SoftCap = 100_000;
+        /// <summary>The shipped soft cap, for the few places that need it before a config exists.</summary>
+        public const long DefaultSoftCap = 100_000L;
+
+        public long SoftCap = DefaultSoftCap;
 
         [Header("Crowd rendering tier caps (doc 04)")]
         public int TierCapLow = 100;

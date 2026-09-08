@@ -455,7 +455,7 @@ namespace BattleRunner.Gameplay.States
             if (!ReferenceEquals(_ctx.Machine.Current, this)) return;
             if (granted)
             {
-                long revived = System.Math.Max(10L, _ctx.CurrentLevel.ParForceAtFinish / 3);
+                long revived = System.Math.Max(10L, _ctx.CurrentPar / 3);
                 _ctx.Run.ForceCount = revived;
                 _ctx.LastResult.FinalForceCount = revived;
                 _ctx.Crowd.SetForce(revived);

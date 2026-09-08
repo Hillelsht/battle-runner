@@ -235,7 +235,7 @@ namespace BattleRunner.Gameplay.States
             // per run: a comeback the player earned with points, not a subscription to
             // immortality, and it fires ahead of the rewarded ad so the talent they bought
             // is never quietly replaced by a video.
-            long revived = Talents.SecondWindForce(_ctx.CurrentLevel.ParForceAtFinish,
+            long revived = Talents.SecondWindForce(_ctx.CurrentPar,
                 _ctx.CurrentStats.Get(StatIds.SecondWind));
             if (revived > 0 && !_ctx.Run.SecondWindSpent)
             {
@@ -280,7 +280,7 @@ namespace BattleRunner.Gameplay.States
             if (!ReferenceEquals(_ctx.Machine.Current, this)) return;
             if (granted)
             {
-                long revived = System.Math.Max(10L, _ctx.CurrentLevel.ParForceAtFinish / 4);
+                long revived = System.Math.Max(10L, _ctx.CurrentPar / 4);
                 _ctx.Run.ForceCount = revived;
                 _ctx.Crowd.SetForce(revived);
                 _ctx.Hud.SetForce(revived);

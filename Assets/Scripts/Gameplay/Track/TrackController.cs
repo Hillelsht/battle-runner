@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using BattleRunner.Core.Crowd;
+using BattleRunner.Core.Progression;
 using BattleRunner.Core.Run;
 using BattleRunner.Data.Definitions;
 using BattleRunner.Gameplay.Crowd;
@@ -88,12 +89,12 @@ namespace BattleRunner.Gameplay.Track
             _gatePool = new ObjectPool<GateBehaviour>(() => GateBehaviour.Build(font), poolRoot);
             _enemyPool = new ObjectPool<EnemyPackBehaviour>(
                 () => EnemyPackBehaviour.Build(unitMesh, enemyMaterial, font), poolRoot);
-            // Prewarmed for the longest round the content generator will build. Doc 04 bans
-            // mid-run instantiation and ObjectPool.Get silently CREATES on an empty pool, so
-            // these have to move whenever round length does — 12 chunks is 32 gates and 11
-            // packs at worst, and the headroom covers the next bump.
-            _gatePool.Prewarm(40);
-            _enemyPool.Prewarm(24);
+            // Prewarmed for the WORST round the generator can produce, not the average one.
+            // Doc 04 bans mid-run instantiation and ObjectPool.Get silently CREATES on an
+            // empty pool, so the size is derived from the two constants that bound it rather
+            // than from a number that would quietly go stale the next time a shape is added.
+            _gatePool.Prewarm(RoundPlan.MaxChunkCount * ChunkLayouts.MaxGatesPerChunk);
+            _enemyPool.Prewarm(RoundPlan.MaxChunkCount * ChunkLayouts.MaxPacksPerChunk);
 
             _groundMaterial = LoadRoadMaterial(baseMaterial);
 
@@ -211,19 +212,19 @@ namespace BattleRunner.Gameplay.Track
             }
         }
 
-        public void BuildLevel(LevelDefinition level)
+        public void BuildLevel(System.Collections.Generic.IReadOnlyList<ChunkLayout> layouts)
         {
             ClearLevel();
             _finishRaised = false;
 
             float z = 12f; // breathing room before the first chunk
-            if (level.Chunks != null)
+            if (layouts != null)
             {
-                foreach (ChunkDefinition chunk in level.Chunks)
+                foreach (ChunkLayout layout in layouts)
                 {
-                    if (chunk == null) continue;
-                    SpawnChunk(chunk, z);
-                    z += chunk.LengthMeters;
+                    if (layout == null) continue;
+                    SpawnLayout(layout, z);
+                    z += ChunkLayouts.ChunkMeters;
                 }
             }
 
@@ -239,28 +240,30 @@ namespace BattleRunner.Gameplay.Track
             SpawnFinishLine(_finishZ);
         }
 
-        private void SpawnChunk(ChunkDefinition chunk, float startZ)
+        /// <summary>
+        /// One chunk, from a layout Core generated for this round.
+        ///
+        /// The road used to be built from ScriptableObject chunks baked once at boot, six
+        /// levels' worth, cycled forever — which is why round eight replayed round two's
+        /// gates. Layouts now come from ChunkLayouts per round, so a round's shape is part of
+        /// its identity rather than an index into a fixed list.
+        /// </summary>
+        private void SpawnLayout(ChunkLayout layout, float startZ)
         {
-            if (chunk.Gates != null)
+            foreach (PlannedGate spec in layout.Gates)
             {
-                foreach (ChunkDefinition.GateSpec spec in chunk.Gates)
-                {
-                    GateBehaviour gate = _gatePool.Get(_trackRoot);
-                    gate.Setup(spec.Op, spec.Value, spec.Lane,
-                        new Vector3(spec.Lane * _laneWidth, 0f, startZ + spec.Position));
-                    _activeGates.Add(gate);
-                }
+                GateBehaviour gate = _gatePool.Get(_trackRoot);
+                gate.Setup(spec.Op, spec.Value, spec.Lane,
+                    new Vector3(spec.Lane * _laneWidth, 0f, startZ + spec.Position));
+                _activeGates.Add(gate);
             }
 
-            if (chunk.Enemies != null)
+            foreach (PlannedPack spec in layout.Packs)
             {
-                foreach (ChunkDefinition.EnemySpec spec in chunk.Enemies)
-                {
-                    EnemyPackBehaviour pack = _enemyPool.Get(_trackRoot);
-                    pack.Setup(spec.ForceCost, spec.Lane,
-                        new Vector3(spec.Lane * _laneWidth, 0f, startZ + spec.Position));
-                    _activeEnemies.Add(pack);
-                }
+                EnemyPackBehaviour pack = _enemyPool.Get(_trackRoot);
+                pack.Setup(spec.ForceCost, spec.Lane,
+                    new Vector3(spec.Lane * _laneWidth, 0f, startZ + spec.Position));
+                _activeEnemies.Add(pack);
             }
         }
 

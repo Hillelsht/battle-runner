@@ -52,6 +52,13 @@ namespace BattleRunner.Core.Progression
         /// <summary>Extra chunks on a boss round — the longest road in the act leads to the fight.</summary>
         public const int BossRoundChunkBonus = 2;
 
+        /// <summary>
+        /// The longest round the game will ever build. Object pools are prewarmed against
+        /// this: doc 04 bans mid-run instantiation and ObjectPool.Get silently creates on an
+        /// empty pool, so the prewarm has to cover the worst case rather than the average one.
+        /// </summary>
+        public const int MaxChunkCount = BaseChunks + GrowthActs + BossRoundChunkBonus;
+
         public int RoundIndex { get; }
         public int ActIndex { get; }
         /// <summary>0-based position inside the act.</summary>

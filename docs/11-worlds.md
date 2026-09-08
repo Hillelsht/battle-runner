@@ -192,3 +192,78 @@ left before the fight.
 The main menu also shows the **world's** name now rather than the level asset's: an act wears
 one world for three to five rounds while the level list cycles on its own period, so the level
 name there would have announced somewhere the player was not going.
+
+## Eight things a road can ask
+
+The old generator had **three outcomes**. `BuildChunksForLevel` placed an add gate at 12 m,
+another at 28 m, and on every third chunk a `×2` opposite a `−N` at 40 m, with one enemy pack
+always in lane 0. Every chunk in the game was one of those three, cycling forever. That is the
+literal reason the report was "every round the doors are the same" — it was not an impression,
+it was a formula with three branches.
+
+`Core/Run/ChunkLayouts.cs` now has eight shapes, each asking something different rather than
+posing the same question in a new order:
+
+| Shape | What it asks |
+|---|---|
+| **Ladder** | Add gates one lane apart — steer continuously, don't pick once and hold |
+| **Fork** | A `×2` with a heavy `−N` in both other lanes. Commit before you can read it |
+| **Gauntlet** | Three packs, no gates. Steering with nothing to gain |
+| **Minefield** | Subtract in two lanes, the reward in the third, and it isn't announced |
+| **Toll** | Every lane costs. The only decision left is which loss is cheapest |
+| **Vault** | The prize and the price share a lane — taking it means paying for it |
+| **Breather** | One gate, wide open. It is what makes the rest read |
+| **Crossfire** | Packs in alternating outer lanes with a gate between them |
+
+A round is a sequence chosen from its index under three rules, each of which exists because
+breaking it makes a round read badly: **no shape twice in a row**, **the opening chunk is always
+readable** (Ladder or Breather — starting on a Toll is a round that begins by taking something
+away), and **at least one Breather in the back half** so a long round has somewhere to exhale.
+
+Spacing is the one hard constraint. At 10 m/s a 45 m chunk is 4.5 seconds, and the comment that
+survives from the original generator is that decisions 0.2 s apart are unreadable. Nothing is
+placed closer than 12 m to the next separate decision — gates sharing a Z are *one* decision,
+"pick a lane" — and a test walks every shape at every difficulty to prove it.
+
+The road is now built from these per round rather than from six ScriptableObject levels cycled
+forever, which is why round eight used to replay round two's gates. `ContentFactory` still
+materialises chunks for the editor, but it delegates to the same generator: content a designer
+opens has to match what the game actually plays.
+
+With variety in place the round-length clamp is gone. Rounds run the designed 12–22 chunks,
+540–990 m, about 54 to 99 seconds. Pools are prewarmed from `RoundPlan.MaxChunkCount` times the
+per-shape maxima rather than a hand-picked number that would go stale the next time a shape is
+added.
+
+### Par force had to be rebuilt, and this one was a real bug
+
+`ParForceAtFinish` sizes the revive a player is handed after watching an ad. The old estimate
+walked the optimistic line — every add and multiply hit — and multiplied them all together. That
+was stable when the generator produced exactly one `×2` every three chunks. Against varied
+layouts it swung by two orders of magnitude on nothing but how many multiplies a round happened
+to roll:
+
+```
+round  2:  mult 2   par    297
+round  5:  mult 6   par 12,533
+round 20:  mult 8   par 60,000   (pinned at the soft cap)
+round 30:  mult 7   par 60,000   (pinned)
+round 45:  mult 3   par 16,455
+```
+
+A player reviving on round 2 would have come back with 99 units and on round 5 with 4,177.
+
+The adds are the stable backbone — their count and value track depth smoothly — so they are
+banked in full, and the multiplies then lift the result **logarithmically in their count**
+rather than multiplicatively in their values. That is also closer to the truth: three lanes
+cannot all be taken, so the tenth multiply in a round is worth much less than the first. It is
+the same log-shaped damping `GateMath.OverflowToBonusMultiplier` already uses.
+
+```
+round  0: par   337      round 20: par 2,672
+round  5: par   797      round 45: par 5,733
+round 10: par   889      round 60: par 8,258
+```
+
+Par is also computed per **round** now and lives on `GameContext.CurrentPar`, not on the level
+asset — a level asset cannot know which round is being played.

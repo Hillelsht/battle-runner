@@ -17,7 +17,7 @@ points → save → next level.
 | Game loop | Complete end to end |
 | Content | 8 worlds, 6 levels, 6 bosses (6 archetypes), 15 gear items, 4 rarities, ~60 talents + endless paragon |
 | Art | Greybox — procedural meshes, code-built uGUI, no imported assets |
-| Tests | 256, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 273, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
@@ -83,6 +83,35 @@ The tree's scroll column carries a fully transparent `Image` on its viewport pur
 raycast target. Without a Graphic the `ScrollRect` is not hit-testable, so only drags that
 began on a child button reached it — and on a column of sixty nodes the gaps between cells
 are most of the screen, which made the list read as stuck rather than as fussy.
+
+**Eight things a road can ask, where there used to be three.** `BuildChunksForLevel` placed an
+add at 12 m, another at 28 m, and on every third chunk a `x2` opposite a `-N` at 40 m, with one
+pack always in lane 0 — every chunk in the game was one of those three, cycling forever. That is
+the literal reason the doors always looked the same; it was a formula with three branches, not
+an impression. There are now eight shapes, each asking something different: Ladder, Fork,
+Gauntlet, Minefield, Toll, Vault, Breather, Crossfire.
+
+A round is a sequence chosen from its index under three rules, each there because breaking it
+makes a round read badly — no shape twice in a row, the opening chunk is always readable
+(starting on a Toll is a round that begins by taking something away), and at least one Breather
+in the back half. Spacing is the hard constraint: nothing sits closer than 12 m to the next
+separate decision, and a test walks every shape at every difficulty to prove it. The road is
+built from these per round rather than from six baked levels cycled forever, which is why round
+eight used to replay round two's gates. With variety in place the length clamp is gone — rounds
+run 12 to 22 chunks, 540 to 990 m, about 54 to 99 seconds.
+
+**Par force had to be rebuilt, and that one was a real bug.** It sizes the revive a player is
+handed after watching an ad. The old estimate walked the optimistic line and multiplied every
+gate together, which was stable when the generator produced exactly one `x2` every three chunks
+and swung by two orders of magnitude once layouts varied: measured at 297 on round 2, 12,533 on
+round 5, and pinned at the 60,000 soft cap on rounds 20 and 30. A player reviving on round 2
+would have come back with 99 units and on round 5 with 4,177. The adds are the stable backbone
+so they are banked in full, and the multiplies now lift the result LOGARITHMICALLY in their
+count rather than multiplicatively in their values — which is also closer to the truth, since
+three lanes cannot all be taken and the tenth multiply is worth far less than the first. Par now
+runs 337 at round 0 to 8,258 at round 60, smoothly, and is computed per ROUND on
+`GameContext.CurrentPar` rather than read off a level asset that cannot know which round is
+being played.
 
 **The boss stops being a formality, and starts stalking you.** `RunnerLoopState.OnFinishReached`
 transitioned unconditionally into `BossState`, so every round ended in a fight and the sixth Bone
@@ -408,7 +437,7 @@ The v0.4.0 screenshots confirmed the art pass landed — sky, stars, shadows, ro
 gates and UI frames all correct on device — and surfaced two bugs that were never about
 art: `Focus -0 %` on the menu and `+0.01 Focus` on the loot card. Both were units chosen
 from the ModifierKind rather than from the stat, plus a hard-coded minus sign in front of
-a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 256 tests today).
+a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 273 tests today).
 
 A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
 11 survived adversarial refutation. The headline three: the key light pointed the same way

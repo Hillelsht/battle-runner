@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using BattleRunner.Core.Boss;
-using BattleRunner.Core.Progression;
 using BattleRunner.Core.Loot;
+using BattleRunner.Core.Progression;
 using BattleRunner.Core.Run;
 using BattleRunner.Core.Stats;
 using UnityEngine;
@@ -228,7 +228,13 @@ namespace BattleRunner.Data.Definitions
                 level.Boss = bosses[i % bosses.Length];
                 level.LootTable = lootTable;
                 level.StartingForce = 5;
-                level.ParForceAtFinish = EstimateParForce(level.Chunks, level.StartingForce);
+                // Advisory only now: the runtime computes par from the round it is actually
+                // building (GameContext.CurrentPar), because a level asset cannot know which
+                // round is being played. Kept on the asset so designer-facing content still
+                // carries a sensible number.
+                level.ParForceAtFinish = ChunkLayouts.EstimateParForce(
+                    ChunkLayouts.BuildRound(RoundPlan.For(i)), level.StartingForce,
+                    BalanceSettings.DefaultSoftCap);
                 levels[i] = level;
             }
             return levels;
@@ -240,104 +246,56 @@ namespace BattleRunner.Data.Definitions
         /// par-force rule (doc 01, R4): never two x-gates in the same chunk.
         /// </summary>
         /// <summary>
-        /// Chunks a round is allowed while the layout generator still only knows three
-        /// shapes.
+        /// A round's chunks, as editable assets.
         ///
-        /// RoundPlan designs rounds of 12 to 20 chunks, and that range is the real target —
-        /// but tripling a round's length while every chunk is one of the same three layouts
-        /// makes the sameness worse, not better: ninety seconds of repetition is harder to
-        /// sit through than thirty. So the length is held at the floor of the designed range
-        /// until the chunk archetypes land, at which point this cap is deleted rather than
-        /// raised.
+        /// This DELEGATES to Core rather than authoring its own layout. It used to be a
+        /// formula with exactly three outcomes — an add at 12 m, an add at 28 m, and on every
+        /// third chunk a x2 opposite a -N at 40 m — cycled forever, which is the literal
+        /// reason the report was "every round the doors are the same". The runtime no longer
+        /// reads these at all (TrackController builds from ChunkLayouts per round), but the
+        /// editor still materialises them, and content a designer opens must match what the
+        /// game actually plays or it is worse than no content at all.
         /// </summary>
-        public const int ChunkCountCap = 12;
-
         public static ChunkDefinition[] BuildChunksForLevel(int levelIndex)
         {
-            int chunkCount = Mathf.Min(ChunkCountCap, RoundPlan.For(levelIndex).ChunkCount);
-            var chunks = new ChunkDefinition[chunkCount];
-            for (int c = 0; c < chunkCount; c++)
+            RoundPlan plan = RoundPlan.For(levelIndex);
+            ChunkLayout[] layouts = ChunkLayouts.BuildRound(plan);
+            var chunks = new ChunkDefinition[layouts.Length];
+
+            for (int c = 0; c < layouts.Length; c++)
             {
+                ChunkLayout layout = layouts[c];
                 var chunk = ScriptableObject.CreateInstance<ChunkDefinition>();
-                chunk.name = $"Chunk_L{levelIndex + 1:00}_{c + 1:00}";
-                chunk.LengthMeters = 45f;
+                // The shape is in the asset name on purpose: it is the one thing that makes a
+                // generated chunk readable in the Project window.
+                chunk.name = $"Chunk_L{levelIndex + 1:00}_{c + 1:00}_{layout.Shape}";
+                chunk.LengthMeters = ChunkLayouts.ChunkMeters;
 
-                // 45 m chunks at 10 m/s space decisions ~1.5 s apart. At 30 m the enemy
-                // at 22 and the gate pair at 24 arrived 0.2 s apart - unreadable.
-                var gates = new List<ChunkDefinition.GateSpec>();
-                var enemies = new List<ChunkDefinition.EnemySpec>();
-                int addValue = 4 + levelIndex * 2 + c;
-
-                // Two add gates in different lanes — steering earns force.
-                gates.Add(new ChunkDefinition.GateSpec
-                {
-                    Op = GateOp.Add, Value = addValue, Lane = (c % 3) - 1, Position = 12f
-                });
-                gates.Add(new ChunkDefinition.GateSpec
-                {
-                    Op = GateOp.Add, Value = addValue + 2, Lane = ((c + 1) % 3) - 1, Position = 28f
-                });
-
-                // Every third chunk offers one multiplier opposite a subtract trap.
-                if (c % 3 == 2)
-                {
-                    int lane = (c % 2 == 0) ? -1 : 1;
-                    gates.Add(new ChunkDefinition.GateSpec
+                var gates = new ChunkDefinition.GateSpec[layout.Gates.Count];
+                for (int i = 0; i < gates.Length; i++)
+                    gates[i] = new ChunkDefinition.GateSpec
                     {
-                        Op = GateOp.Multiply, Value = 2, Lane = lane, Position = 40f
-                    });
-                    gates.Add(new ChunkDefinition.GateSpec
-                    {
-                        Op = GateOp.Subtract, Value = addValue * 2, Lane = -lane, Position = 40f
-                    });
-                }
-
-                // Enemy pressure stays in lane 0, and that is deliberate: the FTUE's whole
-                // justification is that a player who never learns to steer takes only the
-                // lane-0 gates and is bled to zero by these packs at 16.7 s. Moving them
-                // out of lane 0 would make every pack dodgeable by standing still.
-                //
-                // What had to move is the POSITION. At a flat 20 m the pack sat 8 m from
-                // the lane-0 gate in two chunks out of every three — gate A holds lane 0
-                // when c%3==1, gate B when c%3==0 — and two world-space labels 8 m apart
-                // in one lane land less than half a glyph apart on screen. That is the
-                // "+5" printed over "-5" and "+9" over "-9" seen on device. No pair of
-                // label heights fixes it: the gate is nearer in one case and farther in
-                // the other, which want opposite offsets. Standing 20 m clear does.
-                if (c > 0)
-                {
-                    float packPosition = (c % 3) switch
-                    {
-                        0 => 8f,   // lane-0 gate is B at 28 — sit 20 m ahead of it
-                        1 => 32f,  // lane-0 gate is A at 12 — sit 20 m behind it
-                        _ => 20f   // no add gate is on lane 0 this chunk
+                        Op = layout.Gates[i].Op,
+                        Value = layout.Gates[i].Value,
+                        Lane = layout.Gates[i].Lane,
+                        Position = layout.Gates[i].Position
                     };
-                    enemies.Add(new ChunkDefinition.EnemySpec
-                    {
-                        ForceCost = 3 + levelIndex * 2 + c * 2, Lane = 0, Position = packPosition
-                    });
-                }
 
-                chunk.Gates = gates.ToArray();
-                chunk.Enemies = enemies.ToArray();
+                var enemies = new ChunkDefinition.EnemySpec[layout.Packs.Count];
+                for (int i = 0; i < enemies.Length; i++)
+                    enemies[i] = new ChunkDefinition.EnemySpec
+                    {
+                        ForceCost = layout.Packs[i].ForceCost,
+                        Lane = layout.Packs[i].Lane,
+                        Position = layout.Packs[i].Position
+                    };
+
+                chunk.Gates = gates;
+                chunk.Enemies = enemies;
                 chunks[c] = chunk;
             }
+
             return chunks;
         }
 
-        /// <summary>Optimistic path (hit every add/multiply, dodge subtracts and enemies) scaled to a realistic par.</summary>
-        public static long EstimateParForce(ChunkDefinition[] chunks, int startingForce)
-        {
-            long force = startingForce;
-            foreach (ChunkDefinition chunk in chunks)
-            {
-                foreach (ChunkDefinition.GateSpec gate in chunk.Gates)
-                {
-                    if (gate.Op == GateOp.Subtract) continue;
-                    force = GateMath.ApplyGate(force, gate.Op, gate.Value, long.MaxValue - 1, out _);
-                }
-            }
-            return (long)(force * 0.6f);
-        }
-    }
 }

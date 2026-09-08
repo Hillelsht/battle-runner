@@ -32,8 +32,15 @@ namespace BattleRunner.Gameplay.States
             EnvironmentLook.ApplyTheme(theme, variant);
             _ctx.TrackController.ApplyTheme(theme, variant);
 
+            // The road is generated for THIS round rather than read off one of six baked
+            // levels cycled forever — which is why round eight used to replay round two's
+            // gates. Eight chunk shapes, sequenced from the round index.
+            ChunkLayout[] layouts = ChunkLayouts.BuildRound(plan);
+            _ctx.CurrentPar = ChunkLayouts.EstimateParForce(
+                layouts, level.StartingForce, _ctx.Config.Balance.SoftCap);
+
             _ctx.ArenaRoot.SetActive(true);
-            _ctx.TrackController.BuildLevel(level);
+            _ctx.TrackController.BuildLevel(layouts);
 
             // After BuildLevel, because the verge is dressed to the road's actual length.
             // It runs a little past the ground strip's own end so nothing pops in at the

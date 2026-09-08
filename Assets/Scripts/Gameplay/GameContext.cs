@@ -77,6 +77,13 @@ namespace BattleRunner.Gameplay
 
         // Per-run data
         public RunState Run;
+
+        /// <summary>
+        /// Force a par player holds at this round's finish, computed from the round's actual
+        /// generated layout. Revive amounts are fractions of it. It used to live on the level
+        /// asset, which cannot know which round is being played.
+        /// </summary>
+        public long CurrentPar = 150L;
         public RunResult LastResult;
         public StatSheet CurrentStats;
 
