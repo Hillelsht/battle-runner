@@ -1,4 +1,5 @@
 using BattleRunner.Core.Flow;
+using BattleRunner.Core.Audio;
 using BattleRunner.Core.Progression;
 using BattleRunner.Core.Run;
 using BattleRunner.Core.World;
@@ -47,6 +48,15 @@ namespace BattleRunner.Gameplay.States
             // horizon while the player is still looking at it through fog.
             _ctx.Props.Build(theme, variant, _ctx.Profile.CurrentLevelIndex,
                 -20f, _ctx.TrackController.FinishZ + 210f);
+            // The music is bent to the world by the same two things the player can already
+            // see: how far they can see (fog decides the filter) and how cold the sky is
+            // (the zenith decides the pitch). One bed serves all eight worlds — eight beds
+            // would outweigh the entire rest of the project.
+            _ctx.Audio.SetMood(MusicMood.For(theme.FogEnd,
+                theme.SkyZenith.R, theme.SkyZenith.B, theme.Accent.Chroma));
+            _ctx.Audio.SetCombat(false);
+            _ctx.Audio.Play(AudioCue.RoundStart);
+
             _ctx.Crowd.ResetRun(level.StartingForce, 0f);
             _ctx.CameraRig.SnapToCrowd();
 

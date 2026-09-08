@@ -1,5 +1,6 @@
 using BattleRunner.Core.Flow;
 using BattleRunner.Data.Channels;
+using BattleRunner.Core.Audio;
 using BattleRunner.Core.Save;
 using BattleRunner.Data.Definitions;
 using BattleRunner.Gameplay.Combat;
@@ -38,7 +39,8 @@ namespace BattleRunner.Gameplay
                 SaveService = new FileSaveService(),
                 Ads = new MockAdService(),
                 Iap = new MockIapService(),
-                BattlePass = new DisabledBattlePassService()
+                BattlePass = new DisabledBattlePassService(),
+                Audio = new AudioDirector()
             };
             // No slot is chosen yet, so start on an empty profile. Loading here would pick a
             // save the player has not asked for; SlotSelectState decides which one becomes
@@ -198,11 +200,27 @@ namespace BattleRunner.Gameplay
             ctx.CameraRig.Initialize(ctx.Crowd);
             EnvironmentLook.AttachPostProcessing(ctx.CameraRig.Camera);
 
+            // The listener goes on the CAMERA, which is where the player's ears are, and
+            // the voice pool goes under the arena root so it is one object in the hierarchy
+            // rather than sixteen loose ones. Neither existed before: this project had no
+            // AudioListener anywhere, so nothing it played would have been audible.
+            // NOT under ArenaRoot. CreateArena ends with ArenaRoot.SetActive(false) and an
+            // AudioSource on an inactive GameObject does not play — the menus would have been
+            // silent and the first round's music would only have started on the second round.
+            var audioRoot = new GameObject("Audio").transform;
+            Object.DontDestroyOnLoad(audioRoot.gameObject);
+            (ctx.Audio as AudioDirector)?.Initialize(cameraGo.transform, audioRoot);
+
             var overlayGo = new GameObject("DebugOverlay");
             overlayGo.AddComponent<DebugOverlay>().Initialize(ctx.Crowd);
 
             ctx.Spell = new SpellSystem(ctx.Config.Spells);
             ctx.Shield = new ShieldSystem(ctx.Config.Spells);
+            // The EVENT, not the input handler. TryRaise silently refuses while on cooldown,
+            // and a sound on a shield that did not actually go up teaches the player that the
+            // flick worked when it did not.
+            ctx.Shield.Raised += () => ctx.Audio.Play(AudioCue.ShieldRaise);
+            Meta.UI.UiFactory.Tap += () => ctx.Audio.Play(AudioCue.UiTap);
 
             // AFTER ctx.Shield exists — the ward holds a reference to it, and the systems
             // are built at the bottom of this method while the camera is built above.
@@ -237,6 +255,9 @@ namespace BattleRunner.Gameplay
             ctx.MenuScreen = new MainMenuScreen(root,
                 () => ctx.MenuState.OnPlayPressed(),
                 () => ctx.MenuState.OnNewRunPressed());
+            ctx.MenuScreen.BindSound(
+                () => ctx.Audio.Enabled,
+                () => ctx.Audio.Enabled = !ctx.Audio.Enabled);
             ctx.SlotScreen = new SlotSelectScreen(root);
             ctx.Hud = new HudScreen(root);
             ctx.LootScreen = new LootScreen(root);

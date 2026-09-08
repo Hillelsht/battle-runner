@@ -43,7 +43,7 @@ On a first run a coaching prompt introduces each control the moment it first mat
 
 ## Tests
 
-- **In Unity:** Window → General → **Test Runner** → EditMode → Run All (323 tests: gate math incl. soft-cap overflow, the gesture confusion suite, loot distribution + pity, save migration + checksum, crowd math incl. the formation envelope and lane partition, boss sim, state machine).
+- **In Unity:** Window → General → **Test Runner** → EditMode → Run All (333 tests: gate math incl. soft-cap overflow, the gesture confusion suite, loot distribution + pity, save migration + checksum, crowd math incl. the formation envelope and lane partition, boss sim, state machine).
 - **Without Unity:** `dotnet test tooling/CoreTests/CoreTests.csproj` runs the identical test sources against the same core code (the core assembly is engine-free by design).
 - **Serialized-file lint:** `python3 tooling/lint_unity_yaml.py` validates the hand-written scene/material/meta files, and pins the crowd scale constants that `CrowdRenderer.cs` and `CrowdInstanced.shader` must agree on (the shader decodes each unit's bob phase from the instance scale, and nothing at compile time connects the two).
 - **Assembly-reference check:** `python3 tooling/check_asmdef_refs.py` asserts every asmdef declares the package assemblies its code actually uses. Unity references are not transitive, and a missing one surfaces only as `CS0234` from a headless editor sixteen minutes into CI.
@@ -100,6 +100,7 @@ Read in order — the risk critique deliberately comes first:
 | [10 — The look](docs/10-look.md) | The render stack: why the greybox looked bad, and which setting each symptom actually was |
 | [11 — Worlds](docs/11-worlds.md) | Acts, the eight themed worlds, per-round variation, and why every round used to look identical |
 | [12 — Scenery](docs/12-scenery.md) | The land beside the road, the per-world grade, and why eight palettes still read as one place |
+| [13 — Audio](docs/13-audio.md) | Fifteen synthesised cues, two beds bent per world, and a project that had no AudioListener |
 
 ### Code layout
 

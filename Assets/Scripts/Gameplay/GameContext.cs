@@ -28,6 +28,7 @@ namespace BattleRunner.Gameplay
         public IAdService Ads;
         public IIapService Iap;
         public IBattlePassService BattlePass;
+        public IAudioService Audio;
 
         // Input intent channels
         public FloatEventChannel LaneTargetChannel;

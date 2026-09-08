@@ -17,11 +17,12 @@ points → save → next level.
 | Game loop | Complete end to end |
 | Content | 8 worlds, 6 levels, 6 bosses (6 archetypes) x 5 champion affixes = 30 fights, 15 gear items, 4 rarities, ~60 talents + endless paragon |
 | Art | Procedural meshes and code-built uGUI, plus 119 CC0 Kenney models baked into one 563 KB pack |
-| Tests | 323, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 333, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
-| Not started | Real ad SDK, analytics, battle pass, art pass |
+| Audio | 15 synthesised cues + 2 per-world music beds; mute toggle on the menu |
+| Not started | Real ad SDK, analytics, battle pass |
 
 **Confirmed on device:** v0.1.2 plays as a lane game. The crowd stays in its lane at
 any size and the army reads as a column reaching up the road.
@@ -83,6 +84,63 @@ The tree's scroll column carries a fully transparent `Image` on its viewport pur
 raycast target. Without a Graphic the `ScrollRect` is not hit-testable, so only drags that
 began on a child button reached it — and on a column of sixty nodes the gaps between cells
 are most of the screen, which made the list read as stuck rather than as fussy.
+
+**The game had no sound. Not placeholder audio — none.** No AudioSource, AudioClip or
+PlayOneShot anywhere in the codebase, no audio assets, no AudioManager.asset, and no
+AudioListener: Main.unity has one GameObject and no camera, and the runtime camera never added
+one, so anything the game might have played would have played to nobody.
+
+Fifteen cues and two music beds, all SYNTHESISED. No free audio host is reachable from the
+build container — Freesound, OpenGameArt and kenney.nl all fail to connect, and the Kenney
+mirror carries no audio — and synthesis is what this project already does everywhere else: the
+meshes, the sky, the road and every UI sprite are generated rather than imported.
+`tooling/synth_audio.py` needs numpy and the standard library only; ffmpeg, sox and scipy are
+none of them present. 2.07 MB of 22 kHz mono WAV in the repo, about 200 KB of Vorbis on device.
+
+Three details that are not cosmetic. Sweeps INTEGRATE the frequency, because
+`sin(2*pi*f(t)*t)` produces an audible artefact and `sin(2*pi*integral f)` does not. Every
+one-shot now ends at silence — measured, `shield_raise` ended at 0.46 amplitude, which is a
+step discontinuity and therefore a click on EVERY block. And the beds cross-fade head-to-tail
+with EQUAL power, because a linear cross-fade of two uncorrelated signals dips about 3 dB in
+the middle and the loop point becomes an audible dropout instead of an audible click.
+
+Sixteen pooled voices, doc 04's own number, prewarmed and never allocated during a run. They
+live under a DontDestroyOnLoad root and NOT under ArenaRoot, which CreateArena deactivates —
+an AudioSource on an inactive GameObject does not play, so that would have made the menus
+silent and delayed the first round's music by a whole round. Eviction is by PRIORITY, not age:
+a boss blow lost because the army was passing gates is a fairness problem, and a test pins
+that no gate, bite or UI cue can evict one.
+
+Sound fires from EVENTS, not inputs. ShieldSystem.Raised rather than the flick handler,
+because TryRaise silently refuses on cooldown and a sound on a shield that did not go up
+teaches the player the flick worked. The boss telegraph fires on the one frame the wind-up
+window opens rather than in the per-frame telegraph update, which would retrigger it sixty
+times a second and turn the only warning the player gets into a drone. The UI tap goes inside
+UiFactory.ActionButton, the single place every button in the game is built.
+
+**Eight worlds share one bed.** A twenty-second bed is most of a megabyte and eight would
+outweigh the rest of the project, so `MusicMood` bends one — the same "one asset, themed" move
+the sky and the road make. It derives from two things the player can already SEE: how far they
+can see (fog drives a low-pass, so the Sunken Crypt sounds muffled and the Bone Wastes open)
+and how cold the sky is (the zenith's blue-to-red balance drives pitch, so the Frozen Reach
+sits above Ember Fields). Tests pin both pairs, require all eight to differ, and prove the
+derivation never leans on its own clamps.
+
+The mute preference is in PlayerPrefs, deliberately: PlayerProfile is per save SLOT and
+SaveProfile refuses to write while no slot is active, so a preference there would be
+unwritable on exactly the screens that offer the button. UiFactory has no Toggle and no
+Slider, so the main menu gets a label-swapping ActionButton — the arm/disarm pattern the slot
+picker and the skill tree already use.
+
+Core names every clip; the Python decides which files exist; nothing at compile time connects
+them, and a drift on either side produces silence and a warning nobody reads. The YAML lint
+now pins the two tables against each other and against the files on disk, beside the crowd
+scale coupling it already pins. Verified against a deliberate one-character drift.
+
+Also fixed: `check_asmdef_refs.py` matched any MEMBER called `Volume` — `mix.Volume` on a
+plain struct — and demanded a URP assembly reference the file does not need. It now ignores
+member access while still catching `Rendering.Volume`, verified by removing the real reference
+and watching it fail.
 
 **Castles, farms, mills and crypts, from 119 CC0 Kenney models.** The verge was ten
 procedural meshes, none taller than 1.36 units, in one grey per world, in two fixed bands.
@@ -599,7 +657,7 @@ The v0.4.0 screenshots confirmed the art pass landed — sky, stars, shadows, ro
 gates and UI frames all correct on device — and surfaced two bugs that were never about
 art: `Focus -0 %` on the menu and `+0.01 Focus` on the loot card. Both were units chosen
 from the ModifierKind rather than from the stat, plus a hard-coded minus sign in front of
-a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 323 tests today).
+a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 333 tests today).
 
 A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
 11 survived adversarial refutation. The headline three: the key light pointed the same way

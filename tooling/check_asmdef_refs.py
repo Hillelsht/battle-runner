@@ -29,8 +29,13 @@ RULES = [
     ("UnityEngine.Rendering.Universal",
      re.compile(r"\bUnityEngine\.Rendering\.Universal\b"),
      "Unity.RenderPipelines.Universal.Runtime"),
+    # The lookbehind matters. Without it this matched any MEMBER called Volume — a mix
+    # entry's `mix.Volume`, an AudioSource's own — and reported an assembly reference that
+    # the file does not need and that adding would be wrong. A fully-qualified use of the
+    # URP type is still caught, because that spells it `Rendering.Volume`.
     ("Volume / VolumeProfile / VolumeComponent",
-     re.compile(r"\bVolume(?:Profile|Component|Parameter)?\b"),
+     re.compile(r"(?<!\.)(?<!\w)Volume(?:Profile|Component|Parameter)?\b"
+                r"|\bRendering\.Volume(?:Profile|Component|Parameter)?\b"),
      "Unity.RenderPipelines.Core.Runtime"),
     ("UnityEngine.InputSystem",
      re.compile(r"\bUnityEngine\.InputSystem\b"),

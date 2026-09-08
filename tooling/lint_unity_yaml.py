@@ -104,6 +104,47 @@ def check_build_settings(known_guids):
             problem(f"EditorBuildSettings: guid mismatch for {scene_path}")
 
 
+def check_audio_clip_coupling():
+    """
+    Core names every clip it will load; the synthesiser decides which files exist. Nothing
+    at compile time connects the two, and a name that drifts on either side produces exactly
+    one symptom: silence, with a warning nobody reads. Same class of coupling as the crowd
+    scale below, so it is pinned in the same place.
+    """
+    cue_path = os.path.join(REPO, "Assets", "Scripts", "Core", "Audio", "AudioCue.cs")
+    synth_path = os.path.join(REPO, "tooling", "synth_audio.py")
+    if not (os.path.exists(cue_path) and os.path.exists(synth_path)):
+        return
+
+    with open(cue_path, encoding="utf-8") as f:
+        cue_src = f.read()
+    wanted = set(re.findall(r'new CueMix\("([^"]+)"', cue_src))
+    for match in re.finditer(r'public const string \w+ = "([^"]+)";', cue_src):
+        wanted.add(match.group(1))
+    wanted.discard("Audio/")            # the resource folder, not a clip
+
+    with open(synth_path, encoding="utf-8") as f:
+        made = set(re.findall(r'\(\s*"([^"]+)",\s*\w+\),', f.read()))
+    if not wanted or not made:
+        problem("audio coupling check found no clip names — "
+                "if the tables moved, update check_audio_clip_coupling()")
+        return
+
+    for name in sorted(wanted - made):
+        problem(f"Core asks for the clip '{name}' but synth_audio.py does not make it — "
+                "add it to SOUNDS, or fix the name in AudioCue.cs")
+    for name in sorted(made - wanted):
+        problem(f"synth_audio.py makes '{name}' but nothing in Core plays it — "
+                "add a cue for it, or drop it from SOUNDS")
+
+    audio_dir = os.path.join(REPO, "Assets", "Resources", "Audio")
+    if os.path.isdir(audio_dir):
+        on_disk = {f[:-4] for f in os.listdir(audio_dir) if f.endswith(".wav")}
+        for name in sorted(wanted - on_disk):
+            problem(f"'{name}.wav' is missing from Assets/Resources/Audio — "
+                    "run: python3 tooling/synth_audio.py")
+
+
 def check_crowd_scale_coupling():
     """CrowdRenderer bakes the bob phase into the instance SCALE and the shader decodes
     it back out. The two constants live in different languages in different files, and
@@ -158,6 +199,7 @@ def main():
                     check_scene(path, text)
 
     check_build_settings(known_guids)
+    check_audio_clip_coupling()
     check_crowd_scale_coupling()
 
     if PROBLEMS:

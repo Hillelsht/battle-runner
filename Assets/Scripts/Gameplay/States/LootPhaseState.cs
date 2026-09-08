@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using BattleRunner.Core.Audio;
 using BattleRunner.Core.Flow;
 using BattleRunner.Core.Loot;
 using BattleRunner.Core.Progression;
@@ -37,6 +38,9 @@ namespace BattleRunner.Gameplay.States
             _plan = RoundPlan.For(_ctx.Profile.CurrentLevelIndex);
             _ctx.Profile.UnspentStatPoints +=
                 RoundRewards.PointsFor(_plan, _ctx.Config.Balance.StatPointsPerBossKill);
+
+            _ctx.Audio.SetCombat(false);
+            _ctx.Audio.Play(AudioCue.LootReveal);
 
             GearItemModel rolled = RollAndStore();
             bool equipped = RunAutoEquip();

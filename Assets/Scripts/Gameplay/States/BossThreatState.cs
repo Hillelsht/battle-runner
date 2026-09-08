@@ -1,3 +1,4 @@
+using BattleRunner.Core.Audio;
 using BattleRunner.Core.Boss;
 using BattleRunner.Core.Feel;
 using BattleRunner.Core.Flow;
@@ -132,6 +133,7 @@ namespace BattleRunner.Gameplay.States
             _ctx.Effects.Burst(_position + Vector3.up * 1.6f, roar,
                 10 + Mathf.RoundToInt(18f * _menace), 5.5f, 0.7f);
 
+            _ctx.Audio.Play(AudioCue.BossDeath, 0.55f + 0.35f * _menace);
             _ctx.CameraRig.AddTrauma(0.30f * force);
             _ctx.CameraRig.PunchFov(2.0f + 2.4f * _menace);
         }

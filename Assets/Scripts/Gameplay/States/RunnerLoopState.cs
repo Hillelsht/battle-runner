@@ -1,3 +1,4 @@
+using BattleRunner.Core.Audio;
 using BattleRunner.Core.Flow;
 using BattleRunner.Core.Feel;
 using BattleRunner.Core.Progression;
@@ -136,6 +137,7 @@ namespace BattleRunner.Gameplay.States
             // outside it. VfxSystem fires the wall and the embers on arrival, so they cannot
             // drift away from where the bolt actually landed.
             var origin = new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.FrontZ);
+            _ctx.Audio.Play(AudioCue.SpellCast);
             _ctx.Effects.Burst(origin, SpellTint, 8, 3.2f, 0.35f);
             _ctx.Effects.Bolt(origin, new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.CenterZ + range),
                 SpellTint, 45f);
@@ -179,6 +181,12 @@ namespace BattleRunner.Gameplay.States
             // the camera nudged, and that was it.
             float weight = CameraFeel.ForGate(op, before, run.ForceCount).Trauma;
             Color tint = crit ? CritTint : GateTint(op);
+            // Scaled by the same weight the ring and the camera use, so a +1 is a tick and a
+            // x2 at a thousand is an event. The cue table throttles the repeats.
+            _ctx.Audio.Play(
+                op == GateOp.Multiply ? AudioCue.GateMultiply
+                    : op == GateOp.Subtract ? AudioCue.GateSubtract : AudioCue.GateAdd,
+                0.75f + 0.5f * weight);
             _ctx.Effects.Shock(where, tint, 0.8f, 2.6f + 4.4f * weight, 0.45f + 0.20f * weight);
             if (run.ForceCount > before)
                 _ctx.Effects.Burst(where, tint, 4 + Mathf.RoundToInt(10f * weight), 3.4f, 0.45f);
@@ -215,6 +223,7 @@ namespace BattleRunner.Gameplay.States
             // Warden's colour instead of throwing red debris off the army.
             if (shattered)
             {
+                _ctx.Audio.Play(AudioCue.ShieldBlock, 0.8f);
                 _ctx.Effects.Shock(where, ShatterTint, 0.5f, 6.5f, 0.5f);
                 _ctx.Effects.Burst(where, ShatterTint, 22, 6.2f, 0.65f);
                 return;
@@ -223,6 +232,7 @@ namespace BattleRunner.Gameplay.States
             // Debris scaled to what the pack actually took, not to its printed cost —
             // Bramble and Undying cut the bite, and the effect should show the bite.
             float loss = CameraFeel.ForLoss(beforeBite, run.ForceCount).Trauma;
+            _ctx.Audio.Play(AudioCue.EnemyBite, 0.7f + 0.6f * loss);
             _ctx.Effects.Shock(where, LossTint, 0.6f, 2.2f + 2.6f * loss, 0.42f);
             _ctx.Effects.Burst(where, LossTint, 6 + Mathf.RoundToInt(14f * loss), 3.8f, 0.55f);
 

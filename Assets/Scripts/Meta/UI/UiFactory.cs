@@ -10,6 +10,13 @@ namespace BattleRunner.Meta.UI
     /// </summary>
     public static class UiFactory
     {
+        /// <summary>
+        /// Raised by every ActionButton. A static event rather than a service reference
+        /// because UiFactory is a static widget vocabulary with no context and no lifetime —
+        /// GameBootstrap points this at the audio service once and nothing else knows.
+        /// </summary>
+        public static event System.Action Tap;
+
         public static readonly Color Ink = new Color(0.07f, 0.06f, 0.09f, 0.94f);
         public static readonly Color InkSoft = new Color(0.11f, 0.10f, 0.14f, 0.92f);
         public static readonly Color Parchment = new Color(0.85f, 0.81f, 0.72f);
@@ -167,6 +174,10 @@ namespace BattleRunner.Meta.UI
 
             var button = go.GetComponent<Button>();
             button.targetGraphic = fill;
+            // The tap goes on EVERY button, here, rather than at forty call sites. UiFactory
+            // is already the single place the widget vocabulary lives, so a screen added
+            // later is audible without anybody remembering to make it so.
+            button.onClick.AddListener(() => Tap?.Invoke());
             button.onClick.AddListener(onClick);
 
             // Explicit states. The default ColorBlock fades a disabled button to 50% alpha,

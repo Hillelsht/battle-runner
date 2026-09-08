@@ -1,4 +1,5 @@
 using BattleRunner.Core.Feel;
+using BattleRunner.Core.Audio;
 using BattleRunner.Core.Boss;
 using BattleRunner.Core.Flow;
 using BattleRunner.Core.Progression;
@@ -67,6 +68,7 @@ namespace BattleRunner.Gameplay.States
             // Crowd.CenterZ later would walk the effects away from the body they belong to.
             _bossPosition = new Vector3(0f, 0f, _ctx.Crowd.CenterZ + 16f);
             _ctx.BossView.Show(_boss, _bossPosition, _affix);
+            _ctx.Audio.SetCombat(true);
             _ctx.Hud.ShowBossBar(BossAffixes.Decorate(_affix, _boss.DisplayName),
                 fillTint: BossThreatState.AffixTint(_affix));
             _ctx.Hud.SetBossHp(1f);
@@ -136,8 +138,14 @@ namespace BattleRunner.Gameplay.States
             }
 
             // Attack cycle with telegraph — the shield-timing game.
+            float wasTimer = _attackTimer;
             _attackTimer -= dt;
             float telegraph = 1f - Mathf.Clamp01(_attackTimer / _boss.TelegraphSeconds);
+            // ONCE per wind-up, on the frame the telegraph opens. The obvious place is the
+            // per-frame telegraph update, which would retrigger it sixty times a second and
+            // turn the one warning the player has into a drone.
+            if (wasTimer > _boss.TelegraphSeconds && _attackTimer <= _boss.TelegraphSeconds)
+                _ctx.Audio.Play(AudioCue.BossTelegraph);
             float wind = _attackTimer <= _boss.TelegraphSeconds ? telegraph : 0f;
             _ctx.BossView.SetTelegraph(wind);
             _ctx.CameraRig.SetTelegraph(wind);
@@ -225,6 +233,7 @@ namespace BattleRunner.Gameplay.States
             // hitting it twice is exactly what the talent promises. Guarded, because the
             // first hit may already have finished the fight.
             if (echo && !_resolved) ApplyBossDamage(hit, SpellWardMultiplier);
+            _ctx.Audio.Play(AudioCue.SpellHit);
             _ctx.BossView.FlashHit();
             _ctx.CameraRig.Apply(CameraFeel.Spell);
             _ctx.CameraRig.PunchFov(2.2f);
@@ -393,6 +402,7 @@ namespace BattleRunner.Gameplay.States
 
             // A landed blow throws debris off the ARMY; a blocked one rings off the shield
             // instead. Two different events that used to look the same except for a number.
+            _ctx.Audio.Play(blocked ? AudioCue.ShieldBlock : AudioCue.BossBlow);
             if (blocked)
                 _ctx.Effects.Shock(new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.CenterZ),
                     BlockTint, 1.6f, 5.5f, 0.45f);
@@ -434,6 +444,8 @@ namespace BattleRunner.Gameplay.States
             // speeds so the wave has depth rather than being one expanding circle, plus a
             // full pool of debris. This is the one place worth spending every mote.
             Vector3 foot = _bossPosition;
+            _ctx.Audio.Play(AudioCue.BossDeath);
+            _ctx.Audio.SetCombat(false);
             _ctx.Effects.Shock(foot, DeathTint, 1.5f, 16f, 0.55f);
             _ctx.Effects.Shock(foot, DeathTint, 0.8f, 9f, 0.45f);
             _ctx.Effects.Shock(foot, new Color(1.75f, 1.25f, 0.66f), 0.5f, 5f, 0.32f);
