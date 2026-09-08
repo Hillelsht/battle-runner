@@ -12,6 +12,7 @@ namespace BattleRunner.Meta.UI
         private readonly Text _shieldLabel;
         private readonly GameObject _bossBarRoot;
         private readonly RectTransform _bossBarFill;
+        private readonly Image _bossBarFillImage;
         private readonly Text _bossName;
         private readonly Text _roundLabel;
         private long _lastForce = long.MinValue;
@@ -38,6 +39,7 @@ namespace BattleRunner.Meta.UI
             _bossBarRoot = barBack.gameObject;
 
             _bossBarFill = UiFactory.Panel(barBack, "Fill", UiFactory.Blood, rounded: false);
+            _bossBarFillImage = _bossBarFill.GetComponent<Image>();
             _bossBarFill.anchorMin = new Vector2(0f, 0f);
             _bossBarFill.anchorMax = new Vector2(1f, 1f);
             _bossBarFill.offsetMin = new Vector2(4f, 4f);
@@ -90,12 +92,34 @@ namespace BattleRunner.Meta.UI
         /// round it does not fight, and a full red bar would promise otherwise — so the plate
         /// carries the name and the frame, and the fill is switched off entirely.
         /// </param>
-        public void ShowBossBar(string bossName, bool withHealth = true)
+        /// <param name="fillTint">
+        /// A champion's aura colour, or null for an unmodified boss. The bar does not TAKE the
+        /// colour — a green health bar on a Haunted boss would stop reading as health — it is
+        /// pulled a third of the way toward it, which is enough to tell two champions apart at
+        /// a glance while the bar stays a bar.
+        /// </param>
+        public void ShowBossBar(string bossName, bool withHealth = true, Color? fillTint = null)
         {
             _bossName.text = bossName;
+            _bossBarFillImage.color = fillTint.HasValue
+                ? Color.Lerp(UiFactory.Blood, Normalized(fillTint.Value), 0.34f)
+                : UiFactory.Blood;
             _bossBarFill.gameObject.SetActive(withHealth);
             if (withHealth) SetBossHp(1f);
             _bossBarRoot.SetActive(true);
+        }
+
+        /// <summary>
+        /// Affix tints are authored as HDR emission colours — Frenzied is (1.70, 0.30, 0.14) —
+        /// and UI Image colours clamp at 1, which would turn every warm affix into the same
+        /// saturated red. Dividing by the brightest channel keeps the HUE that distinguishes
+        /// them and throws away the intensity the bar cannot show anyway.
+        /// </summary>
+        private static Color Normalized(Color c)
+        {
+            float peak = Mathf.Max(c.r, Mathf.Max(c.g, c.b));
+            if (peak <= 0.0001f) return Color.white;
+            return new Color(c.r / peak, c.g / peak, c.b / peak, 1f);
         }
 
         public void SetBossHp(float fraction)

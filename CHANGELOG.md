@@ -15,9 +15,9 @@ points → save → next level.
 | Area | State |
 |---|---|
 | Game loop | Complete end to end |
-| Content | 8 worlds, 6 levels, 6 bosses (6 archetypes), 15 gear items, 4 rarities, ~60 talents + endless paragon |
+| Content | 8 worlds, 6 levels, 6 bosses (6 archetypes) x 5 champion affixes = 30 fights, 15 gear items, 4 rarities, ~60 talents + endless paragon |
 | Art | Greybox — procedural meshes, code-built uGUI, no imported assets |
-| Tests | 273, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 293, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
@@ -83,6 +83,43 @@ The tree's scroll column carries a fully transparent `Image` on its viewport pur
 raycast target. Without a Graphic the `ScrollRect` is not hit-testable, so only drags that
 began on a child button reached it — and on a column of sixty nodes the gaps between cells
 are most of the screen, which made the list read as stuck rather than as fussy.
+
+**Six bosses became thirty fights.** The roster is six creatures and it was six fights: the
+same Bone Colossus with the same interval, the same blows and the same ward every time it came
+round. `Core/Boss/BossAffix.cs` adds five champion modifiers — Frenzied, Armoured, Vampiric,
+Haunted, Colossal — chosen from the ACT index, so the affix is a property of the act rather than
+of the encounter and the threat rounds can show it three rounds before it matters.
+
+Each one modulates a seam `BossSim` already had rather than adding a new one: `NextInterval` for
+Frenzied (x0.72), `WardPool` for Armoured (+16% of max HP as ward, on a boss that may have had
+none), `AddsPerCycle` for Haunted, HP x1.40 and blows x1.25 for Colossal, and a heal on
+`ApplyBossHit` for Vampiric (4.5% of max on an unblocked landing, nothing on a blocked one). The
+clamps live with the affix, not at the call sites: blow fractions stay in [0,1] and intervals
+have a 0.35 s floor, because both are `BossSim` preconditions and a composed multiplier is
+exactly where they get violated.
+
+**The cycle is seven long against a roster of six, and `None` sits in it twice.** That second
+fact is the one worth writing down: the period I asserted was wrong twice before I enumerated it.
+`None` appearing twice makes the act-to-affix map non-injective — the first pair to recur is
+`(boss 1, None)` at acts 5 and 23, 18 apart, not 42. What does not repeat is the champion
+encounters: across the 42 acts from the first affix act the named affixes produce **30 distinct
+champions**, six bosses times five affixes, every one and none twice. The test pins that count
+rather than a period reasoned my way to. `None` is also forced for the first two acts, so the six
+base fights are taught before anything modifies them.
+
+**Haunted summons on top of its swing, it does not summon instead of one.** Wiring the extra add
+into the existing `Summoner` path would have made every Haunted boss spend its attack cycle
+calling and never swinging — a strictly easier fight than the same boss without the affix.
+`LandBossAttack` now bites with the adds, adds the summons, and *then* swings unless the
+archetype is genuinely a summoner.
+
+Surfaced three ways, all of them visible on the threat rounds as well as the fight: a name prefix
+("Frenzied Bone Colossus"), an aura the body breathes and the ward shell takes 45% of, and the
+HUD bar pulled a third of the way toward the affix colour. The aura fades out under a telegraph
+rather than adding to it — the wind-up is the one signal the player has to read to survive, and a
+second colour competing with it would cost them blows. Affix tints are authored as HDR emission
+colours, so the HUD divides by the brightest channel first: a UI `Image` clamps at 1, which would
+have rendered every warm affix as the same red.
 
 **A gate for the failure that keeps costing five minutes.** Unity is the only compiler for
 everything outside `BattleRunner.Core`, and a headless round trip is about five minutes. A
@@ -447,7 +484,7 @@ The v0.4.0 screenshots confirmed the art pass landed — sky, stars, shadows, ro
 gates and UI frames all correct on device — and surfaced two bugs that were never about
 art: `Focus -0 %` on the menu and `+0.01 Focus` on the loot card. Both were units chosen
 from the ModifierKind rather than from the stat, plus a hard-coded minus sign in front of
-a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 273 tests today).
+a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 293 tests today).
 
 A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
 11 survived adversarial refutation. The headline three: the key light pointed the same way

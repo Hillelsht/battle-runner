@@ -268,6 +268,95 @@ round 10: par   889      round 60: par 8,258
 Par is also computed per **round** now and lives on `GameContext.CurrentPar`, not on the level
 asset — a level asset cannot know which round is being played.
 
+## Champion affixes: six creatures, thirty fights
+
+The roster is six creatures, and before this it was six *fights*. The Bone Colossus you met on
+act 7 was numerically the same Bone Colossus you met on act 1 with a larger HP number — same
+interval, same blows per cycle, same ward, same adds. Adding a seventh creature costs a mesh, a
+definition, a balance pass and a set of animation-free tells that still have to read at 40 m;
+adding a modifier costs a switch statement.
+
+`Core/Boss/BossAffix.cs` holds five: **Frenzied, Armoured, Vampiric, Haunted, Colossal**, plus
+`None`.
+
+| Affix | Seam it modulates | Value |
+|---|---|---|
+| Frenzied | `NextInterval` | x0.72 between attacks |
+| Armoured | `WardPool` | +16% of max HP as ward — on a boss that may have had none |
+| Vampiric | heal on `ApplyBossHit` | 4.5% of max HP per unblocked landing, 0 on a blocked one |
+| Haunted | `AddsPerCycle` | +1 add every cycle |
+| Colossal | HP, blow fraction, interval, scale | HP x1.40, blows x1.25, interval x1.18, drawn x1.22 |
+
+Every one of those is a seam `BossSim` already had. Nothing new was added to the simulation, and
+`BossSim` itself does not know affixes exist — the composition happens in `BossAffixes`, which is
+also where the clamps live. That placement is deliberate: blow fractions must stay in `[0,1]` and
+intervals must stay above a floor, both are `BossSim` preconditions, and a *composed* multiplier
+is precisely where a precondition gets violated. Clamping at each call site would mean six places
+to forget.
+
+### The pairing, computed rather than asserted
+
+The cycle is seven long against a roster of six:
+
+```
+Frenzied, Armoured, None, Vampiric, Haunted, None, Colossal
+```
+
+Seven and six are coprime, so it is tempting to write "42 acts before a repeat" and move on. That
+claim is wrong, and I made it twice before computing it. **`None` appears twice in the cycle**,
+which makes the act -> affix map non-injective. Enumerated: the first pair to recur is
+`(boss 1, None)` at acts 5 and 23 — 18 acts apart, not 42.
+
+What genuinely does not repeat is the set of **champion** encounters. Across the 42 acts starting
+at the first affix act, the named affixes produce exactly **30 distinct champions** — six bosses
+times five affixes, every one of them, none twice — and act 44 starts the cycle over. The test
+pins that count, `ThirtyDistinctChampionEncountersBeforeOneRepeats`, rather than pinning a period
+derived by reasoning, because the reasoning is what was wrong. Note the window matters: sweep
+from act 0 instead and you get 28, because the first two acts are forced to `None`.
+
+`None` is also forced for the first two acts. The six base fights have distinct tells and the
+player has to learn them; modifying a fight they have not met yet teaches nothing.
+
+### Haunted summons *and* swings
+
+This one is a real interaction bug that the obvious wiring would have shipped. `LandBossAttack`
+had a single path: if the archetype is `Summoner`, spend the cycle calling adds and return;
+otherwise swing. Hanging Haunted's extra add on that path makes every Haunted boss a summoner —
+so a Haunted Bone Colossus would call one skeleton per cycle and **never swing**, which is a
+strictly *easier* fight than the same boss with no affix at all.
+
+The cycle now runs: bite with whatever adds exist, add this cycle's summons, then swing — and
+only a true `Summoner` returns before the swing. The affix hangs adds on a boss; it does not
+excuse the boss from attacking.
+
+### Reading it before it hits you
+
+An affix is chosen from the **act** index, not the encounter, so `BossThreatState` shows the same
+affix the fight at the end of the act will carry. That is the point of the threat rounds: a
+player who has read "Vampiric" twice already has had two rounds to decide what to spend points
+on. Three channels carry it:
+
+- **A name prefix** — "Frenzied Bone Colossus" — on the HUD plate, on threat rounds and fights.
+- **An aura** the body breathes at 0.26 +/- 0.12, which the ward shell takes 45% of and the roar
+  shockwave blends half of. It **fades out under a telegraph** rather than adding to it: the
+  wind-up is the one signal the player must read to survive a blow, and a second colour competing
+  with it would cost them hits. Colossal alone also changes the drawn size, because size is its
+  entire claim.
+- **The HUD bar**, pulled 34% toward the affix colour rather than taking it — a green health bar
+  on a Haunted boss stops reading as health.
+
+One measured detail in that last one. Affix tints are authored as HDR emission colours (Frenzied
+is `(1.70, 0.30, 0.14)`), and a uGUI `Image` colour clamps at 1. Handing them straight to the bar
+would render Frenzied, Vampiric and Colossal as very nearly the same saturated red. The HUD
+divides by the brightest channel first, which keeps the hue that distinguishes them and discards
+an intensity the bar could not have shown anyway.
+
+The mesh is deliberately untouched. The six silhouettes are the only way to tell the creatures
+apart at 40 m on a phone, and recolouring one into another would cost more than the affix adds.
+
+**Next:** four more archetypes — Splitter, Hexer, Broodmother, Reaver — taking the roster to ten
+and the fight count to fifty.
+
 ## A gate for the failure that keeps costing five minutes
 
 Unity is the only compiler for everything outside `BattleRunner.Core`, and a headless editor

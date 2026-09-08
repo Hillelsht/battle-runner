@@ -1,6 +1,7 @@
 using BattleRunner.Core.Feel;
 using BattleRunner.Core.Boss;
 using BattleRunner.Core.Flow;
+using BattleRunner.Core.Progression;
 using BattleRunner.Core.Run;
 using BattleRunner.Core.Stats;
 using BattleRunner.Data.Definitions;
@@ -27,6 +28,7 @@ namespace BattleRunner.Gameplay.States
         // Archetype state. All of it is inert for a Slam boss, which is the fight the game
         // already had and which must stay exactly as it was.
         private BossArchetype _archetype;
+        private BossAffix _affix;
         private float _ward;
         private float _wardMax;
         private int _adds;
@@ -45,14 +47,16 @@ namespace BattleRunner.Gameplay.States
             // and with the old clamping LevelFor, round six onward was one boss forever.
             _boss = _ctx.Config.BossFor(_ctx.Profile.CurrentLevelIndex) ?? _ctx.CurrentLevel.Boss;
             _archetype = _boss.Archetype;
+            _affix = BossAffixes.For(RoundPlan.For(_ctx.Profile.CurrentLevelIndex).ActIndex);
             _resolved = false;
             _awaitingPrompt = false;
 
-            _bossHpMax = BossSim.BossHp(_boss.BaseHp, _boss.PerLevelGrowth, _ctx.Profile.CurrentLevelIndex);
+            _bossHpMax = BossAffixes.BossHp(_boss.BaseHp, _boss.PerLevelGrowth,
+                _ctx.Profile.CurrentLevelIndex, _affix);
             _bossHp = _bossHpMax;
             _attackTimer = _boss.AttackIntervalSeconds;
 
-            _wardMax = BossSim.WardPool(_archetype, _bossHpMax);
+            _wardMax = BossAffixes.WardPool(_archetype, _affix, _bossHpMax);
             _ward = _wardMax;
             _adds = 0;
             _blowsLeft = 0;
@@ -62,8 +66,9 @@ namespace BattleRunner.Gameplay.States
             // encounter while the crowd keeps ticking, so deriving the position from
             // Crowd.CenterZ later would walk the effects away from the body they belong to.
             _bossPosition = new Vector3(0f, 0f, _ctx.Crowd.CenterZ + 16f);
-            _ctx.BossView.Show(_boss, _bossPosition);
-            _ctx.Hud.ShowBossBar(_boss.DisplayName);
+            _ctx.BossView.Show(_boss, _bossPosition, _affix);
+            _ctx.Hud.ShowBossBar(BossAffixes.Decorate(_affix, _boss.DisplayName),
+                fillTint: BossThreatState.AffixTint(_affix));
             _ctx.Hud.SetBossHp(1f);
             _ctx.BossView.SetWard(_wardMax > 0f ? 1f : 0f);
 
@@ -141,8 +146,8 @@ namespace BattleRunner.Gameplay.States
             {
                 // Enrage compresses its own cycle as its health falls, so the interval is
                 // read fresh every time rather than taken from the definition.
-                _attackTimer = BossSim.NextInterval(_archetype, _boss.AttackIntervalSeconds,
-                    _bossHpMax > 0f ? _bossHp / _bossHpMax : 0f);
+                _attackTimer = BossAffixes.NextInterval(_archetype, _affix,
+                    _boss.AttackIntervalSeconds, _bossHpMax > 0f ? _bossHp / _bossHpMax : 0f);
                 _ctx.BossView.SetTelegraph(0f);
                 _ctx.CameraRig.SetTelegraph(0f);
                 LandBossAttack();
@@ -197,6 +202,7 @@ namespace BattleRunner.Gameplay.States
         private static readonly Color DrainTint = new Color(0.42f, 1.55f, 0.60f);
         private static readonly Color SummonTint = new Color(1.15f, 0.55f, 1.65f);
         private static readonly Color WardTint = new Color(0.80f, 0.92f, 1.70f);
+        private static readonly Color VampireTint = new Color(1.60f, 0.14f, 0.48f);
 
         private void OnFlickUp() => _ctx.Spell.TryCast();
         private void OnFlickDown() => _ctx.Shield.TryRaise();
@@ -296,24 +302,33 @@ namespace BattleRunner.Gameplay.States
         /// </summary>
         private void LandBossAttack()
         {
-            int summons = BossSim.AddsPerCycle(_archetype);
-            if (summons > 0)
+            int summons = BossAffixes.AddsPerCycle(_archetype, _affix);
+
+            // Anything called LAST cycle and not answered bites now, whatever called it. A
+            // summoner that only ever summoned would be a boss you could ignore.
+            if (_adds > 0)
             {
-                // Anything called LAST cycle and not answered bites now, and then it calls
-                // more. A summoner that only ever summoned would be a boss you could ignore.
                 BiteFromAdds();
                 if (_resolved || _awaitingPrompt) return;
+            }
 
+            if (summons > 0)
+            {
                 _adds += summons;
                 _ctx.Effects.Shock(_bossPosition, SummonTint, 0.8f, 8f, 0.5f);
                 for (int i = 0; i < summons; i++)
                     _ctx.Effects.Bolt(_bossPosition + Vector3.up * 1.4f,
                         new Vector3(_ctx.Crowd.CenterX + (i - 0.5f) * 2.2f, 0f,
                             _ctx.Crowd.FrontZ + 4f), SummonTint, 16f);
-                return;
             }
 
-            // Everything else swings. A volley queues its follow-ups on the blow clock.
+            // A true SUMMONER spends its cycle calling rather than swinging. Everything else
+            // swings as well — the Haunted affix hangs adds on a boss, it does not excuse the
+            // boss from attacking, and gating the swing on "did anything get summoned" would
+            // have turned every Haunted Colossus into a creature that never lands a blow.
+            if (_archetype == BossArchetype.Summoner) return;
+
+            // A volley queues its follow-ups on the blow clock.
             _blowsLeft = BossSim.BlowsPerCycle(_archetype) - 1;
             _blowTimer = BossSim.VolleyGapSeconds(_boss.TelegraphSeconds);
             LandOneBlow();
@@ -348,7 +363,8 @@ namespace BattleRunner.Gameplay.States
         private void LandOneBlow()
         {
             long before = _ctx.Run.ForceCount;
-            long after = BossSim.ApplyBossHit(before, BossSim.BlowFraction(_archetype, _boss.HitFraction),
+            long after = BossSim.ApplyBossHit(before,
+                BossAffixes.BlowFraction(_archetype, _affix, _boss.HitFraction),
                 _ctx.LastResult.HeroStats.Get(BattleRunner.Core.Stats.StatIds.Health),
                 _ctx.Shield.IsActive);
 
@@ -363,6 +379,17 @@ namespace BattleRunner.Gameplay.States
             }
 
             _ctx.CameraRig.Apply(CameraFeel.ForBossStrike(before, after, blocked));
+
+            // A Vampiric boss feeds on what it takes, and blocking is what starves it — which
+            // is the whole reason the affix exists rather than being another damage number.
+            float heal = BossAffixes.HealOnHit(_affix, _bossHpMax, blocked);
+            if (heal > 0f && !_resolved)
+            {
+                _bossHp = Mathf.Min(_bossHpMax, _bossHp + heal);
+                _ctx.Hud.SetBossHp(_bossHp / _bossHpMax);
+                _ctx.Effects.Bolt(new Vector3(_ctx.Crowd.CenterX, 0.8f, _ctx.Crowd.CenterZ),
+                    _bossPosition + Vector3.up * 1.2f, VampireTint, 28f);
+            }
 
             // A landed blow throws debris off the ARMY; a blocked one rings off the shield
             // instead. Two different events that used to look the same except for a number.

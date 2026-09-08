@@ -21,6 +21,11 @@ namespace BattleRunner.Gameplay.Combat
         private float _baseScale = 6f;
         private float _hitFlash;
 
+        // The champion aura. Black and inert when the boss carries no affix, so a plain
+        // fight looks exactly as it did before affixes existed.
+        private Color _aura;
+        private bool _hasAffix;
+
         private Transform _ward;
         private MeshRenderer _wardRenderer;
         private MaterialPropertyBlock _wardBlock;
@@ -107,8 +112,24 @@ namespace BattleRunner.Gameplay.Combat
             _wardBlock = new MaterialPropertyBlock();
         }
 
-        public void Show(BossDefinition def, Vector3 position)
+        public void Show(BossDefinition def, Vector3 position) =>
+            Show(def, position, BossAffix.None);
+
+        /// <summary>
+        /// Shows the boss wearing an affix. The affix is visible BEFORE it matters: the same
+        /// call dresses the threat cameo on the rounds that do not fight, so the player reads
+        /// "Frenzied" three rounds before anything swings faster.
+        ///
+        /// Two things carry it, and neither is the mesh — the roster's silhouettes are the
+        /// only way to tell six creatures apart and recolouring one into another would cost
+        /// more than the affix adds. Instead the body breathes an aura colour, and Colossal
+        /// alone changes the SIZE, because that is the one affix whose whole claim is size.
+        /// </summary>
+        public void Show(BossDefinition def, Vector3 position, BossAffix affix)
         {
+            _hasAffix = affix != BossAffix.None;
+            _aura = _hasAffix ? ThemePalette.ToColor(BossAffixes.Tint(affix)) : Color.black;
+
             Color tint = def.TintColor;
             // NOT tint * 0.5f. These are sRGB values in a linear project, so halving in
             // sRGB is a 0.234x cut in linear — the gamma curve charges for it twice. The
@@ -124,7 +145,10 @@ namespace BattleRunner.Gameplay.Combat
             Mesh mesh = ProceduralMeshes.Boss(def.Archetype);
             _filter.sharedMesh = mesh;
             float height = Mathf.Max(0.01f, mesh.bounds.size.y);
-            _baseScale = TargetHeight(def.Archetype) / height;
+            // Scale from the archetype's TARGET height, then let Colossal push past it. The
+            // target exists so a hound and a lich stand comparably tall; the boost exists so a
+            // Colossal one does not.
+            _baseScale = TargetHeight(def.Archetype) / height * BossAffixes.ScaleBoost(affix);
             _body.localScale = Vector3.one * _baseScale;
 
             SetWard(0f);
@@ -179,6 +203,12 @@ namespace BattleRunner.Gameplay.Combat
 
             Color emission = Color.Lerp(_baseEmission, _telegraphColor, _telegraphPulse);
             emission += new Color(1.10f, 0.75f, 0.40f) * _hitFlash;
+            // The aura breathes rather than sitting still, and it FADES OUT under a telegraph
+            // instead of adding to it: the wind-up is the one signal the player has to read to
+            // survive, and a permanent second colour competing with it would cost them blows.
+            if (_hasAffix)
+                emission += _aura * (AuraBase + AuraSwing * Mathf.Sin(Time.time * 2.6f))
+                                  * (1f - _telegraphPulse);
             _material.SetColorSafe("_EmissionColor", emission);
 
             // The gate that makes the flash actually land. CrowdInstanced adds
@@ -227,7 +257,11 @@ namespace BattleRunner.Gameplay.Combat
             // The shell DIMS as it is worn down, so the bar is not the only place the
             // player can read how close they are to breaking it.
             float fade = Mathf.Clamp01(0.28f + 0.62f * _wardLevel + _wardFlash * 0.8f);
-            _wardBlock.SetColor("_TintColor", Color.Lerp(WardHeld, WardStruck, _wardFlash));
+            // An affix stains the shell as well as the body. Held at 0.45 rather than replacing
+            // the colour outright: an Armoured warden's shell must still read as a ward, not as
+            // a differently coloured object.
+            Color held = _hasAffix ? Color.Lerp(WardHeld, _aura, 0.45f) : WardHeld;
+            _wardBlock.SetColor("_TintColor", Color.Lerp(held, WardStruck, _wardFlash));
             _wardBlock.SetFloat("_Fade", fade);
             _wardBlock.SetFloat("_Band", 0f);
             _wardBlock.SetFloat("_Fresnel", 1f);
@@ -236,6 +270,10 @@ namespace BattleRunner.Gameplay.Combat
 
             if (!_ward.gameObject.activeSelf) _ward.gameObject.SetActive(true);
         }
+
+        /// <summary>Resting aura strength, and how far it breathes either side of it.</summary>
+        private const float AuraBase = 0.26f;
+        private const float AuraSwing = 0.12f;
 
         // Cold and pale where the player's own dome is cyan — near enough to read as the
         // same kind of object, far enough that nobody mistakes whose it is.

@@ -1,3 +1,4 @@
+using BattleRunner.Core.Boss;
 using BattleRunner.Core.Feel;
 using BattleRunner.Core.Flow;
 using BattleRunner.Core.Progression;
@@ -41,6 +42,7 @@ namespace BattleRunner.Gameplay.States
 
         private readonly GameContext _ctx;
         private BossDefinition _boss;
+        private BossAffix _affix;
         private Vector3 _position;
         private float _elapsed;
         private float _menace;
@@ -57,6 +59,11 @@ namespace BattleRunner.Gameplay.States
 
             RoundPlan plan = RoundPlan.For(_ctx.Profile.CurrentLevelIndex);
             _boss = _ctx.Config.BossFor(_ctx.Profile.CurrentLevelIndex);
+            // The SAME affix the fight at the end of this act will carry — it is a property of
+            // the act, not of the encounter. Showing it here is the point of the threat rounds:
+            // a player who reads "Vampiric" twice before meeting it has had two rounds to
+            // decide what to spend their points on.
+            _affix = BossAffixes.For(plan.ActIndex);
 
             // 0 on the first threat of an act, 1 on the last before the fight. Everything
             // that escalates reads off this rather than off the raw step, so an act of three
@@ -70,12 +77,17 @@ namespace BattleRunner.Gameplay.States
 
             if (_boss != null)
             {
-                _ctx.BossView.Show(_boss, _position);
+                _ctx.BossView.Show(_boss, _position, _affix);
                 // Named, but with no health bar: there is nothing to whittle down, and a full
                 // red bar would promise a fight that is not going to happen this round.
-                _ctx.Hud.ShowBossBar(_boss.DisplayName, withHealth: false);
+                _ctx.Hud.ShowBossBar(BossAffixes.Decorate(_affix, _boss.DisplayName),
+                    withHealth: false, fillTint: AffixTint(_affix));
             }
         }
+
+        /// <summary>Null for an unmodified boss, so the HUD keeps its authored blood red.</summary>
+        internal static Color? AffixTint(BossAffix affix) =>
+            affix == BossAffix.None ? (Color?)null : ThemePalette.ToColor(BossAffixes.Tint(affix));
 
         public void Tick(float dt)
         {
@@ -109,9 +121,15 @@ namespace BattleRunner.Gameplay.States
             // beat does — this is the same language, turned down, and turned up again on each
             // successive threat until the fight itself.
             float force = 0.55f + 0.45f * _menace;
-            _ctx.Effects.Shock(_position, RoarTint, 1.2f, 9f + 7f * _menace, 0.55f);
-            _ctx.Effects.Shock(_position, RoarTint, 0.6f, 5f + 4f * _menace, 0.40f);
-            _ctx.Effects.Burst(_position + Vector3.up * 1.6f, RoarTint,
+            // A champion roars in its own colour. Half-blended rather than replaced, so the
+            // shock still reads as the same beat the boss death uses — it is the affix
+            // announcing itself, not a different effect.
+            Color roar = _affix == BossAffix.None
+                ? RoarTint
+                : Color.Lerp(RoarTint, ThemePalette.ToColor(BossAffixes.Tint(_affix)), 0.5f);
+            _ctx.Effects.Shock(_position, roar, 1.2f, 9f + 7f * _menace, 0.55f);
+            _ctx.Effects.Shock(_position, roar, 0.6f, 5f + 4f * _menace, 0.40f);
+            _ctx.Effects.Burst(_position + Vector3.up * 1.6f, roar,
                 10 + Mathf.RoundToInt(18f * _menace), 5.5f, 0.7f);
 
             _ctx.CameraRig.AddTrauma(0.30f * force);
