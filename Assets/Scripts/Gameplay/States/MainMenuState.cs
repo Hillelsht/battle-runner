@@ -17,9 +17,13 @@ namespace BattleRunner.Gameplay.States
 
             _ctx.CurrentStats = ProfileStatsResolver.Resolve(_ctx.Profile, _ctx.Config);
             string summary = ProfileStatsResolver.Summary(_ctx.Profile, _ctx.Config, _ctx.CurrentStats);
-            var level = _ctx.CurrentLevel;
+            // The WORLD's name, not the level asset's. An act wears one world for three to
+            // five rounds while the level list cycles on its own period, so showing the level
+            // name here would tell the player they are entering somewhere they are not.
+            BattleRunner.Core.World.WorldTheme theme = BattleRunner.Core.World.WorldThemes.For(
+                BattleRunner.Core.Progression.RoundPlan.For(_ctx.Profile.CurrentLevelIndex));
             _ctx.MenuScreen.Show(_ctx.Profile.CurrentLevelIndex,
-                level != null ? level.DisplayName : "???", summary);
+                theme != null ? theme.DisplayName : "???", summary);
         }
 
         public void Tick(float deltaTime) { }

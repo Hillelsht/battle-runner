@@ -15,9 +15,9 @@ points → save → next level.
 | Area | State |
 |---|---|
 | Game loop | Complete end to end |
-| Content | 6 levels, 6 bosses (6 archetypes), 15 gear items, 4 rarities, ~60 talents + endless paragon |
+| Content | 8 worlds, 6 levels, 6 bosses (6 archetypes), 15 gear items, 4 rarities, ~60 talents + endless paragon |
 | Art | Greybox — procedural meshes, code-built uGUI, no imported assets |
-| Tests | 213, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 247, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
@@ -83,6 +83,61 @@ The tree's scroll column carries a fully transparent `Image` on its viewport pur
 raycast target. Without a Graphic the `ScrollRect` is not hit-testable, so only drags that
 began on a child button reached it — and on a column of sixty nodes the gaps between cells
 are most of the screen, which made the list read as stuck rather than as fussy.
+
+**Eight worlds, and rounds that belong to acts.** The report was that every round has the same
+pavement, the same background and the same doors. Sampling nine device frames settles it: the
+sky above the horizon is `(11,10,15) ± 2` in every one, the road in front of the camera is
+`(25-29, 25-31, 37-46)` in all eight gameplay shots, and beside the road every frame reads
+`(10,8,12)` — pure black. There was no background to be tired of, only an unlit plane and then
+void. The causes were structural: `EnvironmentLook.Apply()` is a parameterless static that runs
+once at boot BEFORE a level exists, and `TrackController` builds its four materials from
+constants in `Initialize` and never touches them again.
+
+An **act** is now 3-5 rounds sharing one of eight authored worlds — Ashen Road, Gallows Mire,
+Sunken Crypt, Ember Fields, Bone Wastes, Frozen Reach, Blood Marsh, Throne of Dust. Slot 0
+reproduces the shipped palette exactly, because it is the one look that has been seen on a real
+screen and judged; the other seven are pushed away from it rather than invented beside it. A
+world carries only values that were already shader properties — `Road.shader` exposes eight and
+`DarkSky.shader` ten — so none of this needed new shader work.
+
+**Worlds walk forward, bosses walk backward.** `LevelFor(i)` and `BossFor(i)` both wrapped
+modulo 6 against arrays of length 6, so the pairing never changed; the v0.12.0 note calling them
+"two coprime-ish cycles" was wrong, they were the same cycle. Acts now take `theme = act % 8`
+and `boss = -act mod n`. Stepping by `n-1` is stepping by `-1`, and `n-1` is coprime to `n` for
+every `n`, so it visits every boss in a different order than the themes without a stride picked
+by hand per roster size. **24 distinct pairings before the first repeat, against exactly 1.**
+
+**The first act is two rounds and is a one-off, not part of the cycle.** The tutorial teaches the
+shield on a boss telegraph, so a long opening act strands a new player with a verb they have
+never been shown — and folding a 2 into the repeat would bring two-round boss gaps back around
+forever. A test caught exactly that and now pins the gap between fights at only ever 3, 4 or 5.
+
+**Rounds inside an act differ too, and the drift ramps.** `ThemeVariant` hashes the round index
+into a hue shift, fog depth, star strength, light azimuth, prop density and road wetness — about
+a third of full amplitude on an act's first round, full on its last. A world is introduced before
+it is bent, which reads as going deeper into somewhere rather than as noise. The hash is unsigned
+integer arithmetic with exact expected values pinned, because float maths that agrees under .NET
+and disagrees under Mono has already cost this project a CI failure.
+
+**The fog rule in doc 10 was half wrong and is now corrected.** It records fog as
+`horizon + ~0.76 * glow`; solving the shipped values per channel gives r = 0.710, g = 0.697,
+**b = 0.457** — red and green fit one factor to within 0.005, blue does not, because the shipped
+fog is deliberately warmer. Deriving fog from sky would have shifted every world's horizon cooler
+than the one on screen today, so fog stays authored and a test refuses any world whose red or
+green drifts more than 0.02 from the sky-derived value.
+
+`Resources/Road.mat` and `Resources/DarkSky.mat` are now **instanced rather than used by
+reference** — a per-round retint of the loaded asset would have edited a committed file on disk
+every time the editor played a round. The key light is kept in a field, where before it was
+created and its reference dropped. The ground strip runs 200 m past the finish instead of 180,
+because that 180 was chosen to clear a fog end fixed at 170 and worlds now pick their own
+weather. The fog MODE is deliberately not themed: Unity's Automatic stripping keeps only the
+modes a scene declares, and a world switching to exponential would have no fog at all on device.
+
+Rounds grow from `5 + min(3, levelIndex)` chunks — capped at 8 forever, 24-38 seconds — to a
+flat 12, about 54 seconds. `RoundPlan` designs 12 to 20, but content clamps to the floor until
+the chunk archetypes land: tripling a round's length while every chunk is still one of three
+layouts makes the repetition worse, not better. Pools moved with it, 14/20 to 40/24.
 
 **Six bosses that are actually six bosses.** The game shipped with two, and they used the
 SAME MESH: `BossDefinition` differed in name, tint and stats and in nothing else, both
@@ -299,7 +354,7 @@ The v0.4.0 screenshots confirmed the art pass landed — sky, stars, shadows, ro
 gates and UI frames all correct on device — and surfaced two bugs that were never about
 art: `Focus -0 %` on the menu and `+0.01 Focus` on the loot card. Both were units chosen
 from the ModifierKind rather than from the stat, plus a hard-coded minus sign in front of
-a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 213 tests today).
+a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 247 tests today).
 
 A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
 11 survived adversarial refutation. The headline three: the key light pointed the same way

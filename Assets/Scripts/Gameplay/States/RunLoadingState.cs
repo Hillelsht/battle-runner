@@ -1,5 +1,7 @@
 using BattleRunner.Core.Flow;
+using BattleRunner.Core.Progression;
 using BattleRunner.Core.Run;
+using BattleRunner.Core.World;
 using BattleRunner.Data.Definitions;
 using BattleRunner.Meta.Services;
 
@@ -19,6 +21,16 @@ namespace BattleRunner.Gameplay.States
         public void Enter()
         {
             LevelDefinition level = _ctx.CurrentLevel;
+
+            // The world is dressed BEFORE the road is built, so the very first frame of a
+            // round is already the right place rather than the last round's place repainted.
+            // This is the only per-round moment that holds the round index while nothing is
+            // on screen: the index is stable from here until StatUpgradeState advances it.
+            RoundPlan plan = RoundPlan.For(_ctx.Profile.CurrentLevelIndex);
+            WorldTheme theme = WorldThemes.For(plan);
+            ThemeVariant variant = ThemeVariant.For(plan);
+            EnvironmentLook.ApplyTheme(theme, variant);
+            _ctx.TrackController.ApplyTheme(theme, variant);
 
             _ctx.ArenaRoot.SetActive(true);
             _ctx.TrackController.BuildLevel(level);

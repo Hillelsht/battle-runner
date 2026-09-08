@@ -60,7 +60,11 @@ namespace BattleRunner.Gameplay.Track
                 && !ShaderSafety.UsingFallback)
             {
                 var road = Resources.Load<Material>("Road");
-                if (road != null && road.shader != null && road.shader.isSupported) return road;
+                // INSTANCED, not the asset. Every world retints the road, and writing those
+                // tints into the loaded asset would edit Resources/Road.mat on disk each time
+                // the editor played a round.
+                if (road != null && road.shader != null && road.shader.isSupported)
+                    return new Material(road);
             }
 
             Debug.LogWarning("[Track] Road material unavailable — falling back to a flat slab.");
@@ -84,8 +88,12 @@ namespace BattleRunner.Gameplay.Track
             _gatePool = new ObjectPool<GateBehaviour>(() => GateBehaviour.Build(font), poolRoot);
             _enemyPool = new ObjectPool<EnemyPackBehaviour>(
                 () => EnemyPackBehaviour.Build(unitMesh, enemyMaterial, font), poolRoot);
-            _gatePool.Prewarm(14);
-            _enemyPool.Prewarm(20);
+            // Prewarmed for the longest round the content generator will build. Doc 04 bans
+            // mid-run instantiation and ObjectPool.Get silently CREATES on an empty pool, so
+            // these have to move whenever round length does — 12 chunks is 32 gates and 11
+            // packs at worst, and the headroom covers the next bump.
+            _gatePool.Prewarm(40);
+            _enemyPool.Prewarm(24);
 
             _groundMaterial = LoadRoadMaterial(baseMaterial);
 
@@ -145,6 +153,64 @@ namespace BattleRunner.Gameplay.Track
             _railMaterial.SetFloatSafe("_BobAmount", 0f);
         }
 
+        /// <summary>
+        /// How far the ground runs past the finish line.
+        ///
+        /// It was 180, chosen to clear a fog end fixed at 170. Worlds now choose their own
+        /// weather and the widest-open of them fogs out at WorldThemes.MaxFogEnd, so the road
+        /// has to outrun THAT instead. 200 m past the finish is ~210 m from a camera sitting
+        /// 10 m behind the crowd, which is still inside the 220 m far clip — so the seam is
+        /// buried in fog rather than sliced by the clip plane.
+        /// </summary>
+        private const float GroundOverrunMeters = 200f;
+
+        /// <summary>
+        /// Repaint the road, its kerbs and its markings for a world.
+        ///
+        /// The four track materials were built once in Initialize from constants and never
+        /// touched again, which is most of why every level looked the same. They are still
+        /// built there — the shapes and the rim tuning are hard-won and world-independent —
+        /// but their colours now come from the theme.
+        ///
+        /// Call before BuildLevel: the statics take the material by reference, so a retint
+        /// after the strip is spawned is fine too, but doing it first keeps the first frame
+        /// of a round correct.
+        /// </summary>
+        public void ApplyTheme(BattleRunner.Core.World.WorldTheme theme,
+            BattleRunner.Core.Progression.ThemeVariant variant)
+        {
+            if (theme == null) return;
+            float hue = variant.HueShift;
+
+            if (_groundMaterial != null)
+            {
+                _groundMaterial.SetColorSafe("_BaseColor", ThemePalette.Shifted(theme.RoadStone, hue));
+                _groundMaterial.SetColorSafe("_MortarColor", ThemePalette.Shifted(theme.RoadMortar, hue));
+                _groundMaterial.SetColorSafe("_DampColor", ThemePalette.Shifted(theme.RoadDamp, hue));
+                _groundMaterial.SetFloatSafe("_Tiling", Mathf.Max(0.2f, theme.RoadTiling));
+                _groundMaterial.SetFloatSafe("_MortarWidth", theme.RoadMortarWidth);
+                _groundMaterial.SetFloatSafe("_StoneVariation", theme.RoadStoneVariation);
+                // Wetness is the cheapest thing on the road that reads as weather, so the
+                // per-round variation spends here as well as on the fog.
+                _groundMaterial.SetFloatSafe("_Wetness",
+                    Mathf.Clamp01(theme.RoadWetness + variant.WetnessShift));
+                _groundMaterial.SetFloatSafe("_Gloss", Mathf.Max(1f, theme.RoadGloss));
+            }
+
+            if (_railMaterial != null)
+            {
+                _railMaterial.SetColorSafe("_BaseColor", ThemePalette.Shifted(theme.RailBase, hue));
+                _railMaterial.SetColorSafe("_EmissionColor", ThemePalette.Shifted(theme.RailEmission, hue));
+            }
+
+            if (_markingMaterial != null)
+            {
+                _markingMaterial.SetColorSafe("_BaseColor", ThemePalette.Shifted(theme.MarkingBase, hue));
+                _markingMaterial.SetColorSafe("_EmissionColor",
+                    ThemePalette.Shifted(theme.MarkingEmission, hue));
+            }
+        }
+
         public void BuildLevel(LevelDefinition level)
         {
             ClearLevel();
@@ -169,7 +235,7 @@ namespace BattleRunner.Gameplay.Track
             // (EnvironmentLook fogEndDistance 170) at every camera position, so the road
             // walks into haze instead of ending. It costs nothing — the ground, the four
             // lane lines and the two rails are one 24-vertex box each at ANY length.
-            SpawnGroundStrip(-6f, _finishZ + 180f);
+            SpawnGroundStrip(-6f, _finishZ + GroundOverrunMeters);
             SpawnFinishLine(_finishZ);
         }
 

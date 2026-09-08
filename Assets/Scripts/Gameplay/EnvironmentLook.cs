@@ -1,3 +1,5 @@
+using BattleRunner.Core.Progression;
+using BattleRunner.Core.World;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
@@ -22,6 +24,12 @@ namespace BattleRunner.Gameplay
     public static class EnvironmentLook
     {
         private static VolumeProfile _profile;
+
+        // Handles kept so a world can be applied per round. None of these existed before:
+        // the sky was used straight off the Resources asset, and the key light was created
+        // and its reference dropped on the floor.
+        private static Material _sky;
+        private static Light _keyLight;
 
         public static void Apply()
         {
@@ -54,7 +62,12 @@ namespace BattleRunner.Gameplay
                 return;
             }
 
-            RenderSettings.skybox = sky;
+            // INSTANCED, not the asset. RenderSettings.skybox holds whatever it is given, and
+            // a per-round retint of the loaded asset would write straight back into
+            // Resources/DarkSky.mat — changing a committed file on disk every time the editor
+            // played a round. A copy costs one material and removes that entirely.
+            _sky = new Material(sky);
+            RenderSettings.skybox = _sky;
         }
 
         private static void ApplyAtmosphere()
@@ -133,6 +146,66 @@ namespace BattleRunner.Gameplay
             // elevation rather than 55 makes them 1.6x the caster's height instead of
             // 0.7x, which is what makes a crowd read as standing on something.
             lightGo.transform.rotation = Quaternion.Euler(32f, 250f, 0f);
+
+            // Kept, so a world can retint and re-aim it. The old code dropped this reference
+            // and there was no way to reach the light again for the life of the app.
+            _keyLight = light;
+        }
+
+        /// <summary>
+        /// Dress the world for one round: sky, weather, ambient and the angle of the light.
+        ///
+        /// Called from RunLoadingState once the level is known — the only per-round moment
+        /// that holds the round index before anything is on screen. Everything here is a
+        /// property that already existed on shaders that already ship; nothing new compiles.
+        ///
+        /// THE FOG MODE IS NOT TOUCHED, and that is not an oversight. Unity's Automatic
+        /// variant stripping keeps a FOG_* shader variant only if some scene enables that mode
+        /// in its lighting settings, and Main.unity declares Linear. A world that switched to
+        /// exponential would compile fine, run fine in the editor, and have no fog at all on
+        /// the device — which is exactly how fog shipped broken once already.
+        /// </summary>
+        public static void ApplyTheme(WorldTheme theme, ThemeVariant variant)
+        {
+            if (theme == null) return;
+            float hue = variant.HueShift;
+
+            if (_sky != null)
+            {
+                _sky.SetColorSafe("_ZenithColor", ThemePalette.Shifted(theme.SkyZenith, hue));
+                _sky.SetColorSafe("_HorizonColor", ThemePalette.Shifted(theme.SkyHorizon, hue));
+                _sky.SetColorSafe("_GroundColor", ThemePalette.Shifted(theme.SkyGround, hue));
+                _sky.SetColorSafe("_GlowColor", ThemePalette.Shifted(theme.SkyGlow, hue));
+                _sky.SetFloatSafe("_ZenithFalloff", theme.SkyZenithFalloff);
+                _sky.SetFloatSafe("_GroundFalloff", theme.SkyGroundFalloff);
+                _sky.SetFloatSafe("_GlowPower", theme.SkyGlowPower);
+                _sky.SetFloatSafe("_GlowHeight", theme.SkyGlowHeight);
+                _sky.SetFloatSafe("_StarStrength", Mathf.Max(0f, theme.SkyStars * variant.StarScale));
+            }
+
+            RenderSettings.fogColor = ThemePalette.Shifted(theme.Fog, hue);
+            // Clamped to the distance the ground strip is actually built to cover. A world
+            // whose fog ended past the road would show the player the edge of the world
+            // instead of hiding it.
+            float end = Mathf.Min(WorldThemes.MaxFogEnd, theme.FogEnd * variant.FogScale);
+            float start = Mathf.Clamp(theme.FogStart * variant.FogScale, 5f, end - 20f);
+            RenderSettings.fogStartDistance = start;
+            RenderSettings.fogEndDistance = end;
+
+            RenderSettings.ambientMode = AmbientMode.Trilight;
+            RenderSettings.ambientSkyColor = ThemePalette.Shifted(theme.AmbientSky, hue);
+            RenderSettings.ambientEquatorColor = ThemePalette.Shifted(theme.AmbientEquator, hue);
+            RenderSettings.ambientGroundColor = ThemePalette.Shifted(theme.AmbientGround, hue);
+
+            if (_keyLight != null)
+            {
+                _keyLight.color = ThemePalette.Shifted(theme.LightColor, hue);
+                _keyLight.intensity = Mathf.Max(0.1f, theme.LightIntensity);
+                // The azimuth swing is the cheapest change that alters every shadow on the
+                // road at once, which is why the variation spends most of its budget here.
+                _keyLight.transform.rotation =
+                    Quaternion.Euler(theme.LightPitch, theme.LightYaw + variant.LightAzimuth, 0f);
+            }
         }
 
         /// <summary>

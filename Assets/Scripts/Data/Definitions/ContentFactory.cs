@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using BattleRunner.Core.Boss;
+using BattleRunner.Core.Progression;
 using BattleRunner.Core.Loot;
 using BattleRunner.Core.Run;
 using BattleRunner.Core.Stats;
@@ -238,9 +239,22 @@ namespace BattleRunner.Data.Definitions
         /// subtract gates and enemy packs as pressure. Multiplier placement follows the
         /// par-force rule (doc 01, R4): never two x-gates in the same chunk.
         /// </summary>
+        /// <summary>
+        /// Chunks a round is allowed while the layout generator still only knows three
+        /// shapes.
+        ///
+        /// RoundPlan designs rounds of 12 to 20 chunks, and that range is the real target —
+        /// but tripling a round's length while every chunk is one of the same three layouts
+        /// makes the sameness worse, not better: ninety seconds of repetition is harder to
+        /// sit through than thirty. So the length is held at the floor of the designed range
+        /// until the chunk archetypes land, at which point this cap is deleted rather than
+        /// raised.
+        /// </summary>
+        public const int ChunkCountCap = 12;
+
         public static ChunkDefinition[] BuildChunksForLevel(int levelIndex)
         {
-            int chunkCount = 5 + Mathf.Min(3, levelIndex);
+            int chunkCount = Mathf.Min(ChunkCountCap, RoundPlan.For(levelIndex).ChunkCount);
             var chunks = new ChunkDefinition[chunkCount];
             for (int c = 0; c < chunkCount; c++)
             {
