@@ -413,12 +413,10 @@ namespace BattleRunner.Gameplay.States
             _ctx.Effects.Burst(foot + Vector3.up * 1.5f, DeathTint, 40, 7.5f, 0.9f);
 
             _resolved = true;
-            // Income SCALES with depth. At a flat 3 a tree of ~240 point-spends would need
-            // eighty boss kills to fill, which is not progression, it is a wall with a long
-            // approach. Rising by one every two levels puts the tree at roughly thirty kills
-            // and hands the rest to paragon, which never runs out.
-            int award = _ctx.Config.Balance.StatPointsPerBossKill + _ctx.Profile.CurrentLevelIndex / 2;
-            _ctx.Profile.UnspentStatPoints += award;
+            // The stat-point award moved to LootPhaseState, which now runs after BOTH endings
+            // and pays every round from RoundRewards. Awarding here as well would pay a boss
+            // round twice — and the boss round's share of the curve is already the largest in
+            // the act by a wide margin.
             _ctx.Machine.TransitionTo(_ctx.LootState);
         }
 

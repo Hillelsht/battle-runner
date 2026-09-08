@@ -13,6 +13,7 @@ namespace BattleRunner.Meta.UI
         private readonly GameObject _bossBarRoot;
         private readonly RectTransform _bossBarFill;
         private readonly Text _bossName;
+        private readonly Text _roundLabel;
         private long _lastForce = long.MinValue;
 
         public HudScreen(Transform canvas)
@@ -51,6 +52,14 @@ namespace BattleRunner.Meta.UI
             _bossName = UiFactory.Label(barBack, "BossName", "", 30, UiFactory.Parchment);
             UiFactory.Stretch((RectTransform)_bossName.transform);
 
+            // Where the player is, Mario-style: "3-2" plus the name of the world they are in.
+            // During a round they were never told either — the HUD had exactly four text
+            // elements (force, spell, shield, boss name) and the level name appeared only on
+            // the main menu, which is the one place it does not matter.
+            _roundLabel = UiFactory.Label(root, "Round", string.Empty, 26, UiFactory.Parchment,
+                TextAnchor.MiddleLeft);
+            UiFactory.Place((RectTransform)_roundLabel.transform, 0.30f, 0.965f, 520f, 44f);
+
             HideBossBar();
             Hide();
         }
@@ -76,9 +85,16 @@ namespace BattleRunner.Meta.UI
                 shieldRemaining <= 0f ? UiFactory.Parchment : UiFactory.InkSoft * 2f;
         }
 
-        public void ShowBossBar(string bossName)
+        /// <param name="withHealth">
+        /// False while a boss is only THREATENING. There is nothing to whittle down on a
+        /// round it does not fight, and a full red bar would promise otherwise — so the plate
+        /// carries the name and the frame, and the fill is switched off entirely.
+        /// </param>
+        public void ShowBossBar(string bossName, bool withHealth = true)
         {
             _bossName.text = bossName;
+            _bossBarFill.gameObject.SetActive(withHealth);
+            if (withHealth) SetBossHp(1f);
             _bossBarRoot.SetActive(true);
         }
 
@@ -89,5 +105,8 @@ namespace BattleRunner.Meta.UI
         }
 
         public void HideBossBar() => _bossBarRoot.SetActive(false);
+
+        /// <summary>The act-and-round marker, e.g. "3-2  THE BONE WASTES".</summary>
+        public void SetRound(string text) => _roundLabel.text = text ?? string.Empty;
     }
 }

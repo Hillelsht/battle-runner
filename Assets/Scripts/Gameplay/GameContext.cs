@@ -69,6 +69,9 @@ namespace BattleRunner.Gameplay
         public RunLoadingState RunLoadingState;
         public RunnerLoopState RunnerState;
         public BossEncounterState BossState;
+
+        /// <summary>The act's boss looming at the finish of a round it does not fight.</summary>
+        public BossThreatState ThreatState;
         public LootPhaseState LootState;
         public StatUpgradeState UpgradeState;
 

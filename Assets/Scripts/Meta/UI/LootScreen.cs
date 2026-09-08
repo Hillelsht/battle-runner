@@ -87,6 +87,9 @@ namespace BattleRunner.Meta.UI
         /// <summary>The header a fresh drop gets, before any double-loot ad.</summary>
         public const string DefaultHeader = "THE BOSS YIELDS...";
 
+        /// <summary>A round that only threatened. Nothing died, so nothing yielded.</summary>
+        public const string ThreatHeader = "SPOILS OF THE ROAD";
+
         public void HideDoubleButton()
         {
             _doubleButtonGo.SetActive(false);

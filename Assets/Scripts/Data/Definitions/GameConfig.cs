@@ -1,3 +1,4 @@
+using BattleRunner.Core.Progression;
 using UnityEngine;
 
 namespace BattleRunner.Data.Definitions
@@ -46,7 +47,17 @@ namespace BattleRunner.Data.Definitions
         /// </summary>
         public BossDefinition BossFor(int levelIndex)
         {
-            if (Bosses != null && Bosses.Length > 0) return Bosses[Wrap(levelIndex, Bosses.Length)];
+            if (Bosses != null && Bosses.Length > 0)
+            {
+                // The ACT's boss, not the round's. An act's boss looms at the finish line of
+                // every round in it before it is finally fought on the last one, so the
+                // creature that threatens on round two has to be the one that swings on round
+                // four — picking per round would show the player a different monster each
+                // time and make the whole build-up meaningless.
+                RoundPlan plan = RoundPlan.For(levelIndex);
+                return Bosses[RoundPlan.BossSlot(plan.ActIndex, Bosses.Length)];
+            }
+
             LevelDefinition level = LevelFor(levelIndex);
             return level != null ? level.Boss : null;
         }

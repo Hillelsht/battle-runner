@@ -1,5 +1,6 @@
 using BattleRunner.Core.Flow;
 using BattleRunner.Core.Feel;
+using BattleRunner.Core.Progression;
 using BattleRunner.Core.Run;
 using BattleRunner.Core.Stats;
 using BattleRunner.Meta.Services;
@@ -28,6 +29,15 @@ namespace BattleRunner.Gameplay.States
             _ctx.Hud.Show();
             _ctx.Hud.SetForce(_ctx.Run.ForceCount);
             _ctx.Hud.HideBossBar();
+
+            // "3-2  THE BONE WASTES", or on the last round of an act the name of whatever is
+            // waiting at the end of it. The build-up only works if the player knows how many
+            // rounds are left before the fight.
+            RoundPlan plan = RoundPlan.For(_ctx.Profile.CurrentLevelIndex);
+            string where = plan.IsBossRound
+                ? (_ctx.Config.BossFor(_ctx.Profile.CurrentLevelIndex)?.DisplayName ?? "SOMETHING") + " AWAITS"
+                : BattleRunner.Core.World.WorldThemes.For(plan).DisplayName;
+            _ctx.Hud.SetRound($"{plan.ActIndex + 1}-{plan.RoundInAct + 1}   {where.ToUpperInvariant()}");
 
             _ctx.LaneTargetChannel.Subscribe(_ctx.Crowd.OnLaneTarget);
             _ctx.FlickUpChannel.Subscribe(OnFlickUp);
@@ -301,7 +311,12 @@ namespace BattleRunner.Gameplay.States
                 GatesHit = _ctx.Run.GatesHit,
                 ReachedBoss = true
             };
-            _ctx.Machine.TransitionTo(_ctx.BossState);
+
+            // The fork the act structure exists for. A boss at the end of EVERY round is a
+            // boss that stops being an event; on the other rounds it comes to the finish
+            // line, roars, and lets the player past.
+            bool fight = RoundPlan.For(_ctx.Profile.CurrentLevelIndex).IsBossRound;
+            _ctx.Machine.TransitionTo(fight ? (IGameState)_ctx.BossState : _ctx.ThreatState);
         }
     }
 }

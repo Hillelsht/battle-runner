@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using BattleRunner.Core.Flow;
 using BattleRunner.Core.Loot;
+using BattleRunner.Core.Progression;
 using BattleRunner.Core.Stats;
 using BattleRunner.Core.Save;
 using BattleRunner.Data.Definitions;
@@ -28,12 +29,23 @@ namespace BattleRunner.Gameplay.States
             _adUsed = false;
             _ctx.Hud.Hide();
 
+            // EVERY round pays now, not just the ones that ended in a fight. With bosses only
+            // every three to five rounds, paying on kills alone would have cut talent income
+            // roughly fourfold and left three rounds in a row with nothing at the end of
+            // them — which on a phone is where people put the phone down. RoundRewards holds
+            // the curve and a test pins it against what the game paid before.
+            _plan = RoundPlan.For(_ctx.Profile.CurrentLevelIndex);
+            _ctx.Profile.UnspentStatPoints +=
+                RoundRewards.PointsFor(_plan, _ctx.Config.Balance.StatPointsPerBossKill);
+
             GearItemModel rolled = RollAndStore();
             bool equipped = RunAutoEquip();
             _ctx.SaveProfile();
 
             ShowCard(rolled, equipped);
         }
+
+        private RoundPlan _plan;
 
         public void Tick(float deltaTime) { }
 
@@ -46,8 +58,11 @@ namespace BattleRunner.Gameplay.States
             Dictionary<string, GearItemModel> lookup = tableDef.BuildItemLookup();
 
             // Overflow luck and the Fortune talent compound: both push the same roll.
+            // Overflow luck and the Fortune talent compound: both push the same roll. A round
+            // that only threatened rolls at reduced luck, so the fight stays the payday.
             float luck = (_ctx.LastResult?.OverflowBonus(_ctx.Config.Balance.SoftCap) ?? 1f)
-                         * (1f + _ctx.CurrentStats.Get(StatIds.Fortune));
+                         * (1f + _ctx.CurrentStats.Get(StatIds.Fortune))
+                         * RoundRewards.LootLuck(_plan);
             int pity = _ctx.Profile.PityCounter;
             GearItemModel rolled = LootRoller.Roll(table, lookup, _random, ref pity, luck);
             _ctx.Profile.PityCounter = pity;
@@ -96,7 +111,9 @@ namespace BattleRunner.Gameplay.States
                 : string.Empty;
             float power = ItemPower.Compute(rolled, _ctx.Config.Balance.StatWeights());
 
-            _ctx.LootScreen.SetHeader(Meta.UI.LootScreen.DefaultHeader);
+            _ctx.LootScreen.SetHeader(_plan.IsBossRound
+                ? Meta.UI.LootScreen.DefaultHeader
+                : Meta.UI.LootScreen.ThreatHeader);
             _ctx.LootScreen.Show(rolled, displayName, statsText, power, equipped,
                 adAvailable: !_adUsed && _ctx.Ads.IsRewardedReady(AdPlacement.LootDouble),
                 onContinue: () => _ctx.Machine.TransitionTo(_ctx.UpgradeState),

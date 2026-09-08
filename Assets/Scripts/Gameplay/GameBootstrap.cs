@@ -265,6 +265,7 @@ namespace BattleRunner.Gameplay
             ctx.RunLoadingState = new RunLoadingState(ctx);
             ctx.RunnerState = new RunnerLoopState(ctx);
             ctx.BossState = new BossEncounterState(ctx);
+            ctx.ThreatState = new BossThreatState(ctx);
             ctx.LootState = new LootPhaseState(ctx);
             ctx.UpgradeState = new StatUpgradeState(ctx);
 

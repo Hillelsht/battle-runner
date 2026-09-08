@@ -17,7 +17,7 @@ points → save → next level.
 | Game loop | Complete end to end |
 | Content | 8 worlds, 6 levels, 6 bosses (6 archetypes), 15 gear items, 4 rarities, ~60 talents + endless paragon |
 | Art | Greybox — procedural meshes, code-built uGUI, no imported assets |
-| Tests | 247, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 256, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
@@ -83,6 +83,39 @@ The tree's scroll column carries a fully transparent `Image` on its viewport pur
 raycast target. Without a Graphic the `ScrollRect` is not hit-testable, so only drags that
 began on a child button reached it — and on a column of sixty nodes the gaps between cells
 are most of the screen, which made the list read as stuck rather than as fussy.
+
+**The boss stops being a formality, and starts stalking you.** `RunnerLoopState.OnFinishReached`
+transitioned unconditionally into `BossState`, so every round ended in a fight and the sixth Bone
+Colossus of the evening carried exactly as much weight as the first. A fight is now the last
+round of an act; on every other round the act's boss comes to the finish line anyway, ramps its
+telegraph, roars — two shockwave rings, camera trauma, an FOV punch — and lets the player past.
+It stands `40 - 7 * ThreatStep` metres out, floored at 17, and everything about the roar scales
+with how far into the act it is, so an act of three and an act of five build to the same peak.
+
+Two things that would otherwise have been silent bugs. `GameConfig.BossFor` now resolves through
+`RoundPlan.BossSlot(plan.ActIndex, ...)` rather than the raw round index — the creature that
+threatens on round two has to be the one that swings on round four, or the build-up means
+nothing. And `BossThreatState` is deliberately NOT wired to `TutorialCoach`: the coach arms its
+shield lesson on the first telegraph it sees, and a threat telegraphs without ever landing a
+blow, so it would have taught "flick down to block" against an attack that cannot arrive and
+asked a finished run to hold while it did.
+
+**Every round pays now, and the fight is the payday.** Making bosses rare without touching
+rewards would have cut talent income roughly FOURFOLD in silence — `BossEncounterState` was the
+only thing that ever granted stat points, and the tree was sized against per-round income.
+`RoundRewards` holds the curve and keeps `LegacyIncome` — the old `perBossKill + roundIndex / 2`,
+every round — so the test compares against real former behaviour rather than a remembered
+number. Across sixty acts no act pays less than the same rounds used to. The shape changes
+though the total does not: a normal round pays a little, a boss round pays more than three of
+them plus a bonus for how long the act made you wait. Threat rounds roll loot at reduced luck
+under their own header. The award moved out of `BossEncounterState` entirely, because two award
+sites would have paid a boss round twice.
+
+**And the player can finally see where they are.** The HUD had four text elements and the level
+name appeared only on the main menu, which is the one place it does not matter. There is now a
+marker reading `3-2  THE BONE WASTES`, or `3-4  HOLLOW LEECH AWAITS` on the last round of an
+act. The menu shows the world's name rather than the level asset's, since an act wears one world
+while the level list cycles on its own period.
 
 **And there is now something standing beside the road.** The measurement that mattered most
 was the third one: either side of the road sampled `(10,8,12)` — black — in every frame. There
@@ -375,7 +408,7 @@ The v0.4.0 screenshots confirmed the art pass landed — sky, stars, shadows, ro
 gates and UI frames all correct on device — and surfaced two bugs that were never about
 art: `Focus -0 %` on the menu and `+0.01 Focus` on the loot card. Both were units chosen
 from the ModifierKind rather than from the stat, plus a hard-coded minus sign in front of
-a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 247 tests today).
+a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 256 tests today).
 
 A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
 11 survived adversarial refutation. The headline three: the key light pointed the same way

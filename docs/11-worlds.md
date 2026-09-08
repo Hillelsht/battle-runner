@@ -131,3 +131,64 @@ archetypes land.
 Object pools moved with it — 40 gates and 24 packs, up from 14 and 20. Doc 04 forbids mid-run
 instantiation and `ObjectPool.Get` silently creates on an empty pool, so prewarm has to track
 round length every time it changes.
+
+## The boss stops being a formality
+
+`RunnerLoopState.OnFinishReached` used to transition unconditionally into `BossState`. Every
+round ended in a fight, which meant the sixth Bone Colossus of the evening carried exactly as
+much weight as the first.
+
+A fight is now the **last round of an act**. On every other round the act's boss comes to the
+finish line anyway: `BossThreatState` shows it, ramps its telegraph through the same
+`BossView.SetTelegraph` the fight uses, roars — two shockwave rings, camera trauma, an FOV
+punch — and lets the player past. About two and a half seconds.
+
+**It closes in.** The standoff is `40 − 7 × ThreatStep` metres, floored at 17, and the roar's
+trauma, ring size and mote count all scale with `ThreatStep / (ActLength − 1)`. So an act of
+three and an act of five both build to the same peak, and the last threat before the fight is
+close enough to read every horn.
+
+Two details that would otherwise have been bugs:
+
+- **`GameConfig.BossFor` now resolves through `RoundPlan.BossSlot(plan.ActIndex, …)`**, not the
+  raw round index. The creature that threatens on round two has to be the one that swings on
+  round four; picking per round would have shown a different monster each time and made the
+  whole build-up meaningless.
+- **The threat state is deliberately not wired to `TutorialCoach`.** The coach arms its shield
+  lesson on the first telegraph it sees, and a threat telegraphs without ever landing a blow —
+  it would have taught "flick down to block" against an attack that cannot arrive, and asked a
+  finished run to hold while it did.
+
+## Every round pays, and the fight is the payday
+
+Making bosses rare without touching rewards would have cut talent income roughly **fourfold**,
+silently, because `BossEncounterState` was the only thing that ever granted stat points and the
+tree was sized against per-round income. A player would have reached round thirty with a quarter
+of what the tree expects and concluded the tree was broken.
+
+`Core/Progression/RoundRewards.cs` holds the curve, and `LegacyIncome` deliberately preserves
+the old one — `perBossKill + roundIndex / 2`, every round — so a test compares against the real
+former behaviour rather than a remembered number. Across sixty acts, no act pays less than the
+same rounds used to.
+
+The *shape* changes even though the total does not: a normal round pays a little, a boss round
+pays more than three normal ones plus a bonus for how long the act made you wait. Three rounds
+of small change and then a windfall reads as a reward; four equal payments read as a salary.
+Loot rolls at reduced luck on a threat round under a different header ("SPOILS OF THE ROAD"),
+so the fight stays the thing worth reaching.
+
+The award moved out of `BossEncounterState` entirely — `LootPhaseState` now runs after both
+endings and is the single place points are granted, because two award sites would have paid a
+boss round twice.
+
+## Knowing where you are
+
+The HUD had four text elements — force, spell cooldown, shield cooldown, boss name — and the
+level name appeared only on the main menu, which is the one place it does not matter. There is
+now a marker at the top left reading `3-2  THE BONE WASTES`, or on the last round of an act
+`3-4  HOLLOW LEECH AWAITS`. The build-up only works if the player can see how many rounds are
+left before the fight.
+
+The main menu also shows the **world's** name now rather than the level asset's: an act wears
+one world for three to five rounds while the level list cycles on its own period, so the level
+name there would have announced somewhere the player was not going.
