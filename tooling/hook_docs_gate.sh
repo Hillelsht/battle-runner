@@ -22,19 +22,40 @@ case "$command" in
 esac
 
 root=${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}
+command -v python3 >/dev/null 2>&1 || exit 0
+
+deny() {
+  jq -n --arg reason "$1" '{
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: $reason
+    }
+  }'
+  exit 0
+}
+
+# Brackets first: a file that cannot parse makes every other check meaningless,
+# and this is the failure that costs a five-minute headless-editor round trip to
+# discover. It has already happened once (ContentFactory.cs, CS1513).
+braces="$root/tooling/check_csharp_braces.py"
+if [ -f "$braces" ] && ! output=$(python3 "$braces" 2>&1); then
+  deny "C# brackets do not balance, so this push is blocked.
+
+$output
+
+Fix the file, then push again. To push anyway: git push --no-verify."
+fi
+
 checker="$root/tooling/check_docs.py"
-[ -f "$checker" ] && command -v python3 >/dev/null 2>&1 || exit 0
+[ -f "$checker" ] || exit 0
 
 if output=$(python3 "$checker" 2>&1); then
   exit 0
 fi
 
-jq -n --arg reason "$output" '{
-  hookSpecificOutput: {
-    hookEventName: "PreToolUse",
-    permissionDecision: "deny",
-    permissionDecisionReason: ("Docs are out of date, so this push is blocked.\n\n" + $reason +
-      "\nFix the docs (README.md / docs/ / CHANGELOG.md), then push again. To push anyway: git push --no-verify.")
-  }
-}'
-exit 0
+deny "Docs are out of date, so this push is blocked.
+
+$output
+
+Fix the docs (README.md / docs/ / CHANGELOG.md), then push again. To push anyway: git push --no-verify."

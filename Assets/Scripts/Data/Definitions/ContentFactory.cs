@@ -297,5 +297,5 @@ namespace BattleRunner.Data.Definitions
 
             return chunks;
         }
-
+    }
 }

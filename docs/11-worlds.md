@@ -267,3 +267,19 @@ round 10: par   889      round 60: par 8,258
 
 Par is also computed per **round** now and lives on `GameContext.CurrentPar`, not on the level
 asset — a level asset cannot know which round is being played.
+
+## A gate for the failure that keeps costing five minutes
+
+Unity is the only compiler for everything outside `BattleRunner.Core`, and a headless editor
+round trip is about five minutes. A dropped brace is the cheapest possible way to spend that: it
+is not a design mistake or a subtle API misuse, it is a text edit that lost a character. It cost
+this project a CI failure during this work — `ContentFactory.cs`, `error CS1513: } expected`,
+from an over-eager splice.
+
+`tooling/check_csharp_braces.py` strips comments, strings, chars and verbatim strings, then
+counts the three bracket kinds across every tracked `.cs` file. It is deliberately not a parser;
+anything subtler is the compiler's job. It runs in the CI lint job and in the pre-push gate,
+ahead of the docs check, because a file that cannot parse makes every other check meaningless.
+
+It was verified against the real defect rather than a synthetic one: reproducing the exact
+missing brace from that commit makes it exit 1 and name the file.

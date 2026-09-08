@@ -31,6 +31,12 @@ jobs:
       - name: Verify asmdefs declare the packages they use
         run: python3 tooling/check_asmdef_refs.py
 
+      # A dropped brace is not a design mistake, it is a text edit that lost a
+      # character — and it costs a full headless-editor round trip to find out.
+      # This has already happened once (ContentFactory.cs, CS1513).
+      - name: Verify C# brackets balance
+        run: python3 tooling/check_csharp_braces.py
+
   # Decides whether a COMPLETE Unity activation strategy is configured.
   # GameCI ALWAYS needs the Unity account credentials to reach the licensing
   # servers, plus proof of licence:

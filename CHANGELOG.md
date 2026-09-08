@@ -84,6 +84,16 @@ raycast target. Without a Graphic the `ScrollRect` is not hit-testable, so only 
 began on a child button reached it — and on a column of sixty nodes the gaps between cells
 are most of the screen, which made the list read as stuck rather than as fussy.
 
+**A gate for the failure that keeps costing five minutes.** Unity is the only compiler for
+everything outside `BattleRunner.Core`, and a headless round trip is about five minutes. A
+dropped brace is the cheapest possible way to spend that — not a design mistake, a text edit that
+lost a character — and it cost a CI failure during this very work (`ContentFactory.cs`,
+`error CS1513`). `tooling/check_csharp_braces.py` strips comments, strings and chars, then counts
+the three bracket kinds across every tracked `.cs` file. Deliberately not a parser; anything
+subtler is the compiler's job. It runs in the CI lint job and in the pre-push gate ahead of the
+docs check, because a file that cannot parse makes every other check meaningless. Verified
+against the real defect, not a synthetic one.
+
 **Eight things a road can ask, where there used to be three.** `BuildChunksForLevel` placed an
 add at 12 m, another at 28 m, and on every third chunk a `x2` opposite a `-N` at 40 m, with one
 pack always in lane 0 — every chunk in the game was one of those three, cycling forever. That is
