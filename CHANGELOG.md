@@ -17,7 +17,7 @@ points → save → next level.
 | Game loop | Complete end to end |
 | Content | 8 worlds, 6 levels, 6 bosses (6 archetypes) x 5 champion affixes = 30 fights, 15 gear items, 4 rarities, ~60 talents + endless paragon |
 | Art | Greybox — procedural meshes, code-built uGUI, no imported assets |
-| Tests | 293, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 300, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
@@ -83,6 +83,55 @@ The tree's scroll column carries a fully transparent `Image` on its viewport pur
 raycast target. Without a Graphic the `ScrollRect` is not hit-testable, so only drags that
 began on a child button reached it — and on a column of sixty nodes the gaps between cells
 are most of the screen, which made the list read as stuck rather than as fussy.
+
+**The world beside the road did not exist.** Not "was sparse" — did not exist.
+`SpawnGroundStrip` derived every dimension from the lane pitch and built exactly one box,
+8.316 m wide, and nothing else existed laterally. Every prop `RoadsideProps` placed between
+5.2 m and 26 m was standing on the skybox. That is the real reason eight authored worlds read
+as one place with a colour filter on it: there was nowhere for a world to be.
+
+`Terrain.shader` and two boxes per level fix it — the land now runs out to 70 m each side.
+Same discipline as the road, and deliberately the same `Hash21` and value noise: two different
+noise fields meeting at the kerb would draw a seam down the full length of the level, which is
+the one place the eye is guaranteed to be. Two draw calls and 48 vertices for the entire world
+beside the road. Its top sits 3 cm under the road so the edge reads as a kerb rather than as
+two coplanar surfaces z-fighting over 400 m. It receives shadows and casts none — it is flat,
+so its own shadow is a no-op, and it is the only surface large enough to show the rails'.
+
+Eight grounds: ash, bog, drowned flagstone, scorched earth with live cinder, bone sand, snow,
+red silt, violet dust. **A test requires every pair to be separable, and it caught three
+collisions that would have shipped** — including the one that matters most, since The Ashen
+Road and Gallows Mire are rounds 1-2 and round 3, exactly the transition the complaint was
+about, and they started 0.177 apart against a 0.18 floor. The worst pair now clears at 0.204.
+
+**The grade was a constant, and it was fighting the palettes.** `BuildStack` built the volume
+profile once and dropped the component handles, so all eight worlds bloomed at
+`(1.00, 0.86, 0.72)` warm, filtered at `(1.00, 0.96, 0.90)` warm, and ran saturation at
+**-4** — the one control that decides how much colour survives, set to remove it. Every bright
+pixel in the green world bloomed orange.
+
+The grade is now derived per world from colours the theme already declares, in the style of
+the existing `RailBase` / `AmbientSky` / `FogFromSky` properties, so a new world cannot forget
+to grade itself and a second table cannot drift out of step with the first. World 0 reproduces
+the shipped constants to within 0.03 per channel and a test pins that: the Ashen Road keeps
+the look that was actually judged on a screen, and the other seven stop borrowing it.
+Saturation now runs +6 to +13 by accent chroma.
+
+Two things worth writing down. The `ShadowsMidtonesHighlights` multipliers are
+**mean-normalised**, because that component multiplies and a tint whose channels do not average
+1 lifts or crushes the whole frame as a side effect of changing its hue — which reads on device
+as "this world is brighter" rather than "this world is green", the same mistake pointing the
+other way. And the hue shift is applied to the grade as well; leaving it out would drag every
+round of an act back toward the act's undrifted colour.
+
+**The horizon glow finally points somewhere.** `DarkSky`'s `_GlowDirection` was never written
+from a theme, so the most recognisable feature of the sky sat straight down +Z at the same
+height in all eight worlds. It now comes from `SkyGlowYaw` with the round's azimuth riding on
+top, bounded to +/-40 degrees — past that the band the player is meant to run toward is beside
+them instead of ahead.
+
+Also fixed while auditing: `Assets/Scripts/Core/World.meta` was missing entirely, a committed
+gap since the world table was added.
 
 **Six bosses became thirty fights.** The roster is six creatures and it was six fights: the
 same Bone Colossus with the same interval, the same blows and the same ward every time it came
@@ -484,7 +533,7 @@ The v0.4.0 screenshots confirmed the art pass landed — sky, stars, shadows, ro
 gates and UI frames all correct on device — and surfaced two bugs that were never about
 art: `Focus -0 %` on the menu and `+0.01 Focus` on the loot card. Both were units chosen
 from the ModifierKind rather than from the stat, plus a hard-coded minus sign in front of
-a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 293 tests today).
+a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 300 tests today).
 
 A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
 11 survived adversarial refutation. The headline three: the key light pointed the same way

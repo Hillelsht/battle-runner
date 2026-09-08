@@ -31,6 +31,16 @@ namespace BattleRunner.Gameplay
         private static Material _sky;
         private static Light _keyLight;
 
+        // The grade components, kept for the same reason the sky and the light are. The
+        // stack was built once and its handles dropped, so all eight worlds were graded
+        // identically: every bright pixel in the green world bloomed warm orange, and a
+        // fixed warm colour filter and saturation of -4 pulled all of them back toward the
+        // same ash. Eight authored palettes cannot survive one shared grade on top.
+        private static Bloom _bloom;
+        private static ColorAdjustments _color;
+        private static ShadowsMidtonesHighlights _grade;
+        private static Vignette _vignette;
+
         public static void Apply()
         {
             ApplySky();
@@ -181,6 +191,14 @@ namespace BattleRunner.Gameplay
                 _sky.SetFloatSafe("_GlowPower", theme.SkyGlowPower);
                 _sky.SetFloatSafe("_GlowHeight", theme.SkyGlowHeight);
                 _sky.SetFloatSafe("_StarStrength", Mathf.Max(0f, theme.SkyStars * variant.StarScale));
+
+                // _GlowDirection was never written from a theme, so the ember band — the
+                // single most recognisable feature of the sky — sat straight down +Z at the
+                // same height in all eight worlds. The variant's azimuth rides on top of the
+                // world's own yaw, so the glow drifts between rounds as well.
+                float glowYaw = (theme.SkyGlowYaw + variant.LightAzimuth * 0.35f) * Mathf.Deg2Rad;
+                _sky.SetVectorSafe("_GlowDirection",
+                    new Vector4(Mathf.Sin(glowYaw), 0f, Mathf.Cos(glowYaw), 0f));
             }
 
             RenderSettings.fogColor = ThemePalette.Shifted(theme.Fog, hue);
@@ -197,6 +215,8 @@ namespace BattleRunner.Gameplay
             RenderSettings.ambientEquatorColor = ThemePalette.Shifted(theme.AmbientEquator, hue);
             RenderSettings.ambientGroundColor = ThemePalette.Shifted(theme.AmbientGround, hue);
 
+            ApplyGrade(theme, hue);
+
             if (_keyLight != null)
             {
                 _keyLight.color = ThemePalette.Shifted(theme.LightColor, hue);
@@ -206,6 +226,45 @@ namespace BattleRunner.Gameplay
                 _keyLight.transform.rotation =
                     Quaternion.Euler(theme.LightPitch, theme.LightYaw + variant.LightAzimuth, 0f);
             }
+        }
+
+        /// <summary>
+        /// Grade the frame for one world.
+        ///
+        /// Every value here is derived on WorldTheme from colours the world already
+        /// declares, so a new world cannot forget to grade itself and no second table can
+        /// drift out of step with the first. World 0 reproduces the shipped constants to
+        /// within 0.02 per channel — the Ashen Road keeps the look it shipped with, and the
+        /// other seven stop borrowing it.
+        ///
+        /// The hue shift is applied here too. It already moves the sky, the fog, the road and
+        /// the props; a grade left un-shifted would drag every round of an act back toward
+        /// the act's un-drifted colour, which is the same mistake at a smaller scale.
+        /// </summary>
+        private static void ApplyGrade(WorldTheme theme, float hue)
+        {
+            if (_bloom != null)
+                _bloom.tint.value = ThemePalette.Shifted(theme.BloomTint, hue);
+
+            if (_color != null)
+            {
+                _color.saturation.value = Mathf.Clamp(theme.GradeSaturation, -20f, 40f);
+                _color.colorFilter.value = ThemePalette.Shifted(theme.GradeFilter, hue);
+            }
+
+            if (_grade != null)
+            {
+                Color shadows = ThemePalette.Shifted(theme.GradeShadows, hue);
+                Color highlights = ThemePalette.Shifted(theme.GradeHighlights, hue);
+                // The fourth channel is ShadowsMidtonesHighlights' own offset, not alpha, and
+                // it must stay 0 — writing a colour's alpha into it lifts or crushes the
+                // whole range rather than tinting it.
+                _grade.shadows.value = new Vector4(shadows.r, shadows.g, shadows.b, 0f);
+                _grade.highlights.value = new Vector4(highlights.r, highlights.g, highlights.b, 0f);
+            }
+
+            if (_vignette != null)
+                _vignette.color.value = ThemePalette.Shifted(theme.VignetteColor, hue);
         }
 
         /// <summary>
@@ -254,7 +313,7 @@ namespace BattleRunner.Gameplay
             // The single biggest change. Threshold sits just under white so only the
             // emissive accents — gates, spell, rim light — bloom, and the dark 90% of the
             // frame stays crisp.
-            var bloom = profile.Add<Bloom>(true);
+            var bloom = _bloom = profile.Add<Bloom>(true);
             bloom.threshold.value = 0.85f;
             bloom.intensity.value = 1.15f;
             bloom.scatter.value = 0.72f;
@@ -266,7 +325,7 @@ namespace BattleRunner.Gameplay
             // wide soft glow while dropping the largest, cheapest-to-lose mip.
             bloom.maxIterations.value = 5;
 
-            var color = profile.Add<ColorAdjustments>(true);
+            var color = _color = profile.Add<ColorAdjustments>(true);
             color.postExposure.value = 0.20f;
             color.contrast.value = 22f;
             color.saturation.value = -4f;
@@ -274,14 +333,14 @@ namespace BattleRunner.Gameplay
 
             // Cool shadows, warm highlights. This one component is most of what reads as
             // "dark fantasy" rather than "dark".
-            var grade = profile.Add<ShadowsMidtonesHighlights>(true);
+            var grade = _grade = profile.Add<ShadowsMidtonesHighlights>(true);
             grade.shadows.value = new Vector4(0.86f, 0.92f, 1.18f, 0f);
             grade.midtones.value = new Vector4(1.00f, 1.00f, 1.00f, 0f);
             grade.highlights.value = new Vector4(1.12f, 1.02f, 0.86f, 0f);
 
             // Pulls the eye to the centre of a tall portrait frame and hides the point
             // where the fog meets the screen edge.
-            var vignette = profile.Add<Vignette>(true);
+            var vignette = _vignette = profile.Add<Vignette>(true);
             vignette.color.value = new Color(0.02f, 0.01f, 0.04f);
             vignette.intensity.value = 0.34f;
             vignette.smoothness.value = 0.45f;

@@ -43,6 +43,7 @@ namespace BattleRunner.Gameplay.Track
         private Material _finishMaterial;
         private Material _markingMaterial;
         private Material _railMaterial;
+        private Material _terrainMaterial;
 
         public float FinishZ => _finishZ;
 
@@ -76,6 +77,31 @@ namespace BattleRunner.Gameplay.Track
             return flat;
         }
 
+        /// <summary>
+        /// The land either side of the road. Same instancing discipline as the road: the
+        /// asset is a template and every world writes into a COPY, or playing a round in the
+        /// editor would rewrite Resources/Terrain.mat on disk.
+        ///
+        /// The fallback is deliberately not the crowd shader with a flat colour. If the
+        /// terrain shader is unavailable the band would be 65 m of unbroken single-tone
+        /// polygon filling the lower half of the frame, which is worse than the void it
+        /// replaced — so on failure there is simply no band, and the game looks exactly as it
+        /// did before this existed.
+        /// </summary>
+        private static Material LoadTerrainMaterial()
+        {
+            if (UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline == null
+                || ShaderSafety.UsingFallback)
+                return null;
+
+            var terrain = Resources.Load<Material>("Terrain");
+            if (terrain != null && terrain.shader != null && terrain.shader.isSupported)
+                return new Material(terrain);
+
+            Debug.LogWarning("[Track] Terrain material unavailable — the verge stays empty.");
+            return null;
+        }
+
         public void Initialize(Material baseMaterial, Material enemyMaterial, Mesh unitMesh, Font font, float laneWidth)
         {
             _laneWidth = laneWidth;
@@ -97,6 +123,7 @@ namespace BattleRunner.Gameplay.Track
             _enemyPool.Prewarm(RoundPlan.MaxChunkCount * ChunkLayouts.MaxPacksPerChunk);
 
             _groundMaterial = LoadRoadMaterial(baseMaterial);
+            _terrainMaterial = LoadTerrainMaterial();
 
             // Same unrestrained rim the gates had. The finish line is a full-width slab
             // whose only visible face points straight up, at ~80 degrees off the view axis
@@ -166,6 +193,15 @@ namespace BattleRunner.Gameplay.Track
         private const float GroundOverrunMeters = 200f;
 
         /// <summary>
+        /// How far out the land goes. 70 m is chosen against two numbers that already exist:
+        /// the scenery's far band reaches 26 m and the camera's far clip is 220 m, so the
+        /// band has to outrun everything standing on it while still ending well inside fog.
+        /// At WorldThemes.MaxFogEnd = 185 the far edge is solid fog colour, which is what
+        /// turns a finite box into a horizon.
+        /// </summary>
+        private const float TerrainHalfWidth = 70f;
+
+        /// <summary>
         /// Repaint the road, its kerbs and its markings for a world.
         ///
         /// The four track materials were built once in Initialize from constants and never
@@ -196,6 +232,19 @@ namespace BattleRunner.Gameplay.Track
                 _groundMaterial.SetFloatSafe("_Wetness",
                     Mathf.Clamp01(theme.RoadWetness + variant.WetnessShift));
                 _groundMaterial.SetFloatSafe("_Gloss", Mathf.Max(1f, theme.RoadGloss));
+            }
+
+            if (_terrainMaterial != null)
+            {
+                _terrainMaterial.SetColorSafe("_GroundColor", ThemePalette.Shifted(theme.Ground, hue));
+                _terrainMaterial.SetColorSafe("_GroundColorAlt", ThemePalette.Shifted(theme.GroundAlt, hue));
+                _terrainMaterial.SetColorSafe("_SheenColor", ThemePalette.Shifted(theme.GroundSheen, hue));
+                _terrainMaterial.SetFloatSafe("_PatchScale", Mathf.Max(0.005f, theme.GroundPatchScale));
+                _terrainMaterial.SetFloatSafe("_Speckle", Mathf.Clamp01(theme.GroundSpeckle));
+                // Wetness spends on the land as well as the road, so a round that reads as
+                // rain reads that way all the way out to the treeline.
+                _terrainMaterial.SetFloatSafe("_Sheen",
+                    Mathf.Clamp01(theme.GroundSheenStrength + variant.WetnessShift * 0.5f));
             }
 
             if (_railMaterial != null)
@@ -285,6 +334,29 @@ namespace BattleRunner.Gameplay.Track
 
             SpawnStatic("Ground", new Vector3(0f, -0.1f, midZ),
                 new Vector3(groundHalf * 2f, 0.2f, length), _groundMaterial);
+
+            // THE LAND. One box per side, from the edge of the road out to TerrainHalfWidth.
+            // Two draw calls and 48 vertices for the entire world beside the road, which is
+            // the cheapest large thing in the game by a wide margin.
+            //
+            // Its top sits 3 cm BELOW the road so the road edge reads as a kerb rather than
+            // as two coplanar surfaces z-fighting along 400 m — and the rails at +/-3.758
+            // stand over the join anyway, so the step is never actually visible.
+            //
+            // It receives shadows (SpawnStatic leaves the renderer default) and casts none:
+            // it is flat, so its own shadow would be a no-op, and it is the only surface
+            // large enough to show the rails' shadows falling across it.
+            if (_terrainMaterial != null)
+            {
+                float innerEdge = groundHalf;
+                float bandWidth = TerrainHalfWidth - innerEdge;
+                float bandCentre = innerEdge + bandWidth * 0.5f;
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    SpawnStatic("Terrain", new Vector3(side * bandCentre, -0.13f, midZ),
+                        new Vector3(bandWidth, 0.2f, length), _terrainMaterial);
+                }
+            }
 
             // All FOUR lane edges, so each of the three lanes is bounded by a real line and
             // they read as equal. Without the outer pair the road has no visible edge and

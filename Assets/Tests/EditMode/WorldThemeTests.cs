@@ -169,6 +169,140 @@ namespace BattleRunner.Tests
         }
 
         [Test]
+        public void EveryWorldStandsOnGroundYouCanTellApart()
+        {
+            // The whole reason the land exists. Eight palettes over the same black void read
+            // as one place with a filter on it — snow, bog, cinder and bone sand do not.
+            // The threshold is deliberately higher than the road's, because the band fills
+            // far more of the frame than the road does and a subtle difference out there is
+            // no difference at all.
+            for (int a = 0; a < WorldThemes.Count; a++)
+            for (int b = a + 1; b < WorldThemes.Count; b++)
+            {
+                WorldTheme x = WorldThemes.At(a);
+                WorldTheme y = WorldThemes.At(b);
+                float separation = Distance(x.Ground, y.Ground) + Distance(x.GroundAlt, y.GroundAlt);
+                Assert.Greater(separation, 0.18f,
+                    $"{x.DisplayName} and {y.DisplayName} stand on the same ground");
+            }
+        }
+
+        [Test]
+        public void GroundIsLitEnoughToBeSeenAndNeverBrighterThanSnow()
+        {
+            // Linear colour space charges twice for authored darkness — the road shipped at
+            // 0.115 sRGB and arrived as 1.25% reflectance, which is why the lower half of the
+            // frame was black. The band is larger than the road, so the same floor applies
+            // with less room for error.
+            foreach (WorldTheme t in All)
+            {
+                Assert.Greater(t.Ground.Peak, 0.10f, $"{t.DisplayName} ground is a hole");
+                Assert.Greater(t.GroundAlt.Peak, 0.10f, $"{t.DisplayName} ground patches are a hole");
+                Assert.LessOrEqual(t.Ground.Peak, 1f, $"{t.DisplayName} ground is over white");
+                Assert.LessOrEqual(t.GroundAlt.Peak, 1f, $"{t.DisplayName} ground patches are over white");
+                // The patch colour is what breaks up the plane; equal to the base it does nothing.
+                Assert.Greater(Distance(t.Ground, t.GroundAlt), 0.02f,
+                    $"{t.DisplayName} has no visible patches");
+            }
+        }
+
+        [Test]
+        public void TheEmberBandDoesNotPointTheSameWayInEveryWorld()
+        {
+            // _GlowDirection was never written from a theme, so every world glowed straight
+            // down +Z. Bounded as well as spread: past about 40 degrees the band the player
+            // is meant to run toward is beside them instead of ahead.
+            float lo = float.MaxValue, hi = float.MinValue;
+            foreach (WorldTheme t in All)
+            {
+                Assert.LessOrEqual(System.Math.Abs(t.SkyGlowYaw), 40f,
+                    $"{t.DisplayName} put its horizon glow off to the side");
+                if (t.SkyGlowYaw < lo) lo = t.SkyGlowYaw;
+                if (t.SkyGlowYaw > hi) hi = t.SkyGlowYaw;
+            }
+            Assert.Greater(hi - lo, 40f, "every world glows in the same direction");
+        }
+
+        [Test]
+        public void TheBaselineStillGradesItselfTheWayItShipped()
+        {
+            // The grade was a fixed constant applied over all eight worlds. Deriving it per
+            // world is only safe if the one palette that has actually been judged on a screen
+            // comes back unchanged — so these are the shipped BuildStack values, and the
+            // tolerance is the width of a value nobody could see move.
+            WorldTheme t = WorldThemes.At(0);
+            AssertClose(t.BloomTint, new Rgb(1.00f, 0.86f, 0.72f), 0.03f, "bloom tint");
+            AssertClose(t.GradeFilter, new Rgb(1.00f, 0.96f, 0.90f), 0.03f, "colour filter");
+
+            // Shadows cool, highlights warm — the shipped shape, mean-normalised.
+            Assert.Less(t.GradeShadows.R, t.GradeShadows.B, "baseline shadows stopped being cool");
+            Assert.Greater(t.GradeHighlights.R, t.GradeHighlights.B, "baseline highlights stopped being warm");
+        }
+
+        [Test]
+        public void NoWorldBloomsInAnotherWorldsColour()
+        {
+            // A green world blooming warm orange is the shipped bug: the grade fought the
+            // palette instead of carrying it. Each world's bloom tint must sit nearer its own
+            // accent hue than any other world's does.
+            for (int i = 0; i < WorldThemes.Count; i++)
+            {
+                WorldTheme mine = WorldThemes.At(i);
+                float own = Distance(mine.BloomTint, mine.Accent.Normalized.TowardWhite(0.55f));
+                Assert.Less(own, 1e-4f, $"{mine.DisplayName} bloom drifted from its own accent");
+                for (int j = 0; j < WorldThemes.Count; j++)
+                {
+                    if (i == j) continue;
+                    WorldTheme other = WorldThemes.At(j);
+                    if (Distance(mine.Accent.Normalized, other.Accent.Normalized) < 0.05f) continue;
+                    Assert.Greater(Distance(mine.BloomTint, other.BloomTint), 0.01f,
+                        $"{mine.DisplayName} and {other.DisplayName} bloom identically");
+                }
+            }
+        }
+
+        [Test]
+        public void EveryWorldKeepsMoreColourThanTheShippedGradeAllowed()
+        {
+            // The shipped saturation was -4 across the board: the grade was removing the
+            // colour the worlds are made of. Every world now earns some back, and the most
+            // chromatic earns the most — but nothing is allowed to run away into neon.
+            float lo = float.MaxValue, hi = float.MinValue;
+            foreach (WorldTheme t in All)
+            {
+                Assert.Greater(t.GradeSaturation, 0f, $"{t.DisplayName} is still being desaturated");
+                Assert.Less(t.GradeSaturation, 20f, $"{t.DisplayName} will look like a cartoon");
+                if (t.GradeSaturation < lo) lo = t.GradeSaturation;
+                if (t.GradeSaturation > hi) hi = t.GradeSaturation;
+            }
+            Assert.Greater(hi - lo, 3f, "saturation is a constant again");
+        }
+
+        [Test]
+        public void GradeMultipliersNeverChangeExposureByAccident()
+        {
+            // ShadowsMidtonesHighlights multiplies. A tint whose channels do not average 1
+            // silently lifts or crushes the frame as a side effect of changing its hue, and
+            // that would read on device as "this world is brighter" rather than "this world
+            // is green" — the mistake being fixed, in the other direction.
+            foreach (WorldTheme t in All)
+            {
+                foreach (Rgb c in new[] { t.GradeShadows, t.GradeHighlights })
+                {
+                    float mean = (c.R + c.G + c.B) / 3f;
+                    Assert.AreEqual(1f, mean, 1e-3f, $"{t.DisplayName} grade shifts exposure");
+                }
+            }
+        }
+
+        private static void AssertClose(Rgb actual, Rgb expected, float tolerance, string what)
+        {
+            Assert.AreEqual(expected.R, actual.R, tolerance, what + " red");
+            Assert.AreEqual(expected.G, actual.G, tolerance, what + " green");
+            Assert.AreEqual(expected.B, actual.B, tolerance, what + " blue");
+        }
+
+        [Test]
         public void SlotLookupWrapsAndNeverThrows()
         {
             Assert.AreSame(WorldThemes.At(0), WorldThemes.At(WorldThemes.Count));

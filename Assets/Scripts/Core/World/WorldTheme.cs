@@ -56,6 +56,14 @@ namespace BattleRunner.Core.World
         public float SkyGlowPower = 8f;
         public float SkyGlowHeight = 16f;
         public float SkyStars = 1.6f;
+        /// <summary>
+        /// Which way the ember band sits, in degrees off the road ahead. DarkSky's
+        /// _GlowDirection was never written from a theme, so all eight worlds glowed straight
+        /// down +Z at the same height — the single most recognisable feature of the sky was
+        /// identical everywhere. Kept inside +/-40 so the glow stays something you run toward
+        /// rather than something behind you.
+        /// </summary>
+        public float SkyGlowYaw;
 
         // --- the weather ---------------------------------------------------
         public Rgb Fog;
@@ -67,6 +75,21 @@ namespace BattleRunner.Core.World
         public float LightIntensity = 1.1f;
         public float LightPitch = 32f;
         public float LightYaw = 250f;
+
+        // --- the land ------------------------------------------------------
+        // Before this there was no land. TrackController built ground to x = +/-4.158 and
+        // nothing else existed laterally, so every prop from 5 m outward hovered over the
+        // skybox. Snow, bog, cinder and bone sand differ from each other in a way eight
+        // palettes over the same black void never could.
+        public Rgb Ground;
+        /// <summary>The patch colour clumped through the base one, at GroundPatchScale.</summary>
+        public Rgb GroundAlt;
+        /// <summary>Patches per metre. Smaller means larger, slower-changing ground.</summary>
+        public float GroundPatchScale = 0.09f;
+        public float GroundSpeckle = 0.30f;
+        /// <summary>Standing water and ice glint; ash and bone do not.</summary>
+        public Rgb GroundSheen;
+        public float GroundSheenStrength = 0.15f;
 
         // --- what stands beside the road -----------------------------------
         public PropKind[] Props = Array.Empty<PropKind>();
@@ -109,6 +132,40 @@ namespace BattleRunner.Core.World
             new Rgb(SkyHorizon.R + FogGlowFactor * SkyGlow.R,
                     SkyHorizon.G + FogGlowFactor * SkyGlow.G,
                     SkyHorizon.B + FogGlowFactor * SkyGlow.B);
+
+        // --- the grade, derived, so a world stops fighting its own palette --
+        //
+        // The post-processing stack was FIXED across all eight worlds: bloom tinted
+        // (1.0, 0.86, 0.72), colour filter (1.0, 0.96, 0.90), warm highlights over cool
+        // shadows, saturation -4. Every bright pixel in the green world bloomed orange and
+        // every world was pulled back toward the same warm grey — which is a large part of
+        // why eight authored palettes read as one. These derive from what the world already
+        // declares, so a new world cannot forget to grade itself.
+        //
+        // Checked against the shipped constants: world 0's derived bloom tint is
+        // (1.000, 0.841, 0.709) against the authored (1.0, 0.86, 0.72), and its filter is
+        // (1.000, 0.936, 0.884) against (1.0, 0.96, 0.90). The Ashen Road keeps the look it
+        // shipped with; the other seven stop borrowing it.
+
+        /// <summary>Bloom carries the world's colour, held mostly neutral so it tints rather than dyes.</summary>
+        public Rgb BloomTint => Accent.Normalized.TowardWhite(0.55f);
+
+        /// <summary>A whisper of the accent over the whole frame.</summary>
+        public Rgb GradeFilter => Accent.Normalized.TowardWhite(0.82f);
+
+        /// <summary>
+        /// Saturation, in ColorAdjustments units. The shipped -4 was actively removing the
+        /// colour the worlds are made of; a chromatic world now earns more of it back than an
+        /// ashen one. This is the single value most likely to want a device pass.
+        /// </summary>
+        public float GradeSaturation => 2f + 12f * Accent.Chroma;
+
+        /// <summary>Corners tinted toward the world's own night rather than a fixed violet.</summary>
+        public Rgb VignetteColor => SkyZenith.Normalized.Scaled(0.06f);
+
+        /// <summary>Shadows take the sky, highlights take the ember band. Mean-normalised so tinting never changes exposure.</summary>
+        public Rgb GradeShadows => SkyZenith.Normalized.TowardWhite(0.72f).MeanNormalized;
+        public Rgb GradeHighlights => SkyGlow.Normalized.TowardWhite(0.70f).MeanNormalized;
 
         /// <summary>Largest red/green departure from the sky-derived fog. Blue is free.</summary>
         public float FogDrift

@@ -1,3 +1,5 @@
+using System;
+
 namespace BattleRunner.Core.World
 {
     /// <summary>
@@ -26,6 +28,51 @@ namespace BattleRunner.Core.World
         }
 
         public Rgb Scaled(float factor) => new Rgb(R * factor, G * factor, B * factor);
+
+        /// <summary>The brightest channel. Zero only for pure black.</summary>
+        public float Peak => Math.Max(R, Math.Max(G, B));
+
+        /// <summary>How far from grey, 0..1. A signature colour scores high; ash scores low.</summary>
+        public float Chroma
+        {
+            get
+            {
+                float peak = Peak;
+                return peak <= 1e-4f ? 0f : (peak - Math.Min(R, Math.Min(G, B))) / peak;
+            }
+        }
+
+        /// <summary>
+        /// The same hue at unit brightness. Theme colours are authored HDR — an accent can
+        /// sit at 1.5 — so anything that wants the HUE of a colour without its intensity has
+        /// to divide the intensity out first rather than clamp it away.
+        /// </summary>
+        public Rgb Normalized
+        {
+            get
+            {
+                float peak = Peak;
+                return peak <= 1e-4f ? new Rgb(1f, 1f, 1f) : Scaled(1f / peak);
+            }
+        }
+
+        /// <summary>Pulled toward white. 0 keeps the colour, 1 discards it.</summary>
+        public Rgb TowardWhite(float t) =>
+            new Rgb(R + (1f - R) * t, G + (1f - G) * t, B + (1f - B) * t);
+
+        /// <summary>
+        /// Scaled so the three channels average 1. Grading multipliers work this way: the
+        /// tint is the RATIO between channels, and letting the average drift would change
+        /// the exposure as a side effect of changing the hue.
+        /// </summary>
+        public Rgb MeanNormalized
+        {
+            get
+            {
+                float mean = (R + G + B) / 3f;
+                return mean <= 1e-4f ? new Rgb(1f, 1f, 1f) : Scaled(1f / mean);
+            }
+        }
 
         public static Rgb Lerp(Rgb a, Rgb b, float t) =>
             new Rgb(a.R + (b.R - a.R) * t, a.G + (b.G - a.G) * t, a.B + (b.B - a.B) * t);

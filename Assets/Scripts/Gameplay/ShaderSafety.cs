@@ -83,6 +83,11 @@ namespace BattleRunner.Gameplay
             if (m != null && m.HasProperty(name)) m.SetFloat(name, value);
         }
 
+        public static void SetVectorSafe(this Material m, string name, Vector4 value)
+        {
+            if (m != null && m.HasProperty(name)) m.SetVector(name, value);
+        }
+
         public static Color GetColorSafe(this Material m, string name, Color fallback)
         {
             if (m == null) return fallback;
