@@ -64,25 +64,11 @@ jobs:
 
       # The android editor image is ~8.6 GB compressed / 20+ GB extracted, which
       # does not fit alongside the runner's preinstalled toolchains.
-      # A HANG HERE IS NOT WORTH SIX HOURS. Measured on run 28 this step sat in progress for
-      # an hour before anything else had started, against the two or three minutes it takes
-      # normally; without a bound it would have held the runner until the job's own six-hour
-      # ceiling. Ten minutes is generous for deleting a tool cache, and continue-on-error
-      # makes a timeout a warning rather than a failed release — the build has enough disk to
-      # proceed without the cleanup most of the time, and finding that out costs one run
-      # rather than none.
       - name: Free runner disk space
         uses: jlumbroso/free-disk-space@v1.3.1
-        timeout-minutes: 10
-        continue-on-error: true
         with:
           tool-cache: true
           large-packages: false   # slow, and we already have enough headroom
-          docker-images: false    # the hang on run 28 was in progress here or in swap
-          swap-storage: false
-
-      - name: Report free disk
-        run: df -h / | tail -1
 
       - uses: actions/checkout@v4
         with:
