@@ -26,8 +26,10 @@ reasons: nothing to license, nothing to import, deterministic, and reviewable as
 
 `tooling/synth_audio.py` needs **numpy and the standard library** — no ffmpeg, no sox, no
 scipy, no soundfile, none of which are present here, and requiring them would mean the script
-could not be re-run. Output is 22.05 kHz mono 16-bit WAV: **2.07 MB in the repo**, which Unity
-re-encodes to Vorbis for about 200 KB on the device.
+could not be re-run. Output is 22.05 kHz mono 16-bit WAV: **2.58 MB in the repo** across 21
+files, which Unity re-encodes to Vorbis for roughly a quarter of a megabyte on the device.
+**78% of that is the two 24-second beds**; the fifteen cues and their six variants come to
+0.56 MB between them.
 
 **What synthesis can and cannot do.** This was originally written as "melody does not", and
 that was wrong — it was a statement about the first attempt, not about synthesis. What the

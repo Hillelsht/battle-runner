@@ -312,8 +312,13 @@ namespace BattleRunner.Gameplay.Track
 
             for (int side = -1; side <= 1; side += 2)
             {
+                // HALF THE BUDGET EACH. The loop walks one side to completion before starting
+                // the other, so a shared cap would let a world with a short authored spacing
+                // spend the whole array on the left verge and leave the right one bare — a
+                // silent truncation that looks like a placement bug rather than like a limit.
+                int budget = side < 0 ? MaxSettlements / 2 : MaxSettlements;
                 float z = fromZ + spacing * (0.2f + Next01(ref rng) * 0.5f);
-                while (z < toZ && _settlementCount < MaxSettlements)
+                while (z < toZ && _settlementCount < budget)
                 {
                     // Radius varies, but never so much that the gap the spacing bought is eaten.
                     float radius = baseRadius * Mathf.Lerp(0.80f, 1.12f, Next01(ref rng));
@@ -326,7 +331,7 @@ namespace BattleRunner.Gameplay.Track
                     // A third of them face a twin across the road. Both halves share the
                     // street's orientation, which is what makes it read as one place with a
                     // road through it rather than as two villages that happened to collide.
-                    if (Next01(ref rng) < 0.34f && _settlementCount < MaxSettlements)
+                    if (Next01(ref rng) < 0.34f && _settlementCount < budget)
                     {
                         float twinX = Mathf.Lerp(FieldInner + 4f, FieldOuter - 6f,
                             Next01(ref rng) * 0.5f);
