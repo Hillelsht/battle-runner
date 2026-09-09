@@ -300,9 +300,8 @@ namespace BattleRunner.Gameplay.Track
         {
             _settlementCount = 0;
             // The world's authored LandmarkSpacing now spaces the SETTLEMENTS — it used to
-            // space landmarks directly, and the landmarks now stand inside these. Floored by
-            // Settlements.Spacing so a world that authors a short spacing cannot merge its
-            // hamlets back into the even scatter this replaces.
+            // space landmarks directly, and the landmarks now stand inside these. Honoured
+            // exactly rather than floored: see Settlements.RadiusFor.
             float spacing = palette != null && palette.LandmarkSpacing > 1f
                 ? palette.LandmarkSpacing
                 : DefaultSettlementSpacing;
