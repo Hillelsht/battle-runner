@@ -40,9 +40,27 @@ namespace BattleRunner.Core.World
         public Rgb RoadMortar;
         /// <summary>The wet sheen colour. Reads as weather more than the stone does.</summary>
         public Rgb RoadDamp;
-        /// <summary>Cobbles per metre. Bigger stones read as older, coarser ground.</summary>
+        /// <summary>
+        /// Surface FEATURES per metre — cobbles in one world, planks in another, wind ripples
+        /// in a third. RoadSurface.TileRepeatsPerMetre divides it by how many of those the
+        /// generator baked into one tile to get what the sampler actually needs. The unit is
+        /// per-world because a feature is: four of these were authored against a single
+        /// procedural cobble grid and had to be re-tuned when the surfaces arrived, since
+        /// 1.2 wind ripples per metre makes each ripple most of a metre across.
+        /// </summary>
         public float RoadTiling = 1.6f;
+        /// <summary>
+        /// How far into the texture's face mask the joint is cut. Higher is a wider, deeper
+        /// gap. Every one of the eight worlds sat on the default 0.075 until the surfaces
+        /// arrived, which meant the joint pattern was byte-identical everywhere — a real
+        /// part of why the road "doesn't change" between rounds.
+        /// </summary>
         public float RoadMortarWidth = 0.075f;
+        /// <summary>
+        /// Which generated ground texture this world is paved with. A different TEXTURE, not
+        /// a different shader variant — see RoadSurface for why that distinction is load-bearing.
+        /// </summary>
+        public RoadSurface Surface = RoadSurfaces.Cobble;
         public float RoadStoneVariation = 0.45f;
         public float RoadWetness = 0.55f;
         public float RoadGloss = 8f;
@@ -87,7 +105,22 @@ namespace BattleRunner.Core.World
         public Rgb GroundAlt;
         /// <summary>Patches per metre. Smaller means larger, slower-changing ground.</summary>
         public float GroundPatchScale = 0.09f;
+        /// <summary>How hard the detail map's tone rides over the base ground colour.</summary>
         public float GroundSpeckle = 0.30f;
+        /// <summary>
+        /// The detail texture the land is made of, which is deliberately NOT the road's. A
+        /// world can be a plank boardwalk over mud, or a mosaic floor over dust; sharing one
+        /// texture between the road and the land either turns the verge into pavement or the
+        /// pavement into dirt, and the kerb is the one edge in the frame the eye always finds.
+        /// </summary>
+        public RoadSurface GroundSurface = RoadSurfaces.Dirt;
+        /// <summary>
+        /// Tile repeats per metre for the land, given directly rather than derived. The road's
+        /// scale is authored as cobbles-per-metre because a cobble is a thing a player can
+        /// see; the land has no comparable unit, and inventing one to divide back out again
+        /// would be arithmetic for its own sake.
+        /// </summary>
+        public float GroundSurfaceTiling = 0.30f;
         /// <summary>Standing water and ice glint; ash and bone do not.</summary>
         public Rgb GroundSheen;
         public float GroundSheenStrength = 0.15f;

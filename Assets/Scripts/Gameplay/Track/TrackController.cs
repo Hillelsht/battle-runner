@@ -202,6 +202,46 @@ namespace BattleRunner.Gameplay.Track
         private const float TerrainHalfWidth = 70f;
 
         /// <summary>
+        /// Textures loaded once and shared. Resources.Load is a dictionary lookup after the
+        /// first call, but ApplyTheme runs on every round transition and there is no reason
+        /// to ask sixteen times for something that never changes.
+        /// </summary>
+        private static readonly System.Collections.Generic.Dictionary<string, Texture2D> SurfaceCache =
+            new System.Collections.Generic.Dictionary<string, Texture2D>();
+
+        /// <summary>
+        /// Bind one generated surface to a material.
+        ///
+        /// A texture that fails to load is LEFT UNBOUND rather than bound to null, because
+        /// SetTexture(name, null) makes the sampler read Unity's black default while an
+        /// unbound property reads the "gray" and "bump" the shader's Properties block asks
+        /// for. The difference is a road that degrades to the flat slab it used to be versus
+        /// one that degrades to a black hole in the middle of the frame.
+        /// </summary>
+        private static void BindSurface(Material material,
+            BattleRunner.Core.World.RoadSurface surface, float repeatsPerMetre)
+        {
+            if (material == null || surface == null) return;
+            material.SetTextureSafe("_Surface", LoadSurface(surface.MaskResource));
+            material.SetTextureSafe("_SurfaceNormal", LoadSurface(surface.NormalResource));
+            material.SetFloatSafe("_SurfaceTiling", repeatsPerMetre);
+            material.SetFloatSafe("_NormalStrength", surface.NormalStrength);
+            material.SetFloatSafe("_Cavity", surface.Cavity);
+        }
+
+        private static Texture2D LoadSurface(string resource)
+        {
+            if (SurfaceCache.TryGetValue(resource, out Texture2D cached)) return cached;
+            var texture = Resources.Load<Texture2D>(resource);
+            if (texture == null)
+                Debug.LogWarning($"[Track] Surface texture '{resource}' is missing — the "
+                                 + "shader falls back to a flat surface. "
+                                 + "Run: python3 tooling/gen_surfaces.py");
+            SurfaceCache[resource] = texture;
+            return texture;
+        }
+
+        /// <summary>
         /// Repaint the road, its kerbs and its markings for a world.
         ///
         /// The four track materials were built once in Initialize from constants and never
@@ -224,7 +264,13 @@ namespace BattleRunner.Gameplay.Track
                 _groundMaterial.SetColorSafe("_BaseColor", ThemePalette.Shifted(theme.RoadStone, hue));
                 _groundMaterial.SetColorSafe("_MortarColor", ThemePalette.Shifted(theme.RoadMortar, hue));
                 _groundMaterial.SetColorSafe("_DampColor", ThemePalette.Shifted(theme.RoadDamp, hue));
-                _groundMaterial.SetFloatSafe("_Tiling", Mathf.Max(0.2f, theme.RoadTiling));
+                // The surface texture, per world, with NO shader keyword: Road.shader is
+                // already 128 forward variants from its fog and shadow multi_compiles, and a
+                // six-way surface keyword would take it to 768 — every one of which has to
+                // compile on the device. Eight worlds bind eight different TEXTURES into one
+                // variant instead, which costs nothing.
+                BindSurface(_groundMaterial, theme.Surface,
+                    theme.Surface.TileRepeatsPerMetre(theme.RoadTiling));
                 _groundMaterial.SetFloatSafe("_MortarWidth", theme.RoadMortarWidth);
                 _groundMaterial.SetFloatSafe("_StoneVariation", theme.RoadStoneVariation);
                 // Wetness is the cheapest thing on the road that reads as weather, so the
@@ -240,6 +286,12 @@ namespace BattleRunner.Gameplay.Track
                 _terrainMaterial.SetColorSafe("_GroundColorAlt", ThemePalette.Shifted(theme.GroundAlt, hue));
                 _terrainMaterial.SetColorSafe("_SheenColor", ThemePalette.Shifted(theme.GroundSheen, hue));
                 _terrainMaterial.SetFloatSafe("_PatchScale", Mathf.Max(0.005f, theme.GroundPatchScale));
+                // A DIFFERENT surface from the road's. A plank boardwalk over mud and a mosaic
+                // floor over dust are both worlds this game has; sharing one texture across the
+                // kerb would turn the verge into pavement, and the kerb is the one edge in the
+                // frame the eye is guaranteed to find.
+                BindSurface(_terrainMaterial, theme.GroundSurface,
+                    Mathf.Clamp(theme.GroundSurfaceTiling, 0.01f, 4f));
                 _terrainMaterial.SetFloatSafe("_Speckle", Mathf.Clamp01(theme.GroundSpeckle));
                 // Wetness spends on the land as well as the road, so a round that reads as
                 // rain reads that way all the way out to the treeline.

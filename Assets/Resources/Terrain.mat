@@ -22,11 +22,21 @@ Material:
   m_LockedProperties:
   m_SavedProperties:
     serializedVersion: 3
-    m_TexEnvs: {}
+    m_TexEnvs:
+    - _Surface:
+        m_Texture: {fileID: 2800000, guid: 64a544704ba14314d4b6838e444bb038, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _SurfaceNormal:
+        m_Texture: {fileID: 2800000, guid: 52a3e6f535b53f9d36727761bd1640ea, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     m_Ints: {}
     m_Floats:
     - _PatchScale: 0.09
-    - _SpeckleScale: 1.8
+    - _SurfaceTiling: 0.3
+    - _NormalStrength: 0.8
+    - _Cavity: 0.4
     - _Speckle: 0.3
     - _Sheen: 0.15
     - _Gloss: 12

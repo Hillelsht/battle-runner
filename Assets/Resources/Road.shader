@@ -2,9 +2,25 @@
 // slab of flat charcoal — no amount of lighting makes a featureless plane interesting,
 // because there is nothing on it for the light to catch.
 //
-// Everything here is derived from world XZ: brick-bonded cobbles, per-stone tone, damp
-// blotches, and a wet sheen that picks up the moonlight. No textures to author, import,
-// stream or strip, and it tiles forever down a road of any length.
+// Everything here is still derived from world XZ — that has not changed and is the whole
+// reason a texture could be added at all. `uv = positionWS.xz * tiling` is a real UV, so a
+// sampler needs no mesh UV channel, no importer and no change to a single mesh.
+//
+// WHY IT IS NOW SAMPLED RATHER THAN COMPUTED. The brick bond, mortar, per-stone tone and two
+// octaves of grime were all evaluated per pixel, and the result still measured a luminance
+// range of only 19-42 out of 255 against 54-139 for a photoreal reference. At 2-5% contrast
+// the cobbles are invisible and the road reads as a flat slab, which is exactly what it was
+// called. A fragment shader can afford a handful of instructions per pixel; a texture is a
+// lookup table for arbitrarily expensive maths, and a voronoi cell diagram with per-stone
+// tone is exactly that. tooling/gen_surfaces.py bakes eight of them; the generated cobble
+// measures a range of 178 and 8.8x the edge density of what this shader used to produce.
+//
+// WHAT IS NOT IN THE TEXTURE: colour. Eight worlds author eight tuned road palettes and
+// baking colour would throw all of that away. The mask carries STRUCTURE — R tone, G face
+// mask, B wetness, A height — and this shader tints it with the world's own stone and mortar.
+// The macro grime below stays computed, because a 256px texture repeating every few metres
+// would otherwise show its tile across 400 m of road, and noise at 3 m and 10 m is what
+// breaks that up.
 Shader "BattleRunner/Road"
 {
     Properties
@@ -22,11 +38,20 @@ Shader "BattleRunner/Road"
         // stone is both the fix and the dark-fantasy reference.
         _BaseColor ("Stone", Color) = (0.31, 0.295, 0.285, 1)
         _MortarColor ("Mortar", Color) = (0.145, 0.138, 0.135, 1)
-        // Still cool — it is a reflection of that same sky, and localised to wet stone
-        // tops by spec * mortar * grime — but pulled back so the sheen is not a second
-        // full-coverage blue wash.
+        // Still cool — it is a reflection of that same sky, and localised to the joints and
+        // low ground by the surface mask's wetness channel — but pulled back so the sheen is
+        // not a second full-coverage blue wash.
         _DampColor ("Damp Sheen", Color) = (0.30, 0.33, 0.44, 1)
-        _Tiling ("Cobbles Per Metre", Float) = 1.6
+        // "gray" rather than "white" as the fallback: an unbound mask decodes to zero tone
+        // variation and a fully-open face, i.e. exactly the flat slab this replaced, instead
+        // of a road with the stone tone pinned to maximum.
+        _Surface ("Surface Mask (R tone, G face, B wet, A height)", 2D) = "gray" {}
+        _SurfaceNormal ("Surface Normal", 2D) = "bump" {}
+        // Tile repeats per metre, NOT cobbles per metre. RoadSurface.TileRepeatsPerMetre
+        // converts between them using how many stones the generator put in one tile.
+        _SurfaceTiling ("Tile Repeats Per Metre", Float) = 0.18
+        _NormalStrength ("Normal Strength", Range(0, 1)) = 1
+        _Cavity ("Cavity Shading", Range(0, 1)) = 0.45
         _MortarWidth ("Mortar Width", Range(0.01, 0.3)) = 0.075
         _StoneVariation ("Stone Tone Variation", Range(0, 1)) = 0.45
         _Wetness ("Wetness", Range(0, 1)) = 0.55
@@ -58,11 +83,22 @@ Shader "BattleRunner/Road"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
+            // Textures live OUTSIDE UnityPerMaterial — a sampler inside the constant buffer
+            // does not compile under SRP batching, and this material is batched.
+            TEXTURE2D(_Surface);
+            SAMPLER(sampler_Surface);
+            TEXTURE2D(_SurfaceNormal);
+
             CBUFFER_START(UnityPerMaterial)
                 half4 _BaseColor;
                 half4 _MortarColor;
                 half4 _DampColor;
-                half _Tiling;
+                // FLOAT, not half. This is a world-space coordinate multiplier and the road
+                // runs past z = 400; at half precision the UV quantises into visible steps in
+                // the distance, which is a stair-stepped road rather than a tiled one.
+                float _SurfaceTiling;
+                half _NormalStrength;
+                half _Cavity;
                 half _MortarWidth;
                 half _StoneVariation;
                 half _Wetness;
@@ -116,31 +152,43 @@ Shader "BattleRunner/Road"
 
             half4 frag(Varyings input) : SV_Target
             {
-                float2 uv = input.positionWS.xz * _Tiling;
+                float2 uv = input.positionWS.xz * _SurfaceTiling;
+                half4 surf = SAMPLE_TEXTURE2D(_Surface, sampler_Surface, uv);
 
-                // Brick bond: every other row shifts half a stone, so the mortar never
-                // lines up into long straight seams running down the road.
-                float row = floor(uv.y);
-                uv.x += frac(row * 0.5) * 1.0;
+                // The joint. G is a soft face mask — 1 on a stone, 0 in a gap — and the
+                // mortar width raises the threshold, so a world with wide, deep joints and a
+                // world with tight ones share one texture. All eight worlds sat on the same
+                // 0.075 before the surfaces existed, and an identical joint pattern in every
+                // world is a real part of why the road never looked like it changed.
+                half face = smoothstep(_MortarWidth, _MortarWidth + 0.28h, surf.g);
 
-                float2 cell = floor(uv);
-                float2 f = frac(uv);
-
-                // Distance to the nearest cell edge, widened into a mortar gap.
-                float edge = min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y));
-                half mortar = smoothstep(0.0, _MortarWidth, edge);
-
-                half tone = (Hash21(cell) - 0.5h) * _StoneVariation;
+                half tone = (surf.r - 0.5h) * _StoneVariation * 2.0h;
                 half3 stone = saturate(_BaseColor.rgb * (1.0h + tone));
-                half3 albedo = lerp(_MortarColor.rgb, stone, mortar);
+                half3 albedo = lerp(_MortarColor.rgb, stone, face);
 
-                // Grime at three metres, damp at ten. Two octaves is enough to break up
-                // the regularity without looking like noise for its own sake.
+                // Grime at three metres, damp at ten. STILL COMPUTED, and now for a second
+                // reason: the texture repeats every few metres down a road that runs past
+                // 400 m, and noise an order of magnitude larger than the tile is what stops
+                // the eye from locking onto the repeat.
                 half grime = ValueNoise(input.positionWS.xz * 0.33) * 0.6h
                            + ValueNoise(input.positionWS.xz * 0.10) * 0.4h;
                 albedo *= lerp(0.72h, 1.12h, grime);
 
-                half3 normalWS = normalize(input.normalWS);
+                // Cavity from the height channel: recesses get less ambient than faces do.
+                // A contact shadow for one multiply, and the cheapest depth cue available.
+                albedo *= lerp(1.0h, saturate(surf.a * 0.75h + 0.4h), _Cavity);
+
+                // The tangent frame is a CONSTANT here and that is the only reason normal
+                // mapping is possible at all: no mesh in this project has tangents, but the
+                // road is a horizontal, axis-aligned plane, so T = (1,0,0), B = (0,0,1) and
+                // N = (0,1,0) are known at compile time. worldN = (n.x, n.z, n.y) falls
+                // straight out of that. Faded by the geometric normal's Y so the stretched
+                // box's vertical sides are not shaded with a floor's normal map.
+                half3 geoN = normalize(input.normalWS);
+                half3 nT = SAMPLE_TEXTURE2D(_SurfaceNormal, sampler_Surface, uv).xyz * 2.0h - 1.0h;
+                half3 bumped = normalize(half3(nT.x, nT.z, nT.y));
+                half3 normalWS = normalize(lerp(geoN, bumped,
+                                                _NormalStrength * saturate(geoN.y)));
                 half3 viewDirWS = normalize(GetWorldSpaceViewDir(input.positionWS));
 
                 Light mainLight = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
@@ -150,12 +198,15 @@ Shader "BattleRunner/Road"
 
                 half3 color = albedo * (mainLight.color * lambert * shadow + ambient);
 
-                // A wet sheen that only the mortar-free stone tops catch, strongest where
-                // the grime says the stone is damp. This is what makes the road read as a
-                // surface rather than as a colour.
+                // The wet sheen now follows the texture's own B channel, which is where the
+                // generator put standing water: in the joints and the low ground, because
+                // that is where water actually collects. The old version put it on the stone
+                // TOPS, which is backwards, and it only looked acceptable because there was
+                // no relief for it to disagree with. Macro grime still gates it so a whole
+                // road is not uniformly wet.
                 half3 halfVector = normalize(mainLight.direction + viewDirWS);
                 half spec = pow(saturate(dot(normalWS, halfVector)), _Gloss);
-                color += _DampColor.rgb * spec * _Wetness * mortar * grime * shadow;
+                color += _DampColor.rgb * spec * _Wetness * surf.b * grime * shadow;
 
                 // PER-PIXEL fog, not the interpolated per-vertex factor URP hands you.
                 // The ground, the four lane lines and both rails are each ONE stretched box

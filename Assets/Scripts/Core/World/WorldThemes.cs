@@ -40,6 +40,7 @@ namespace BattleRunner.Core.World
                 RoadMortar = new Rgb(0.145f, 0.138f, 0.135f),
                 RoadDamp = new Rgb(0.300f, 0.330f, 0.440f),
                 RoadTiling = 1.60f, RoadWetness = 0.55f, RoadGloss = 8f, RoadStoneVariation = 0.45f,
+                RoadMortarWidth = 0.075f, Surface = RoadSurfaces.Cobble,
                 SkyZenith = new Rgb(0.022f, 0.020f, 0.055f),
                 SkyHorizon = new Rgb(0.085f, 0.070f, 0.125f),
                 SkyGlow = new Rgb(0.500f, 0.330f, 0.230f),
@@ -51,6 +52,7 @@ namespace BattleRunner.Core.World
                 Ground = new Rgb(0.228f, 0.200f, 0.152f),
                 GroundAlt = new Rgb(0.296f, 0.260f, 0.188f),
                 GroundPatchScale = 0.09f, GroundSpeckle = 0.32f,
+                GroundSurface = RoadSurfaces.Dirt, GroundSurfaceTiling = 0.30f,
                 GroundSheen = new Rgb(0.30f, 0.33f, 0.44f), GroundSheenStrength = 0.10f,
                 Scenery = new SceneryPalette
                 {
@@ -99,6 +101,7 @@ namespace BattleRunner.Core.World
                 RoadMortar = new Rgb(0.110f, 0.120f, 0.100f),
                 RoadDamp = new Rgb(0.260f, 0.360f, 0.280f),
                 RoadTiling = 1.35f, RoadWetness = 0.80f, RoadGloss = 10f, RoadStoneVariation = 0.52f,
+                RoadMortarWidth = 0.190f, Surface = RoadSurfaces.Planks,
                 SkyZenith = new Rgb(0.020f, 0.028f, 0.030f),
                 SkyHorizon = new Rgb(0.070f, 0.095f, 0.070f),
                 SkyGlow = new Rgb(0.280f, 0.420f, 0.200f),
@@ -110,6 +113,7 @@ namespace BattleRunner.Core.World
                 Ground = new Rgb(0.095f, 0.138f, 0.088f),
                 GroundAlt = new Rgb(0.152f, 0.200f, 0.108f),
                 GroundPatchScale = 0.06f, GroundSpeckle = 0.26f,
+                GroundSurface = RoadSurfaces.Dirt, GroundSurfaceTiling = 0.24f,
                 GroundSheen = new Rgb(0.42f, 0.62f, 0.48f), GroundSheenStrength = 0.55f,
                 Scenery = new SceneryPalette
                 {
@@ -157,7 +161,8 @@ namespace BattleRunner.Core.World
                 RoadStone = new Rgb(0.220f, 0.240f, 0.280f),
                 RoadMortar = new Rgb(0.100f, 0.110f, 0.130f),
                 RoadDamp = new Rgb(0.340f, 0.480f, 0.620f),
-                RoadTiling = 2.10f, RoadWetness = 0.90f, RoadGloss = 14f, RoadStoneVariation = 0.38f,
+                RoadTiling = 1.40f, RoadWetness = 0.90f, RoadGloss = 14f, RoadStoneVariation = 0.52f,
+                RoadMortarWidth = 0.040f, Surface = RoadSurfaces.Flagstone,
                 SkyZenith = new Rgb(0.014f, 0.020f, 0.038f),
                 SkyHorizon = new Rgb(0.050f, 0.080f, 0.115f),
                 SkyGlow = new Rgb(0.160f, 0.360f, 0.440f),
@@ -169,6 +174,7 @@ namespace BattleRunner.Core.World
                 Ground = new Rgb(0.088f, 0.148f, 0.168f),
                 GroundAlt = new Rgb(0.118f, 0.228f, 0.282f),
                 GroundPatchScale = 0.07f, GroundSpeckle = 0.22f,
+                GroundSurface = RoadSurfaces.Gravel, GroundSurfaceTiling = 0.42f,
                 GroundSheen = new Rgb(0.40f, 0.62f, 0.80f), GroundSheenStrength = 0.78f,
                 Scenery = new SceneryPalette
                 {
@@ -217,6 +223,7 @@ namespace BattleRunner.Core.World
                 RoadMortar = new Rgb(0.220f, 0.090f, 0.050f),   // cracks, not mortar
                 RoadDamp = new Rgb(0.550f, 0.250f, 0.120f),
                 RoadTiling = 1.50f, RoadWetness = 0.20f, RoadGloss = 6f, RoadStoneVariation = 0.60f,
+                RoadMortarWidth = 0.130f, Surface = RoadSurfaces.Dirt,
                 SkyZenith = new Rgb(0.045f, 0.022f, 0.020f),
                 SkyHorizon = new Rgb(0.140f, 0.070f, 0.048f),
                 SkyGlow = new Rgb(0.950f, 0.420f, 0.160f),
@@ -228,6 +235,7 @@ namespace BattleRunner.Core.World
                 Ground = new Rgb(0.150f, 0.092f, 0.062f),
                 GroundAlt = new Rgb(0.330f, 0.128f, 0.040f),
                 GroundPatchScale = 0.11f, GroundSpeckle = 0.40f,
+                GroundSurface = RoadSurfaces.Gravel, GroundSurfaceTiling = 0.34f,
                 GroundSheen = new Rgb(1.10f, 0.42f, 0.16f), GroundSheenStrength = 0.30f,
                 Scenery = new SceneryPalette
                 {
@@ -274,7 +282,8 @@ namespace BattleRunner.Core.World
                 RoadStone = new Rgb(0.420f, 0.400f, 0.350f),
                 RoadMortar = new Rgb(0.200f, 0.190f, 0.160f),
                 RoadDamp = new Rgb(0.350f, 0.330f, 0.300f),
-                RoadTiling = 1.20f, RoadWetness = 0.15f, RoadGloss = 5f, RoadStoneVariation = 0.55f,
+                RoadTiling = 7.00f, RoadWetness = 0.15f, RoadGloss = 5f, RoadStoneVariation = 0.62f,
+                RoadMortarWidth = 0.020f, Surface = RoadSurfaces.Sand,
                 SkyZenith = new Rgb(0.028f, 0.026f, 0.048f),
                 SkyHorizon = new Rgb(0.115f, 0.100f, 0.095f),
                 SkyGlow = new Rgb(0.420f, 0.360f, 0.280f),
@@ -286,6 +295,7 @@ namespace BattleRunner.Core.World
                 Ground = new Rgb(0.370f, 0.345f, 0.290f),
                 GroundAlt = new Rgb(0.458f, 0.432f, 0.362f),
                 GroundPatchScale = 0.05f, GroundSpeckle = 0.18f,
+                GroundSurface = RoadSurfaces.Dirt, GroundSurfaceTiling = 0.26f,
                 GroundSheen = new Rgb(0.55f, 0.52f, 0.44f), GroundSheenStrength = 0.05f,
                 Scenery = new SceneryPalette
                 {
@@ -332,7 +342,8 @@ namespace BattleRunner.Core.World
                 RoadStone = new Rgb(0.360f, 0.420f, 0.480f),
                 RoadMortar = new Rgb(0.200f, 0.240f, 0.300f),
                 RoadDamp = new Rgb(0.550f, 0.700f, 0.880f),
-                RoadTiling = 1.05f, RoadWetness = 0.95f, RoadGloss = 18f, RoadStoneVariation = 0.30f,
+                RoadTiling = 1.05f, RoadWetness = 0.95f, RoadGloss = 18f, RoadStoneVariation = 0.48f,
+                RoadMortarWidth = 0.055f, Surface = RoadSurfaces.Snow,
                 SkyZenith = new Rgb(0.020f, 0.030f, 0.058f),
                 SkyHorizon = new Rgb(0.095f, 0.125f, 0.165f),
                 SkyGlow = new Rgb(0.300f, 0.580f, 0.720f),
@@ -344,6 +355,7 @@ namespace BattleRunner.Core.World
                 Ground = new Rgb(0.520f, 0.570f, 0.640f),
                 GroundAlt = new Rgb(0.645f, 0.700f, 0.782f),
                 GroundPatchScale = 0.14f, GroundSpeckle = 0.16f,
+                GroundSurface = RoadSurfaces.Gravel, GroundSurfaceTiling = 0.20f,
                 GroundSheen = new Rgb(0.72f, 0.86f, 1.00f), GroundSheenStrength = 0.68f,
                 Scenery = new SceneryPalette
                 {
@@ -389,7 +401,8 @@ namespace BattleRunner.Core.World
                 RoadStone = new Rgb(0.260f, 0.170f, 0.170f),
                 RoadMortar = new Rgb(0.130f, 0.080f, 0.080f),
                 RoadDamp = new Rgb(0.450f, 0.160f, 0.180f),
-                RoadTiling = 1.40f, RoadWetness = 0.85f, RoadGloss = 9f, RoadStoneVariation = 0.50f,
+                RoadTiling = 9.00f, RoadWetness = 0.85f, RoadGloss = 9f, RoadStoneVariation = 0.50f,
+                RoadMortarWidth = 0.060f, Surface = RoadSurfaces.Gravel,
                 SkyZenith = new Rgb(0.038f, 0.014f, 0.020f),
                 SkyHorizon = new Rgb(0.125f, 0.048f, 0.060f),
                 SkyGlow = new Rgb(0.720f, 0.160f, 0.200f),
@@ -401,6 +414,7 @@ namespace BattleRunner.Core.World
                 Ground = new Rgb(0.235f, 0.122f, 0.118f),
                 GroundAlt = new Rgb(0.320f, 0.145f, 0.136f),
                 GroundPatchScale = 0.06f, GroundSpeckle = 0.34f,
+                GroundSurface = RoadSurfaces.Dirt, GroundSurfaceTiling = 0.32f,
                 GroundSheen = new Rgb(0.80f, 0.30f, 0.34f), GroundSheenStrength = 0.48f,
                 Scenery = new SceneryPalette
                 {
@@ -444,10 +458,13 @@ namespace BattleRunner.Core.World
             new WorldTheme
             {
                 DisplayName = "The Throne of Dust",
-                RoadStone = new Rgb(0.160f, 0.150f, 0.180f),
-                RoadMortar = new Rgb(0.260f, 0.200f, 0.090f),   // gold in the seams
+                RoadStone = new Rgb(0.215f, 0.205f, 0.235f),
+                RoadMortar = new Rgb(0.420f, 0.320f, 0.130f),   // gold in the seams, and bright
+                // enough to be gold: at 0.26/0.20/0.09 the gilding landed within 2%
+                // of the tesserae's own luminance and the pattern read as nothing.
                 RoadDamp = new Rgb(0.400f, 0.300f, 0.550f),
-                RoadTiling = 1.80f, RoadWetness = 0.45f, RoadGloss = 12f, RoadStoneVariation = 0.35f,
+                RoadTiling = 5.00f, RoadWetness = 0.45f, RoadGloss = 12f, RoadStoneVariation = 0.55f,
+                RoadMortarWidth = 0.160f, Surface = RoadSurfaces.Mosaic,
                 SkyZenith = new Rgb(0.018f, 0.014f, 0.036f),
                 SkyHorizon = new Rgb(0.070f, 0.055f, 0.115f),
                 SkyGlow = new Rgb(0.400f, 0.220f, 0.620f),
@@ -459,6 +476,7 @@ namespace BattleRunner.Core.World
                 Ground = new Rgb(0.172f, 0.148f, 0.220f),
                 GroundAlt = new Rgb(0.232f, 0.196f, 0.302f),
                 GroundPatchScale = 0.10f, GroundSpeckle = 0.28f,
+                GroundSurface = RoadSurfaces.Flagstone, GroundSurfaceTiling = 0.38f,
                 GroundSheen = new Rgb(0.52f, 0.38f, 0.70f), GroundSheenStrength = 0.12f,
                 Scenery = new SceneryPalette
                 {

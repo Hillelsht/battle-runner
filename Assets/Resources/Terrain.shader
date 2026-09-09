@@ -4,11 +4,17 @@
 // hovering over the skybox. That is why eight authored worlds still read as one place with
 // a colour filter over it: a palette cannot differentiate ground that is not there.
 //
-// Same discipline as Road.shader, and for the same reason: everything is derived from world
-// XZ, so there is no texture to author, import, stream or strip, no UV channel on the mesh,
-// and it tiles forever across a band of any size. Two colours, a patch mask that clumps them
-// at roughly ten metres, a fine speckle so the surface catches the key light, and an
-// optional sheen for the worlds that are wet or frozen.
+// Same discipline as Road.shader, and it takes the same two-layer form for the same reason.
+// The MACRO layer is computed: two colours and a patch mask that clumps them at roughly ten
+// metres, which no 256px texture could provide without its tile becoming the thing you see
+// across 65 x 400 m of ground. The DETAIL layer is sampled: a generated surface mask and its
+// normal map, at world-space UVs the shader already had, which is where the high-frequency
+// information a photoreal reference has and this ground did not actually comes from.
+//
+// The per-metre Hash21 speckle this used before is gone and is not missed. It was a value
+// with no shape — one random number per square metre, which reads as noise rather than as
+// ground, and could not catch the key light because it had no relief to catch it with. The
+// detail map has both a tone and a HEIGHT, so the same budget now buys real shading.
 Shader "BattleRunner/Terrain"
 {
     Properties
@@ -20,8 +26,14 @@ Shader "BattleRunner/Terrain"
         _GroundColor ("Ground", Color) = (0.20, 0.19, 0.16, 1)
         _GroundColorAlt ("Ground Patches", Color) = (0.26, 0.25, 0.21, 1)
         _PatchScale ("Patch Size (per metre)", Float) = 0.09
-        _SpeckleScale ("Speckle Size (per metre)", Float) = 1.8
-        _Speckle ("Speckle Strength", Range(0, 1)) = 0.30
+        // "gray" not "white": an unbound mask must decode to no tone shift and no cavity,
+        // i.e. exactly the flat band this replaced, rather than to a blown-out one.
+        _Surface ("Surface Mask (R tone, G face, B wet, A height)", 2D) = "gray" {}
+        _SurfaceNormal ("Surface Normal", 2D) = "bump" {}
+        _SurfaceTiling ("Tile Repeats Per Metre", Float) = 0.3
+        _NormalStrength ("Normal Strength", Range(0, 1)) = 0.8
+        _Cavity ("Cavity Shading", Range(0, 1)) = 0.4
+        _Speckle ("Detail Strength", Range(0, 1)) = 0.30
         _SheenColor ("Sheen", Color) = (0.30, 0.33, 0.44, 1)
         _Sheen ("Sheen Strength", Range(0, 1)) = 0.15
         _Gloss ("Sheen Tightness", Float) = 12
@@ -52,12 +64,22 @@ Shader "BattleRunner/Terrain"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
+            // Outside UnityPerMaterial: a sampler inside the constant buffer does not
+            // compile under SRP batching, and this material is batched.
+            TEXTURE2D(_Surface);
+            SAMPLER(sampler_Surface);
+            TEXTURE2D(_SurfaceNormal);
+
             CBUFFER_START(UnityPerMaterial)
                 half4 _GroundColor;
                 half4 _GroundColorAlt;
                 half4 _SheenColor;
                 half _PatchScale;
-                half _SpeckleScale;
+                // FLOAT, not half. The band spans 65 x 400 m and this multiplies a world
+                // coordinate; at half precision the far end of it quantises into steps.
+                float _SurfaceTiling;
+                half _NormalStrength;
+                half _Cavity;
                 half _Speckle;
                 half _Sheen;
                 half _Gloss;
@@ -123,13 +145,23 @@ Shader "BattleRunner/Terrain"
                 patch = saturate(patch * patch * 1.6h);
                 half3 albedo = lerp(_GroundColor.rgb, _GroundColorAlt.rgb, patch);
 
-                // Per-metre speckle. Without it the band is a flat plane and the key light
-                // has nothing to catch across 65 m of it — the exact failure the road had
-                // before it was given cobbles.
-                half grain = Hash21(floor(p * _SpeckleScale));
-                albedo *= lerp(1.0h - _Speckle * 0.5h, 1.0h + _Speckle * 0.5h, grain);
+                // The detail layer. R is a tone, A is a height; both are real structure, and
+                // between them the key light finally has something to catch across 65 m of
+                // band — the exact failure the road had before it was given a surface.
+                float2 duv = p * _SurfaceTiling;
+                half4 surf = SAMPLE_TEXTURE2D(_Surface, sampler_Surface, duv);
+                albedo *= lerp(1.0h - _Speckle * 0.9h, 1.0h + _Speckle * 0.9h, surf.r);
+                albedo *= lerp(1.0h, saturate(surf.a * 0.75h + 0.4h), _Cavity);
 
-                half3 normalWS = normalize(input.normalWS);
+                // Constant tangent frame, exactly as Road.shader documents: this band is a
+                // horizontal axis-aligned plane, so T = (1,0,0), B = (0,0,1), N = (0,1,0) are
+                // known at compile time and worldN = (n.x, n.z, n.y). No mesh here has
+                // tangents and none needs them.
+                half3 geoN = normalize(input.normalWS);
+                half3 nT = SAMPLE_TEXTURE2D(_SurfaceNormal, sampler_Surface, duv).xyz * 2.0h - 1.0h;
+                half3 bumped = normalize(half3(nT.x, nT.z, nT.y));
+                half3 normalWS = normalize(lerp(geoN, bumped,
+                                                _NormalStrength * saturate(geoN.y)));
                 half3 viewDirWS = normalize(GetWorldSpaceViewDir(input.positionWS));
 
                 Light mainLight = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
@@ -140,11 +172,12 @@ Shader "BattleRunner/Terrain"
                 half3 color = albedo * (mainLight.color * lambert * shadow + ambient);
 
                 // Wet marsh and frozen reach want a glint; ash and bone do not. Gated on the
-                // patch mask so the sheen sits in the low ground rather than covering
-                // everything, which is where water actually collects.
+                // patch mask AND on the detail map's own wetness channel, so the sheen sits
+                // in the low ground at both scales rather than covering everything — which is
+                // where water actually collects.
                 half3 halfVector = normalize(mainLight.direction + viewDirWS);
                 half spec = pow(saturate(dot(normalWS, halfVector)), _Gloss);
-                color += _SheenColor.rgb * spec * _Sheen * patch * shadow;
+                color += _SheenColor.rgb * spec * _Sheen * patch * surf.b * shadow;
 
                 // PER-PIXEL fog, for the same reason Road.shader computes it per pixel and
                 // documents why: this band is TWO stretched boxes spanning the entire level,

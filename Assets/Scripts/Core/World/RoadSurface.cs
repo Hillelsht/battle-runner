@@ -1,0 +1,136 @@
+using System;
+
+namespace BattleRunner.Core.World
+{
+    /// <summary>
+    /// One generated ground texture, and the numbers a shader needs to sample it correctly.
+    ///
+    /// WHY THIS IS A TABLE AND NOT A SHADER KEYWORD. Eight worlds want eight different
+    /// surfaces, and the obvious way to get them is a keyword per surface. The project uses
+    /// ZERO shader keywords anywhere, and Road.shader is already 128 forward variants from
+    /// its fog and shadow multi_compiles alone; a six-way surface keyword would take it to
+    /// 768 and every one of them would have to compile on a mid-tier Android device. A world
+    /// binds a DIFFERENT TEXTURE, not a different variant, and that costs nothing at all.
+    ///
+    /// WHY FeaturesPerTile EXISTS. WorldTheme.RoadTiling means "cobbles per metre" and eight
+    /// worlds are tuned in those units. A sampler needs "tile repeats per metre". Those are
+    /// not the same number and the conversion has to live somewhere: it lives here, next to
+    /// the count it depends on, and tooling/lint_unity_yaml.py pins each value against the
+    /// generator that produced the texture. Get it wrong and every stone in a world silently
+    /// changes size — a bug with no error message and no crash.
+    /// </summary>
+    public sealed class RoadSurface
+    {
+        /// <summary>Base file name. The two textures are Name + MaskSuffix / NormalSuffix.</summary>
+        public readonly string Name;
+
+        /// <summary>
+        /// How many stones, planks or ripples span one repeat of the texture. Divides
+        /// RoadTiling to convert authored cobbles-per-metre into tile-repeats-per-metre.
+        /// </summary>
+        public readonly float FeaturesPerTile;
+
+        /// <summary>
+        /// How far the shading normal is blended from the geometric one toward the map's,
+        /// in 0..1 — a LERP WEIGHT, not a multiplier, and the shader declares it Range(0, 1).
+        /// A value above 1 does not make a surface rougher, it makes Unity clamp on
+        /// assignment and quietly ship a look nobody authored; the constructor now refuses it.
+        ///
+        /// How much relief a surface HAS is already decided by its own height field, and
+        /// those differ by a factor of three between gravel and snow. What this decides is
+        /// whether to use that relief in full: cut slabs are meant to be nearly flat, and a
+        /// full-strength normal map on them reads as damage rather than as stone.
+        /// </summary>
+        public readonly float NormalStrength;
+
+        /// <summary>How much the height channel darkens the recesses. Contact shadow, cheaply.</summary>
+        public readonly float Cavity;
+
+        public RoadSurface(string name, float featuresPerTile, float normalStrength, float cavity)
+        {
+            if (string.IsNullOrEmpty(name)) throw new ArgumentException("a surface needs a name");
+            if (featuresPerTile <= 0f)
+                throw new ArgumentOutOfRangeException(nameof(featuresPerTile), featuresPerTile,
+                    "a tile with no features in it cannot be scaled");
+            // Both of these are Range(0, 1) in Road.shader and Terrain.shader. Unity clamps
+            // an out-of-range assignment rather than rejecting it, so the only symptom of
+            // authoring 1.15 here would be a surface that is not the one that was written
+            // down. Refuse it where it is written instead.
+            if (normalStrength < 0f || normalStrength > 1f)
+                throw new ArgumentOutOfRangeException(nameof(normalStrength), normalStrength,
+                    "normal strength is a 0..1 blend weight; the shader clamps anything else");
+            if (cavity < 0f || cavity > 1f)
+                throw new ArgumentOutOfRangeException(nameof(cavity), cavity,
+                    "cavity is a 0..1 blend weight; the shader clamps anything else");
+            Name = name;
+            FeaturesPerTile = featuresPerTile;
+            NormalStrength = normalStrength;
+            Cavity = cavity;
+        }
+
+        public string MaskResource => RoadSurfaces.ResourceFolder + Name + RoadSurfaces.MaskSuffix;
+        public string NormalResource => RoadSurfaces.ResourceFolder + Name + RoadSurfaces.NormalSuffix;
+
+        /// <summary>
+        /// Tile repeats per metre for an authored features-per-metre. The clamp is the
+        /// difference between a mis-typed theme looking wrong and a mis-typed theme
+        /// producing a sampler that aliases into moire across the whole road.
+        /// </summary>
+        public float TileRepeatsPerMetre(float featuresPerMetre)
+        {
+            float repeats = featuresPerMetre / FeaturesPerTile;
+            if (repeats < 0.01f) return 0.01f;
+            if (repeats > 4f) return 4f;
+            return repeats;
+        }
+    }
+
+    /// <summary>
+    /// The eight surfaces, one per world, generated by tooling/gen_surfaces.py.
+    ///
+    /// Engine-free on purpose, like the rest of Core: which texture a world uses, and how it
+    /// must be scaled, is decidable and testable without an editor. Only the two Resources
+    /// loads in TrackController touch Unity at all.
+    /// </summary>
+    public static class RoadSurfaces
+    {
+        public const string ResourceFolder = "Surfaces/";
+        public const string MaskSuffix = "_mask";
+        public const string NormalSuffix = "_n";
+
+        //                                              name         per tile  normal  cavity
+        /// <summary>Irregular set stone — an old imperial highway gone to seed.</summary>
+        public static readonly RoadSurface Cobble    = new RoadSurface("cobble",     9f, 1.00f, 0.45f);
+        /// <summary>A boardwalk. You do not pave a swamp, you plank it.</summary>
+        public static readonly RoadSurface Planks    = new RoadSurface("planks",     8f, 0.85f, 0.55f);
+        /// <summary>Large cut slabs with tight joints — worked stone, not a village road.</summary>
+        public static readonly RoadSurface Flagstone = new RoadSurface("flagstone",  4f, 0.60f, 0.35f);
+        /// <summary>Cracked scorched earth with embedded stones.</summary>
+        public static readonly RoadSurface Dirt      = new RoadSurface("dirt",       6f, 1.00f, 0.50f);
+        /// <summary>Wind-ripped bone sand. Almost all relief and no edges.</summary>
+        public static readonly RoadSurface Sand      = new RoadSurface("sand",      20f, 1.00f, 0.28f);
+        /// <summary>Sastrugi, crust and sparkle. The flattest of the eight by luminance.</summary>
+        public static readonly RoadSurface Snow      = new RoadSurface("snow",       7f, 0.90f, 0.30f);
+        /// <summary>Loose red silt and shale.</summary>
+        public static readonly RoadSurface Gravel    = new RoadSurface("gravel",    22f, 1.00f, 0.52f);
+        /// <summary>Inlaid tesserae, half lost. A floor that was once ceremonial.</summary>
+        public static readonly RoadSurface Mosaic    = new RoadSurface("mosaic",    16f, 0.70f, 0.40f);
+
+        public static readonly RoadSurface[] All =
+        {
+            Cobble, Planks, Flagstone, Dirt, Sand, Snow, Gravel, Mosaic
+        };
+
+        /// <summary>Every Resources path the game will try to load. Used by tests and by the lint.</summary>
+        public static string[] AllResourcePaths()
+        {
+            var paths = new string[All.Length * 2];
+            for (int i = 0; i < All.Length; i++)
+            {
+                paths[i * 2] = All[i].MaskResource;
+                paths[i * 2 + 1] = All[i].NormalResource;
+            }
+            return paths;
+        }
+    }
+}

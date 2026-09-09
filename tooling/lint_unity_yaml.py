@@ -145,6 +145,63 @@ def check_audio_clip_coupling():
                     "run: python3 tooling/synth_audio.py")
 
 
+def check_surface_coupling():
+    """
+    Core names eight ground textures and says how many stones are in each one; gen_surfaces.py
+    decides what is actually in them. Three things can drift, and every one of them fails
+    without an error message:
+
+      * a NAME drifts and Resources.Load returns null, so the road silently falls back to the
+        flat grey slab this whole piece of work exists to replace;
+      * a FEATURE COUNT drifts and the conversion from the theme's authored cobbles-per-metre
+        into tile-repeats-per-metre is wrong, so every stone in that world quietly changes
+        size — no warning, no crash, just the wrong scale;
+      * the PNG is not committed at all, which looks exactly like the first case.
+
+    Same class of coupling as the crowd scale and the audio clips, so it is pinned in the same
+    place and in the same way.
+    """
+    core_path = os.path.join(REPO, "Assets", "Scripts", "Core", "World", "RoadSurface.cs")
+    gen_path = os.path.join(REPO, "tooling", "gen_surfaces.py")
+    if not (os.path.exists(core_path) and os.path.exists(gen_path)):
+        return
+
+    with open(core_path, encoding="utf-8") as f:
+        core_src = f.read()
+    core = {name: float(features) for name, features in re.findall(
+        r'new RoadSurface\("([^"]+)",\s*([0-9.]+)f', core_src)}
+
+    with open(gen_path, encoding="utf-8") as f:
+        gen_src = f.read()
+    table = re.search(r"SURFACES = \[(.*?)\]", gen_src, re.S)
+    made = {name: float(features) for name, features in re.findall(
+        r'\("([^"]+)",\s*\w+,\s*([0-9.]+)\)', table.group(1) if table else "")}
+
+    if not core or not made:
+        problem("surface coupling check found no surface table — "
+                "if either table moved, update check_surface_coupling()")
+        return
+
+    for name in sorted(set(core) - set(made)):
+        problem(f"Core declares the surface '{name}' but gen_surfaces.py does not make it — "
+                "add it to SURFACES, or fix the name in RoadSurface.cs")
+    for name in sorted(set(made) - set(core)):
+        problem(f"gen_surfaces.py makes '{name}' but no world uses it — "
+                "add it to RoadSurfaces, or drop it from SURFACES")
+    for name in sorted(set(core) & set(made)):
+        if abs(core[name] - made[name]) > 1e-6:
+            problem(f"surface '{name}' feature drift: RoadSurface.cs divides by "
+                    f"{core[name]:g} but gen_surfaces.py bakes {made[name]:g} of them per "
+                    "tile. Every stone in that world would be the wrong size. Change both.")
+
+    folder = os.path.join(REPO, "Assets", "Resources", "Surfaces")
+    for name in sorted(core):
+        for suffix in ("_mask.png", "_n.png"):
+            if not os.path.exists(os.path.join(folder, name + suffix)):
+                problem(f"'{name}{suffix}' is missing from Assets/Resources/Surfaces — "
+                        "run: python3 tooling/gen_surfaces.py")
+
+
 def check_crowd_scale_coupling():
     """CrowdRenderer bakes the bob phase into the instance SCALE and the shader decodes
     it back out. The two constants live in different languages in different files, and
@@ -201,6 +258,7 @@ def main():
     check_build_settings(known_guids)
     check_audio_clip_coupling()
     check_crowd_scale_coupling()
+    check_surface_coupling()
 
     if PROBLEMS:
         print(f"LINT FAILED — {len(PROBLEMS)} problem(s):")

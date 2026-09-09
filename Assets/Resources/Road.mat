@@ -22,10 +22,20 @@ Material:
   m_LockedProperties:
   m_SavedProperties:
     serializedVersion: 3
-    m_TexEnvs: {}
+    m_TexEnvs:
+    - _Surface:
+        m_Texture: {fileID: 2800000, guid: ed8114778351bb8cd82c8822919981d5, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _SurfaceNormal:
+        m_Texture: {fileID: 2800000, guid: 27f0de003ace0ab43a58bb5af41954db, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     m_Ints: {}
     m_Floats:
-    - _Tiling: 1.6
+    - _SurfaceTiling: 0.178
+    - _NormalStrength: 1
+    - _Cavity: 0.45
     - _MortarWidth: 0.075
     - _StoneVariation: 0.45
     - _Wetness: 0.55

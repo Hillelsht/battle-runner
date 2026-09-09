@@ -88,6 +88,17 @@ namespace BattleRunner.Gameplay
             if (m != null && m.HasProperty(name)) m.SetVector(name, value);
         }
 
+        /// <summary>
+        /// A null texture is NOT set. Material.SetTexture(name, null) unbinds the property,
+        /// and the shader then samples Unity's all-black default rather than the "gray" or
+        /// "bump" the Properties block asks for — so a texture that failed to load would take
+        /// the road to solid black instead of to the flat slab it is meant to fall back to.
+        /// </summary>
+        public static void SetTextureSafe(this Material m, string name, Texture value)
+        {
+            if (m != null && value != null && m.HasProperty(name)) m.SetTexture(name, value);
+        }
+
         public static Color GetColorSafe(this Material m, string name, Color fallback)
         {
             if (m == null) return fallback;
