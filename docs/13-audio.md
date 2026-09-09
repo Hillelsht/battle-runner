@@ -1,4 +1,4 @@
-# 13 — Audio: fifteen sounds and two beds, all synthesised
+# 13 — Audio: fifteen cues, twenty-one files, and two beds that play notes
 
 ## The starting point was zero
 
@@ -29,10 +29,82 @@ scipy, no soundfile, none of which are present here, and requiring them would me
 could not be re-run. Output is 22.05 kHz mono 16-bit WAV: **2.07 MB in the repo**, which Unity
 re-encodes to Vorbis for about 200 KB on the device.
 
-**What synthesis can and cannot do.** Drones, wind, impacts, bells and stingers synthesise
-well. Melody does not. This is a dark-ambient bed and a set of readable impacts, not a score.
+**What synthesis can and cannot do.** This was originally written as "melody does not", and
+that was wrong — it was a statement about the first attempt, not about synthesis. What the
+first pass produced was *ambience*: a stack of detuned sine drones, filtered noise for wind and
+a slow amplitude swell. Played back it was correctly described as *"just a noize, not a music,
+like an ocean sound"*, and that description was accurate, because it contained no notes.
+
+It plays notes now. What is still true is that it will not sound *recorded*: this is a small
+instrument in a small room, not an orchestra, and no free orchestra is reachable from here.
 Every clip loads **by name** through `Resources`, so any single file can be swapped for a real
 recording later without touching a line of code.
+
+### The instrument, the room and the mode
+
+Three pieces, all in `tooling/synth_audio.py`, and everything below is built out of them.
+
+- **Karplus-Strong** — a delay line of low-passed noise, filtered a little on every lap. A
+  physical string model in about ten lines, and precisely the plucked, decaying timbre the
+  dark-fantasy reference is made of. Nothing else available here sounds like an *instrument*:
+  an oscillator under an envelope sounds like a synthesiser, and the gap between those two is
+  the gap between a score and a bed. The loop runs **over periods, not samples**, and is exact
+  rather than approximate — each period depends only on the one before it, except its last
+  sample, whose second term wraps into the period being written, so that element is computed
+  separately. A per-sample Python loop over the hundred-odd notes in a bed takes tens of
+  seconds; this takes milliseconds.
+- **A Schroeder reverb** — four parallel combs into two series allpasses, both computed a
+  delay-period at a time for the same reason. The comb delays are **mutually prime on
+  purpose**: combs at related delays reinforce the same partials, and the "room" then comes
+  out as a ringing pitch rather than as a space, which is the commonest way a hand-rolled
+  reverb sounds wrong.
+- **D natural minor** — the Aeolian mode, and deliberately *not* the harmonic minor a
+  "dramatic" progression reaches for. The ambient bed's `v` chord stays **minor**, so the
+  harmony never resolves and the loop has no seam the ear can find. The boss bed raises that
+  third to a major `V`, and the C sharp against a D minor tonic is the one interval in the key
+  that genuinely wants to resolve — the difference between "somewhere dark" and "something is
+  about to happen".
+
+### The beds
+
+`mus_bed` is twenty-four seconds: eight bars of **i–i–VI–VI–iv–iv–v–v**, four arpeggiated
+plucked voices per bar over a bowed root, with a frame drum on the bar and the half-bar. Three
+seconds a chord is slow enough that the progression reads as atmosphere rather than as a tune
+the player tires of on the fortieth round.
+
+`mus_boss` is the same length, key and room so the two cross-fade at any point without a key
+change — which would be more distracting than the fight. What changes is the harmony
+(**i–VI–iv–V**, twice) and an 80 bpm heartbeat.
+
+**The loop wraps its tail rather than cross-fading.** The equal-power cross-fade the old beds
+used is right for ambience and wrong for music: it overlaps the last bar with the first, so two
+different chords sound at once for a second and a half, once per loop, forever. Each bed is now
+rendered longer than its musical length and the overhang — the final chord's decay and the
+reverb tail — is **added back at the head**, which is exactly where that sound belongs when the
+loop comes round. Sample-accurate, no fade, harmony intact.
+
+Anything that never decays has to land back on its starting phase at the wrap or the loop is a
+step discontinuity. The plucks and drum hits decay to nothing and are fine; the choir pad and
+its tremolo do not, so their frequencies are snapped to whole cycles over the loop body. The
+shift is inaudible — 146.80 Hz becomes 146.79.
+
+### Three chords were wrong, and a spectral check is what caught it
+
+Getting an interval wrong does not throw, does not sound obviously broken, and changes the
+**mode**. The first pass had `Gm` as `(-7, -3, 0, 5)` — a B natural, which is G *major* — and
+both A chords with a C sharp, which is A major and therefore precisely the harmonic-minor
+leading note the ambient bed is documented as not using.
+
+An FFT of the rendered file found it: the G minor bar's strongest partial sat at **370.5 Hz**,
+and 370.5 is F sharp, not the F natural a G minor chord is made of. The chord table now writes
+the semitone map out in full above it. After the fix, every bar's strongest partials are chord
+tones and nothing else.
+
+The same check was almost fooled a second time. A first "seam ratio" compared the wrap
+discontinuity against the file's **mean** sample-to-sample step and reported the boss bed at
+2.9× — which reads as a click. Measured against the local 99th percentile step, where a
+transient at the loop point actually lives, it is **0.17×**. Same class of mistake as the
+texture seam metric in doc 14, and caught the same way.
 
 ### The fifteen cues
 
@@ -53,6 +125,37 @@ recording later without touching a line of code.
 | Loot reveal | A bright major chord. The one unambiguously *good* sound in the game |
 | UI tap | A soft wooden click, deliberately quiet — it fires on every button |
 | Round start | A low horn. The only moment the player is *told*, rather than shown, that somewhere new has begun |
+
+### Attack, body, tail — and a room
+
+Every cue in the first pass was one waveform times one envelope, which is why "the effects
+sounds are too simple" was a fair description. A real impact has a transient that is almost all
+noise and lasts a few milliseconds, a body that carries the pitch, and a tail that carries the
+size; one envelope over all three makes them decay together, and decaying together is exactly
+what makes a sound read as synthetic. `layer()` sums separately-enveloped stages. A gate
+subtract is now grit gone in 30 ms, a swept body in 110, and a filtered rumble carrying on for
+a third of a second — that last stage is what reads as **weight**.
+
+`room()` sends a little of each cue through the **same** Schroeder network the music uses. This
+is the largest single change to how the effects sound, and it is not an effect, it is a *place*:
+fifteen dry one-shots over a bed with a hall on it is a soundboard triggered next to a score.
+It is deliberately small, and deliberately **not** applied to the cues that fire several times
+a second — a tail on a sound heard six times in a second is mud, not depth, so `enemy_bite` and
+`ui_tap` stay dry.
+
+### Variants, for the four cues heard most
+
+A gate add fires several hundred times in a run, and no amount of pitch jitter stops one
+waveform heard that often from flattening into a beep the ear stops registering as an event.
+`CueMix.Variants` declares how many recordings exist and `AudioDirector` picks one per play.
+They are separate **syntheses**, not the same sample retuned: the three gate adds measure
+fundamentals of 874.8, 880.2 and 885.6 Hz with an RMS difference between them larger than the
+signal's own RMS.
+
+Index 0 is the base name, so adding a variant to an existing cue can never rename the file the
+game already ships — a test pins that, because the symptom would be silence on a cue that used
+to work. A missing variant falls back to the base clip rather than to null, because an event
+that *sometimes* makes no sound reads as a gameplay bug rather than as an asset problem.
 
 Three implementation details that are not cosmetic:
 
@@ -141,5 +244,11 @@ silence, with a warning nobody reads.
 
 `tooling/lint_unity_yaml.py` now checks the two tables against each other **and** against the
 files on disk, in the same place it already pins the crowd's scale constants against the
-shader's. Verified against a deliberate one-character drift: it reports all three consequences
-(the clip Core wants that is not made, the clip made that nothing plays, and the missing file).
+shader's. It expands variant counts the same way `CueMix.ClipAt` does, because a cue declaring
+three variants against a synthesiser that makes two plays silence a third of the time.
+
+Verified against a deliberate one-character drift, and against a deliberate variant-count
+drift: both report every consequence (the clip Core wants that is not made, the clip made that
+nothing plays, and the missing file). The clip-name scan is scoped to the `SOUNDS` table
+because the first version matched the argparse calls further down the same file and reported
+that the synthesiser makes a clip called `--report`.

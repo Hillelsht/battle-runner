@@ -34,7 +34,12 @@ namespace BattleRunner.Meta.Services
 
         private readonly AudioSource[] _voices = new AudioSource[VoiceCount];
         private readonly int[] _voicePriority = new int[VoiceCount];
-        private readonly AudioClip[] _clips = new AudioClip[AudioCues.Count];
+        /// <summary>
+        /// [cue, variant]. Rectangular rather than jagged: fifteen cues by at most three
+        /// variants is forty-five references, and a jagged array to save thirty of them is
+        /// an allocation per cue at boot in exchange for nothing.
+        /// </summary>
+        private readonly AudioClip[,] _clips = new AudioClip[AudioCues.Count, AudioCues.MaxVariants];
         private readonly float[] _lastPlayed = new float[AudioCues.Count];
 
         private AudioSource _ambient;
@@ -81,9 +86,21 @@ namespace BattleRunner.Meta.Services
             for (int i = 0; i < AudioCues.Count; i++)
             {
                 var mix = AudioCues.For((AudioCue)i);
-                _clips[i] = Resources.Load<AudioClip>(AudioCues.ResourceFolder + mix.Clip);
-                if (_clips[i] == null)
-                    Debug.LogWarning($"[Audio] Missing clip '{mix.Clip}' for {(AudioCue)i}.");
+                for (int v = 0; v < mix.Variants; v++)
+                {
+                    string name = mix.ClipAt(v);
+                    _clips[i, v] = Resources.Load<AudioClip>(AudioCues.ResourceFolder + name);
+                    // A MISSING VARIANT IS NOT A MISSING CUE. Falling back to the base clip
+                    // means a cue whose second recording failed to import still plays rather
+                    // than going silent every other time it fires, which would read as a
+                    // gameplay bug — an event that sometimes makes no sound — rather than as
+                    // an asset problem.
+                    if (_clips[i, v] == null)
+                    {
+                        Debug.LogWarning($"[Audio] Missing clip '{name}' for {(AudioCue)i}.");
+                        if (v > 0) _clips[i, v] = _clips[i, 0];
+                    }
+                }
                 _lastPlayed[i] = float.NegativeInfinity;
             }
 
@@ -131,11 +148,11 @@ namespace BattleRunner.Meta.Services
         {
             if (!_ready || !_enabled) return;
             int index = (int)cue;
-            if (index < 0 || index >= _clips.Length) return;
-            AudioClip clip = _clips[index];
-            if (clip == null) return;
+            if (index < 0 || index >= AudioCues.Count) return;
 
             CueMix mix = AudioCues.For(cue);
+            AudioClip clip = _clips[index, mix.Variants > 1 ? Random.Range(0, mix.Variants) : 0];
+            if (clip == null) return;
             // The retrigger gate. Weaving a Ladder fires six add-gates in well under a second
             // and a dozen identical bells inside 200 ms is a buzz, not six times the payoff.
             float now = Time.unscaledTime;

@@ -118,13 +118,30 @@ def check_audio_clip_coupling():
 
     with open(cue_path, encoding="utf-8") as f:
         cue_src = f.read()
-    wanted = set(re.findall(r'new CueMix\("([^"]+)"', cue_src))
+
+    # A cue declaring N variants asks for N files: the base name, then the base name with a
+    # 2, a 3 and so on. CueMix.ClipAt builds those names at runtime, so the lint has to build
+    # exactly the same ones — a cue that says 3 and a synthesiser that makes 2 plays silence
+    # a third of the time, which reads as a gameplay bug rather than as a missing asset.
+    wanted = set()
+    for name, variants in re.findall(
+            r'new CueMix\("([^"]+)",[^)]*?,\s*\d+(?:,\s*(\d+))?\)', cue_src):
+        count = int(variants) if variants else 1
+        wanted.add(name)
+        for v in range(1, count):
+            wanted.add("%s%d" % (name, v + 1))
     for match in re.finditer(r'public const string \w+ = "([^"]+)";', cue_src):
         wanted.add(match.group(1))
     wanted.discard("Audio/")            # the resource folder, not a clip
 
     with open(synth_path, encoding="utf-8") as f:
-        made = set(re.findall(r'\(\s*"([^"]+)",\s*\w+\),', f.read()))
+        synth_src = f.read()
+    # Scoped to the SOUNDS table: the same tuple shape appears in argparse calls elsewhere
+    # in the file, and matching those reported "synth_audio.py makes '--report'". Two shapes
+    # inside it: ("name", builder) and ("name", lambda: builder(n)) for a variant.
+    table = re.search(r"SOUNDS = \[(.*?)^\]", synth_src, re.S | re.M)
+    made = set(re.findall(r'\(\s*"([^"]+)",\s*(?:lambda:\s*)?\w+',
+                          table.group(1) if table else ""))
     if not wanted or not made:
         problem("audio coupling check found no clip names — "
                 "if the tables moved, update check_audio_clip_coupling()")

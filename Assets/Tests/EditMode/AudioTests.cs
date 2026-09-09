@@ -45,8 +45,74 @@ namespace BattleRunner.Tests
             // one of the two events unlearnable.
             var seen = new HashSet<string>();
             foreach (AudioCue cue in Enum.GetValues(typeof(AudioCue)))
-                Assert.IsTrue(seen.Add(AudioCues.For(cue).Clip),
-                    $"{cue} reuses the clip {AudioCues.For(cue).Clip}");
+            {
+                CueMix mix = AudioCues.For(cue);
+                // Variants included: a cue whose base name is another cue's variant name
+                // would quietly steal that file, and both cues would then sound the same.
+                for (int v = 0; v < mix.Variants; v++)
+                    Assert.IsTrue(seen.Add(mix.ClipAt(v)),
+                        $"{cue} reuses the clip {mix.ClipAt(v)}");
+            }
+        }
+
+        [Test]
+        public void TheCuesHeardMostOftenHaveMoreThanOneRecording()
+        {
+            // A gate add fires several hundred times in a run. No amount of pitch jitter
+            // stops ONE waveform heard that often from flattening into a beep the ear stops
+            // registering as an event — which is what "the effects sounds are too simple"
+            // describes, at the cue that says it loudest.
+            Assert.GreaterOrEqual(AudioCues.For(AudioCue.GateAdd).Variants, 2,
+                "the most-heard cue in the game has one recording");
+            Assert.GreaterOrEqual(AudioCues.For(AudioCue.EnemyBite).Variants, 2,
+                "packs bite in bursts and every bite is the same waveform");
+
+            // And the rare ones do NOT: a boss death happens once, and a second recording of
+            // it is bytes spent where nobody can hear the difference.
+            Assert.AreEqual(1, AudioCues.For(AudioCue.BossDeath).Variants);
+            Assert.AreEqual(1, AudioCues.For(AudioCue.RoundStart).Variants);
+        }
+
+        [Test]
+        public void VariantNamingCannotRenameTheBaseClip()
+        {
+            // Index 0 must be the base name itself. If it were "sfx_gate_add1", adding a
+            // variant to an existing cue would silently rename the file the game already
+            // ships — and the symptom would be silence on a cue that used to work.
+            foreach (AudioCue cue in Enum.GetValues(typeof(AudioCue)))
+            {
+                CueMix mix = AudioCues.For(cue);
+                Assert.AreEqual(mix.Clip, mix.ClipAt(0), cue.ToString());
+                Assert.AreEqual(mix.Clip, mix.ClipAt(-3), $"{cue}: a negative index must be safe");
+                for (int v = 1; v < mix.Variants; v++)
+                    Assert.AreEqual(mix.Clip + (v + 1), mix.ClipAt(v), cue.ToString());
+            }
+        }
+
+        [Test]
+        public void EveryVariantIsInTheLoadableSet()
+        {
+            // AllClipNames is what the lint checks against the synthesiser and against the
+            // files on disk. A variant missing from it is a file nothing asks for, which
+            // fails as one cue in three playing nothing.
+            var all = new HashSet<string>(AudioCues.AllClipNames());
+            int expected = 2;                       // the two beds
+            foreach (AudioCue cue in Enum.GetValues(typeof(AudioCue)))
+            {
+                CueMix mix = AudioCues.For(cue);
+                expected += mix.Variants;
+                for (int v = 0; v < mix.Variants; v++)
+                    Assert.IsTrue(all.Contains(mix.ClipAt(v)),
+                        $"{cue} variant {v} ({mix.ClipAt(v)}) is not in AllClipNames");
+            }
+            Assert.AreEqual(expected, AudioCues.AllClipNames().Length);
+            Assert.AreEqual(all.Count, AudioCues.AllClipNames().Length,
+                "AllClipNames contains a duplicate");
+
+            // MaxVariants sizes the director's clip table. Too small and the load loop
+            // walks off the end of the array.
+            foreach (AudioCue cue in Enum.GetValues(typeof(AudioCue)))
+                Assert.LessOrEqual(AudioCues.For(cue).Variants, AudioCues.MaxVariants);
         }
 
         [Test]
@@ -60,8 +126,9 @@ namespace BattleRunner.Tests
                 Assert.IsFalse(name.StartsWith("/"), $"'{name}' starts with a slash");
                 Assert.IsFalse(name.Contains(" "), $"'{name}' has a space in it");
             }
-            Assert.AreEqual(AudioCues.Count + 2, AudioCues.AllClipNames().Length,
-                "the two music beds are not in the loadable set");
+            var loadable = new HashSet<string>(AudioCues.AllClipNames());
+            Assert.IsTrue(loadable.Contains(AudioCues.AmbientBed), "the ambient bed is not loadable");
+            Assert.IsTrue(loadable.Contains(AudioCues.BossBed), "the boss bed is not loadable");
             StringAssert.EndsWith("/", AudioCues.ResourceFolder);
         }
 

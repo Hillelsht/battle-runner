@@ -17,11 +17,11 @@ points → save → next level.
 | Game loop | Complete end to end |
 | Content | 8 worlds, 6 levels, 6 bosses (6 archetypes) x 5 champion affixes = 30 fights, 15 gear items, 4 rarities, ~60 talents + endless paragon |
 | Art | Procedural meshes and code-built uGUI, 119 CC0 Kenney models in one 563 KB pack, and 8 generated ground surfaces with normal maps |
-| Tests | 353, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 356, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
-| Audio | 15 synthesised cues + 2 per-world music beds; mute toggle on the menu |
+| Audio | 15 cues in 21 files, 2 composed music beds bent per world; mute toggle on the menu |
 | Not started | Real ad SDK, analytics, battle pass |
 
 **Confirmed on device:** v0.1.2 plays as a lane game. The crowd stays in its lane at
@@ -33,6 +33,49 @@ army stands on the road instead of hovering over it — and a procedural cobbled
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
 corner notches, a gradient backdrop and readable disabled states, across every screen.
+**The music plays notes now.** The bed was a stack of detuned sine drones, filtered noise for
+wind and a slow amplitude swell — correctly described as *"just a noize, not a music, like an
+ocean sound"*, and that description was accurate, because it contained none. It was ambience.
+
+It is now twenty-four seconds of **D natural minor**: eight bars of i-i-VI-VI-iv-iv-v-v,
+four arpeggiated Karplus-Strong plucked voices per bar over a bowed root, with a frame drum on
+the bar and the half-bar, in a Schroeder hall. The boss bed is the same length, key and room so
+the two cross-fade without a key change, and tightens to i-VI-iv-**V** — that raised third is
+the one interval in the key that genuinely wants to resolve, and it is why the ambient bed's
+`v` deliberately stays minor.
+
+**The loop wraps its tail instead of cross-fading.** An equal-power cross-fade is right for
+ambience and wrong for music: it overlaps the last bar with the first, so two different chords
+sound at once for a second and a half, once per loop, forever. Each bed is rendered longer than
+its musical length and the overhang is ADDED BACK at the head, which is where that sound belongs
+when the loop comes round. Anything that never decays — the choir pad and its tremolo — is
+snapped to whole cycles over the loop body, since those are the only things that can put a step
+at the wrap.
+
+**Three chords were wrong and an FFT is what caught it.** A wrong interval does not throw and
+does not sound obviously broken; it changes the MODE. `Gm` was written `(-7, -3, 0, 5)` — a B
+natural, so G MAJOR — and both A chords carried a C sharp, which is A major and therefore
+exactly the harmonic-minor leading note the ambient bed is documented as avoiding. The G minor
+bar's strongest partial sat at 370.5 Hz, and 370.5 is F sharp. Every bar's strongest partials
+are chord tones now.
+
+**The effects got a middle and a place.** Every cue was one waveform times one envelope, which
+is why "too simple" was fair: a real impact is a noise transient of a few milliseconds, a body
+that carries the pitch, and a tail that carries the size, and one envelope over all three makes
+them decay together — which is what makes a sound read as synthetic. A gate subtract is now
+grit gone in 30 ms, a swept body in 110, and a rumble carrying on for a third of a second.
+
+`room()` sends a little of each cue through the SAME reverb the music uses. That is the largest
+single change to how the effects sound and it is not an effect, it is a place — fifteen dry
+one-shots over a bed with a hall on it is a soundboard triggered next to a score. Not applied
+to the cues that fire several times a second: a tail on a sound heard six times in a second is
+mud, not depth.
+
+**And the four cues heard most now have three recordings each.** A gate add fires several
+hundred times in a run and no amount of pitch jitter stops one waveform heard that often from
+flattening into a beep. They are separate SYNTHESES, not one sample retuned — the three gate
+adds measure 874.8, 880.2 and 885.6 Hz with an RMS difference larger than the signal's own RMS.
+
 **The ground has a surface, and the scenery has somewhere to be.** Measured against the two
 photoreal references supplied as the bar, colour and saturation already matched (87-108
 distinct colours against 82; saturation 0.40-0.74 against 0.56). The gap was **detail
@@ -712,7 +755,7 @@ The v0.4.0 screenshots confirmed the art pass landed — sky, stars, shadows, ro
 gates and UI frames all correct on device — and surfaced two bugs that were never about
 art: `Focus -0 %` on the menu and `+0.01 Focus` on the loot card. Both were units chosen
 from the ModifierKind rather than from the stat, plus a hard-coded minus sign in front of
-a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 353 tests today).
+a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 356 tests today).
 
 A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
 11 survived adversarial refutation. The headline three: the key light pointed the same way

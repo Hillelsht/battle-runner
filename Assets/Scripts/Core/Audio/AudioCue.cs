@@ -46,14 +46,37 @@ namespace BattleRunner.Core.Audio
         /// </summary>
         public readonly int Priority;
 
-        public CueMix(string clip, float volume, float pitchJitter, float minInterval, int priority)
+        /// <summary>
+        /// How many recordings of this cue exist, including the base one.
+        ///
+        /// A gate add fires several hundred times in a single run, and no amount of pitch
+        /// jitter stops ONE waveform heard that often from flattening into a beep the ear
+        /// stops registering as an event. Variants are separate files — `sfx_gate_add`,
+        /// `sfx_gate_add2`, `sfx_gate_add3` — because a variant is a different synthesis,
+        /// not the same sample played differently, which is the whole point.
+        ///
+        /// Only the cues the player hears most carry them. A boss death happens once.
+        /// </summary>
+        public readonly int Variants;
+
+        public CueMix(string clip, float volume, float pitchJitter, float minInterval,
+            int priority, int variants = 1)
         {
             Clip = clip;
             Volume = volume;
             PitchJitter = pitchJitter;
             MinInterval = minInterval;
             Priority = priority;
+            Variants = variants < 1 ? 1 : variants;
         }
+
+        /// <summary>
+        /// The resource name of one variant. Index 0 is the base clip, so a cue with no
+        /// variants and a cue whose first variant is picked load the same file — and adding
+        /// variants later can never change what the base cue is called.
+        /// </summary>
+        public string ClipAt(int index) =>
+            index <= 0 ? Clip : Clip + (index + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
     /// <summary>
@@ -70,11 +93,11 @@ namespace BattleRunner.Core.Audio
 
         private static readonly CueMix[] Table =
         {
-            //                clip              vol   jitter  gap    priority
-            new CueMix("sfx_gate_add",        0.55f, 0.06f, 0.045f, 1),
+            //                clip              vol   jitter  gap    prio  variants
+            new CueMix("sfx_gate_add",        0.55f, 0.06f, 0.045f, 1, 3),
             new CueMix("sfx_gate_multiply",   0.70f, 0.04f, 0.090f, 2),
             new CueMix("sfx_gate_subtract",   0.62f, 0.07f, 0.060f, 2),
-            new CueMix("sfx_enemy_bite",      0.50f, 0.12f, 0.055f, 1),
+            new CueMix("sfx_enemy_bite",      0.50f, 0.12f, 0.055f, 1, 3),
             new CueMix("sfx_spell_cast",      0.68f, 0.05f, 0.100f, 3),
             new CueMix("sfx_spell_hit",       0.80f, 0.06f, 0.100f, 3),
             new CueMix("sfx_shield_raise",    0.60f, 0.03f, 0.150f, 3),
@@ -100,14 +123,32 @@ namespace BattleRunner.Core.Audio
             return Table[i];
         }
 
-        /// <summary>Every clip name the game will try to load, beds included.</summary>
+        /// <summary>Every clip name the game will try to load — variants and beds included.</summary>
         public static string[] AllClipNames()
         {
-            var names = new string[Table.Length + 2];
-            for (int i = 0; i < Table.Length; i++) names[i] = Table[i].Clip;
-            names[Table.Length] = AmbientBed;
-            names[Table.Length + 1] = BossBed;
+            int count = 2;
+            for (int i = 0; i < Table.Length; i++) count += Table[i].Variants;
+
+            var names = new string[count];
+            int at = 0;
+            for (int i = 0; i < Table.Length; i++)
+                for (int v = 0; v < Table[i].Variants; v++)
+                    names[at++] = Table[i].ClipAt(v);
+            names[at++] = AmbientBed;
+            names[at] = BossBed;
             return names;
+        }
+
+        /// <summary>The most variants any one cue has. Sizes the director's clip table.</summary>
+        public static int MaxVariants
+        {
+            get
+            {
+                int most = 1;
+                for (int i = 0; i < Table.Length; i++)
+                    if (Table[i].Variants > most) most = Table[i].Variants;
+                return most;
+            }
         }
     }
 }
