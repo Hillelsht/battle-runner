@@ -33,6 +33,61 @@ army stands on the road instead of hovering over it — and a procedural cobbled
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
 corner notches, a gradient backdrop and readable disabled states, across every screen.
+**The ground has a surface, and the scenery has somewhere to be.** Measured against the two
+photoreal references supplied as the bar, colour and saturation already matched (87-108
+distinct colours against 82; saturation 0.40-0.74 against 0.56). The gap was **detail
+density**: 0.81-1.04 edge density against 1.21, and a near road whose luminance ran 19-42 out
+of 255 against the reference's 54-139. `Road.shader` was computing a brick bond, mortar,
+per-stone tone and two octaves of grime *per pixel* and still landing at 2-5% contrast, which
+is why it read as a flat slab.
+
+It already computed `uv = positionWS.xz * _Tiling` — a real UV — so a texture could be sampled
+with no mesh UV channel and no change to any mesh, and because the road and the terrain band
+are horizontal axis-aligned planes their tangent frame is a compile-time constant, so normal
+mapping works without mesh tangents either. `tooling/gen_surfaces.py` bakes eight seamless
+surfaces carrying structure rather than colour (R tone, G face mask, B wetness, A height), so
+eight tuned palettes survive and gain detail. **No shader keywords**: Road is already 128
+forward variants and a six-way surface keyword would make it 768, all of which compile on the
+device — eight worlds bind eight different *textures* into one variant. Measured end to end
+with each world's real palette: **range 29-63 and edge 1.33-3.99, against 19-42 and 0.81-1.04
+shipped.** Every world is past the reference town's ground density.
+
+Two regressions the numbers caught, neither of which would have thrown. The normal map's green
+channel was **inverted** — PNG row 0 is the top row and Unity's texture origin is the bottom
+left, so every bump would have lit as a dent. And Throne of Dust measured *worse* than the road
+it replaced (range 15, edge 0.66): its mosaic multiplied the face mask by a "half lost" field
+and that world deliberately puts gold in its seams, so a third of the road came out gold. A
+worn tessera is duller and lower, not a seam.
+
+Also re-authored: `RoadTiling` had been tuned against one procedural cobble grid, so 1.2 wind
+ripples per metre made each ripple most of a metre across; and `RoadMortarWidth` was declared
+and **never once overridden**, so the joint pattern was byte-identical in all eight worlds.
+
+**The scenery clusters into settlements.** It was placed by walking Z and dropping a piece
+every so many metres — a uniform field, which is what texture looks like rather than what a
+place looks like. Each side now walks its own sequence of hamlets and a third are paired
+across the road. Three things were wrong first and were fixed by simulation: alternating sides
+down one sequence halved the count per verge (four hamlets, **79% open country**); `GapRadii`
+1.35 then swung it to **31% open**, a continuous village with gaps in it; and rejection
+sampling delivered 30-40% *fewer* pieces than the scatter it replaced, which is a thinner world
+rather than a rearranged one. At 2.6 and an oversample of 2.2 it is 40-47% open with the total
+within 1% of before — and **the busiest quarter of the road holds 42-54% of the field pieces
+against the 25% an even scatter puts there by definition.**
+
+Landmarks now stand *inside* those settlements, and their clamp moved from the centre to the
+**edge**: a keep's footprint is 11 m, so clamping its centre outside 26 m meant it could never
+stand closer than 37 m, and in a world that fogs out at 105 m the largest structures in the
+game were silhouettes. The same keep now stands at 19 m.
+
+**The roadside was a hole in the frame.** 45-70% of a frame sat below 12% luminance against
+36-43% for the references; the procedural props are painted `PropStone` outright and three
+worlds authored one below 0.17 luma. The road has carried this invariant at 0.12 since the
+lighting pass and the roadside never did. The lift *scales* rather than adding a constant, so
+a world's hue survives. Two knobs that existed and nothing ever wrote are now themed too:
+`Terrain._Gloss` (ice and dry ash caught the key light identically in all eight worlds) and
+`WhiteBalance`, which was not in the post stack at all and costs nothing per pixel because it
+folds into the grading LUT.
+
 **The army stopped being a field of crosses.** `BuildUnit` was a torso box with pauldrons
 jutting to ±0.24 at head height and NO LEGS — one box from the ground to the shoulders,
 which is a plus sign with a head on it. Now: separated legs, pauldrons in to ±0.19 and down
