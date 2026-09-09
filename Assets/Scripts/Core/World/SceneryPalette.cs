@@ -31,7 +31,13 @@ namespace BattleRunner.Core.World
         public float VergeDensity = 14f;
         /// <summary>Roughly how many field pieces per 100 m of one side.</summary>
         public float FieldDensity = 9f;
-        /// <summary>Metres between landmarks on one side. They are events, not texture.</summary>
+        /// <summary>
+        /// Metres between SETTLEMENTS along the road. Landmarks stand inside those rather
+        /// than walking a spacing of their own, which is what let a castle and the carts and
+        /// fences around it agree about nothing. Floored by Settlements.Spacing, so a world
+        /// authoring a short value gets denser hamlets rather than hamlets that merge back
+        /// into an even scatter.
+        /// </summary>
         public float LandmarkSpacing = 110f;
 
         // Kenney's models are authored at roughly one unit per module. Measured against the game's own scale rather than guessed: the road is 6.6 m

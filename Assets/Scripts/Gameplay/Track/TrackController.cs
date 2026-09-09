@@ -297,6 +297,9 @@ namespace BattleRunner.Gameplay.Track
                 // rain reads that way all the way out to the treeline.
                 _terrainMaterial.SetFloatSafe("_Sheen",
                     Mathf.Clamp01(theme.GroundSheenStrength + variant.WetnessShift * 0.5f));
+                // Terrain.shader has always had a _Gloss and nothing ever wrote it, so ice
+                // and dry ash caught the key light identically in all eight worlds.
+                _terrainMaterial.SetFloatSafe("_Gloss", Mathf.Max(1f, theme.GroundGloss));
             }
 
             if (_railMaterial != null)

@@ -94,6 +94,17 @@ namespace BattleRunner.Core.World
         public float LightIntensity = 1.1f;
         public float LightPitch = 32f;
         public float LightYaw = 250f;
+        /// <summary>
+        /// Grade temperature, -100..100 — negative is colder. A distinct axis from
+        /// GradeFilter: the filter multiplies, this rotates the whole frame's white point,
+        /// so it moves the ROAD and the FOG and the props together instead of tinting them
+        /// each toward the same colour. WhiteBalance was never in the post stack at all, and
+        /// it is the cheapest per-world difference available — it folds into the grading LUT
+        /// and costs nothing per pixel.
+        /// </summary>
+        public float GradeTemperature;
+        /// <summary>Grade tint, -100..100 — negative is green, positive magenta.</summary>
+        public float GradeTint;
 
         // --- the land ------------------------------------------------------
         // Before this there was no land. TrackController built ground to x = +/-4.158 and
@@ -124,6 +135,13 @@ namespace BattleRunner.Core.World
         /// <summary>Standing water and ice glint; ash and bone do not.</summary>
         public Rgb GroundSheen;
         public float GroundSheenStrength = 0.15f;
+        /// <summary>
+        /// How tight the land's specular highlight is. Terrain.shader has always had a _Gloss
+        /// and nothing ever wrote it, so all eight worlds shared one 12 — ice and dry ash
+        /// caught the key light identically. Wet and frozen ground wants a tight, small
+        /// highlight; dust and ash want a broad dull one or none at all.
+        /// </summary>
+        public float GroundGloss = 12f;
 
         // --- what stands beside the road -----------------------------------
         /// <summary>The imported scenery: verge, field and landmarks. See SceneryPalette.</summary>
@@ -140,6 +158,26 @@ namespace BattleRunner.Core.World
         public Rgb PropStone;
         /// <summary>A world's signature colour: prop rim light and ambient bounce.</summary>
         public Rgb Accent;
+
+        /// <summary>
+        /// The floor on how dark the roadside may be painted.
+        ///
+        /// Measured against two photoreal references, 45-70% of a game frame sat below 12%
+        /// luminance where the references sat at 36-43%. The verge is a large share of that:
+        /// the ten procedural props are painted PropStone outright, and every imported verge
+        /// piece is dragged 60-78% of the way toward it. Three worlds authored a PropStone
+        /// under 0.17 luma, and the road already has this exact invariant at 0.12 — a surface
+        /// that dark in a fogged night scene is a hole rather than an object.
+        ///
+        /// This is deliberately NOT a cap on VergeTint. The "grim verge, bright landmarks"
+        /// direction is the right one and desaturating the roadside toward the world's own
+        /// stone is how it is expressed; what was wrong was that the stone being aimed at was
+        /// nearly black, so the same move also crushed it.
+        /// </summary>
+        public const float MinVergeLuma = 0.19f;
+
+        /// <summary>PropStone with the darkness floor applied. Use this, not PropStone.</summary>
+        public Rgb VergeStone => PropStone.AtLeastLuma(MinVergeLuma);
 
         // --- derived, so a world stays coherent without authoring it twice --
 

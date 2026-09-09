@@ -53,6 +53,7 @@ namespace BattleRunner.Core.World
                 GroundAlt = new Rgb(0.296f, 0.260f, 0.188f),
                 GroundPatchScale = 0.09f, GroundSpeckle = 0.32f,
                 GroundSurface = RoadSurfaces.Dirt, GroundSurfaceTiling = 0.30f,
+                GroundGloss = 10f, GradeTemperature = -4f, GradeTint = 0f,
                 GroundSheen = new Rgb(0.30f, 0.33f, 0.44f), GroundSheenStrength = 0.10f,
                 Scenery = new SceneryPalette
                 {
@@ -114,6 +115,7 @@ namespace BattleRunner.Core.World
                 GroundAlt = new Rgb(0.152f, 0.200f, 0.108f),
                 GroundPatchScale = 0.06f, GroundSpeckle = 0.26f,
                 GroundSurface = RoadSurfaces.Dirt, GroundSurfaceTiling = 0.24f,
+                GroundGloss = 16f, GradeTemperature = -9f, GradeTint = -6f,
                 GroundSheen = new Rgb(0.42f, 0.62f, 0.48f), GroundSheenStrength = 0.55f,
                 Scenery = new SceneryPalette
                 {
@@ -175,6 +177,7 @@ namespace BattleRunner.Core.World
                 GroundAlt = new Rgb(0.118f, 0.228f, 0.282f),
                 GroundPatchScale = 0.07f, GroundSpeckle = 0.22f,
                 GroundSurface = RoadSurfaces.Gravel, GroundSurfaceTiling = 0.42f,
+                GroundGloss = 22f, GradeTemperature = -14f, GradeTint = -3f,
                 GroundSheen = new Rgb(0.40f, 0.62f, 0.80f), GroundSheenStrength = 0.78f,
                 Scenery = new SceneryPalette
                 {
@@ -236,6 +239,7 @@ namespace BattleRunner.Core.World
                 GroundAlt = new Rgb(0.330f, 0.128f, 0.040f),
                 GroundPatchScale = 0.11f, GroundSpeckle = 0.40f,
                 GroundSurface = RoadSurfaces.Gravel, GroundSurfaceTiling = 0.34f,
+                GroundGloss = 5f, GradeTemperature = 18f, GradeTint = 4f,
                 GroundSheen = new Rgb(1.10f, 0.42f, 0.16f), GroundSheenStrength = 0.30f,
                 Scenery = new SceneryPalette
                 {
@@ -296,6 +300,7 @@ namespace BattleRunner.Core.World
                 GroundAlt = new Rgb(0.458f, 0.432f, 0.362f),
                 GroundPatchScale = 0.05f, GroundSpeckle = 0.18f,
                 GroundSurface = RoadSurfaces.Dirt, GroundSurfaceTiling = 0.26f,
+                GroundGloss = 4f, GradeTemperature = 7f, GradeTint = -2f,
                 GroundSheen = new Rgb(0.55f, 0.52f, 0.44f), GroundSheenStrength = 0.05f,
                 Scenery = new SceneryPalette
                 {
@@ -356,6 +361,7 @@ namespace BattleRunner.Core.World
                 GroundAlt = new Rgb(0.645f, 0.700f, 0.782f),
                 GroundPatchScale = 0.14f, GroundSpeckle = 0.16f,
                 GroundSurface = RoadSurfaces.Gravel, GroundSurfaceTiling = 0.20f,
+                GroundGloss = 28f, GradeTemperature = -22f, GradeTint = 2f,
                 GroundSheen = new Rgb(0.72f, 0.86f, 1.00f), GroundSheenStrength = 0.68f,
                 Scenery = new SceneryPalette
                 {
@@ -415,6 +421,7 @@ namespace BattleRunner.Core.World
                 GroundAlt = new Rgb(0.320f, 0.145f, 0.136f),
                 GroundPatchScale = 0.06f, GroundSpeckle = 0.34f,
                 GroundSurface = RoadSurfaces.Dirt, GroundSurfaceTiling = 0.32f,
+                GroundGloss = 14f, GradeTemperature = 6f, GradeTint = 9f,
                 GroundSheen = new Rgb(0.80f, 0.30f, 0.34f), GroundSheenStrength = 0.48f,
                 Scenery = new SceneryPalette
                 {
@@ -477,6 +484,7 @@ namespace BattleRunner.Core.World
                 GroundAlt = new Rgb(0.232f, 0.196f, 0.302f),
                 GroundPatchScale = 0.10f, GroundSpeckle = 0.28f,
                 GroundSurface = RoadSurfaces.Flagstone, GroundSurfaceTiling = 0.38f,
+                GroundGloss = 9f, GradeTemperature = -6f, GradeTint = 7f,
                 GroundSheen = new Rgb(0.52f, 0.38f, 0.70f), GroundSheenStrength = 0.12f,
                 Scenery = new SceneryPalette
                 {

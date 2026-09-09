@@ -40,6 +40,7 @@ namespace BattleRunner.Gameplay
         private static ColorAdjustments _color;
         private static ShadowsMidtonesHighlights _grade;
         private static Vignette _vignette;
+        private static WhiteBalance _whiteBalance;
 
         public static void Apply()
         {
@@ -263,6 +264,12 @@ namespace BattleRunner.Gameplay
                 _grade.highlights.value = new Vector4(highlights.r, highlights.g, highlights.b, 0f);
             }
 
+            if (_whiteBalance != null)
+            {
+                _whiteBalance.temperature.value = Mathf.Clamp(theme.GradeTemperature, -100f, 100f);
+                _whiteBalance.tint.value = Mathf.Clamp(theme.GradeTint, -100f, 100f);
+            }
+
             if (_vignette != null)
                 _vignette.color.value = ThemePalette.Shifted(theme.VignetteColor, hue);
         }
@@ -337,6 +344,22 @@ namespace BattleRunner.Gameplay
             grade.shadows.value = new Vector4(0.86f, 0.92f, 1.18f, 0f);
             grade.midtones.value = new Vector4(1.00f, 1.00f, 1.00f, 0f);
             grade.highlights.value = new Vector4(1.12f, 1.02f, 0.86f, 0f);
+
+            // WHITE BALANCE, which was not in the stack at all. It is a different operator
+            // from the colour filter above: the filter MULTIPLIES the frame by a colour, so
+            // it tints everything toward that colour, while this rotates the white POINT, so
+            // the road and the fog and the props move together and the frame reads as being
+            // lit differently rather than as having a gel over it. It folds into the grading
+            // LUT, so per-world temperature is the cheapest difference between two rounds
+            // that exists — it costs nothing per pixel.
+            //
+            // The rest of what the stack is missing is declined on cost rather than by
+            // oversight: DepthOfField is a second full-screen pass on a fill-rate-bound
+            // mobile renderer, FilmGrain is a texture read per pixel, and SplitToning would
+            // duplicate what ShadowsMidtonesHighlights above already does.
+            var whiteBalance = _whiteBalance = profile.Add<WhiteBalance>(true);
+            whiteBalance.temperature.value = 0f;
+            whiteBalance.tint.value = 0f;
 
             // Pulls the eye to the centre of a tall portrait frame and hides the point
             // where the fog meets the screen edge.

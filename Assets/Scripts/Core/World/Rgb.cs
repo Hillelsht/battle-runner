@@ -74,6 +74,25 @@ namespace BattleRunner.Core.World
             }
         }
 
+        /// <summary>Rec. 709 relative luminance — what the eye reads as "how bright".</summary>
+        public float Luma => 0.2126f * R + 0.7152f * G + 0.0722f * B;
+
+        /// <summary>
+        /// The same colour at no less than a given luminance, scaled rather than lifted
+        /// toward white so the HUE SURVIVES.
+        ///
+        /// Adding a constant to all three channels would raise the luminance and desaturate
+        /// at the same time, which turns a world's signature colour into grey — the opposite
+        /// of what a floor on darkness is for. Scaling keeps the ratios, so an ochre stays
+        /// ochre and simply stops being a hole in the frame.
+        /// </summary>
+        public Rgb AtLeastLuma(float minimum)
+        {
+            float luma = Luma;
+            if (luma >= minimum || luma <= 1e-5f) return this;
+            return Scaled(minimum / luma);
+        }
+
         public static Rgb Lerp(Rgb a, Rgb b, float t) =>
             new Rgb(a.R + (b.R - a.R) * t, a.G + (b.G - a.G) * t, a.B + (b.B - a.B) * t);
 

@@ -183,3 +183,103 @@ The references are PC-GPU environments with hundreds of PBR textures, dynamic GI
 volumetrics. This is the ground, and only the ground. The composition problem — props
 scattered evenly, everything past ~30 m collapsing into one flat fog silhouette, the verge
 crushed to black — is a separate piece of work and is not addressed here.
+
+---
+
+# Composition: settlements, and the roadside that was a hole
+
+The surfaces above are the ground. This is the arrangement of everything standing on it, and
+it was the other half of the same complaint.
+
+## Even scatter is what texture looks like, not what a place looks like
+
+Scenery was placed by walking Z and dropping a piece every so many metres, jittered, on both
+sides, for the length of the level. That is a uniform field. **A village is buildings touching
+each other with empty ground between clusters**, and the negative space is what makes the
+cluster read as a settlement rather than as density. Held against the two references,
+everything past about thirty metres collapsed into one flat silhouette, and this is why.
+
+`Core/World/Settlement.cs` is the layout arithmetic — engine-free, so whether a layout actually
+leaves empty ground is a thing a test can answer. Each side of the road walks its own sequence
+of hamlets, and about a third of them are **paired across the road** so a street happens on
+purpose rather than as the only thing that can happen.
+
+Three things were got wrong first and fixed by simulation rather than by looking:
+
+- **Alternating sides down one sequence** halved the count per verge. A 400 m level came out
+  with four hamlets and **79% open country** — not clustered, just empty.
+- **`GapRadii = 1.35`** then swung it the other way: 9–14 hamlets and only **31% open**, which
+  is a continuous village with gaps in it. At **2.6** it is 9–14 hamlets and **40–47% open** —
+  about half the road is empty ground, which is what makes the other half read as a place.
+- **Rejection sampling delivers `step × mean density`**, and the mean over a half-empty level
+  is about a half, so the clustered field came out with 30–40% *fewer* pieces than the even
+  scatter it replaced. That is a thinner world, not a differently arranged one. Oversampling
+  by 2.2 lands the total within 1% of the old count.
+
+Measured over all eight worlds, **the busiest quarter of the road now holds 42–54% of the
+field pieces**, against the 25% an even scatter puts there by definition — so the instance
+budget is unchanged and roughly twice as concentrated.
+
+Buildings inside a hamlet share its orientation, jittered. Individually random yaws are the
+other half of why a cluster still reads as scatter.
+
+### The verge does not cluster
+
+A hedgerow, a fence line and the stones on the shoulder run the length of a road whether or
+not there is a village there. Clustering the one zone the player passes at arm's length would
+leave long stretches of bare kerb, which is the opposite of the problem being fixed.
+
+### The gap ratio is the invariant; the world chooses the scale
+
+The obvious way to guarantee empty ground is to floor the spacing at `Spacing(someFixedRadius)`.
+That **pinned seven of the eight worlds to the same 110 m** and silently discarded the spacing
+each of them authors. Deriving the *radius* from the authored spacing instead honours the
+number exactly and still guarantees the gap, because the gap is expressed as a multiple of the
+radius rather than as metres. Worlds now run 82–120 m apart with hamlets 17.8–26.1 m across.
+
+## Landmarks stood at the fog wall because of the wrong clamp
+
+They were placed on a spacing of their own while the field pieces walked theirs, so a castle
+and the carts and fences around it agreed about nothing. They now stand **inside** the
+settlements — one anchor structure, sometimes a second outbuilding, never three.
+
+And they were clamped so their **centre** stayed outside a 26 m line. A castle keep's footprint
+is 11 m at landmark scale, so it could never stand closer than 37 m, and in a world that fogs
+out at 105 m the largest structures in the game were silhouettes. The constraint that actually
+matters is that a building must not overhang the road, and that is a constraint on its **edge**.
+Clamping the edge to clear 8.5 m puts the same keep at **19 m**, where it reads as a building
+the player is running past.
+
+## The roadside was a hole in the frame
+
+45–70% of a game frame sat below 12% luminance, against 36–43% for the references. The verge is
+a large share of that: the ten procedural props are painted `PropStone` outright and every
+imported verge piece is dragged 60–78% of the way toward it — and **three worlds authored a
+`PropStone` below 0.17 luma**. The road has carried exactly this invariant at 0.12 since the
+lighting pass; the roadside never did.
+
+`WorldTheme.MinVergeLuma` is that floor at 0.19, applied through `VergeStone`. It is
+deliberately **not** a cap on `VergeTint`: "grim verge, bright landmarks" is the right
+direction and desaturating the roadside toward the world's own stone is how it is expressed.
+What was wrong is that the stone being aimed at was nearly black, so the same move also crushed
+it. The lift **scales** rather than adding a constant, so the hue survives — adding to all
+three channels raises luminance and desaturates at once, which turns a world's signature colour
+grey. Blood Marsh's prop stone is red before and after. Five worlds are untouched; the three
+that needed it move by ×1.14 to ×1.32.
+
+## Two knobs that existed and were never written
+
+- **`Terrain._Gloss`** was in the material and no code ever set it, so ice and dry ash caught
+  the key light identically in all eight worlds. Now themed: 4 for dry bone sand, 28 for the
+  Frozen Reach.
+- **`WhiteBalance` was not in the post stack at all.** It is a different operator from the
+  colour filter already there: the filter *multiplies* the frame by a colour, so everything
+  tints toward that colour, while white balance rotates the white *point*, so the road and the
+  fog and the props move together and the frame reads as being lit differently rather than as
+  having a gel over it. It folds into the grading LUT, so a per-world temperature is the
+  cheapest difference between two rounds that exists — **zero cost per pixel**.
+
+The rest of what the stack is missing is declined on cost rather than by oversight:
+`DepthOfField` is a second full-screen pass on a fill-rate-bound mobile renderer, `FilmGrain` is
+a texture read per pixel, and `SplitToning` would duplicate what `ShadowsMidtonesHighlights`
+already does.
