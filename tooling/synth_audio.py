@@ -24,9 +24,13 @@ import argparse
 import os
 import struct
 import sys
+import urllib.request
 import wave
 
 import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sf2                                                        # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(REPO, "Assets", "Resources", "Audio")
@@ -127,6 +131,80 @@ def write(name, x, written):
         f.setframerate(SR)
         f.writeframes(pcm)
     written.append((name, len(x) / SR, os.path.getsize(path)))
+
+
+# --- real instruments ------------------------------------------------------
+#
+# The beds were synthesised, and synthesis has a ceiling. Karplus-Strong is a plucked string and
+# a summed sine stack is a pad, but neither of them is a cello, and told plainly that the result
+# was still bad the honest answer is not a better oscillator — it is to stop synthesising.
+#
+# GeneralUser GS is a General MIDI bank whose licence permits commercial use without restriction
+# and explicitly covers "musical recordings created with GeneralUser GS", which is exactly what a
+# rendered bed is. It is a BUILD-TIME dependency: 32 MB downloaded into tooling/.cache (already
+# git-ignored), never committed, never shipped. The device still sees two WAV files. Same move
+# the meshes, the sky, the road surfaces and the UI sprites all make — generate offline, commit
+# the output, ship no tool.
+
+SOUNDFONT_URL = "https://raw.githubusercontent.com/mrbumpy409/GeneralUser-GS/main/GeneralUser-GS.sf2"
+SOUNDFONT_PATH = os.path.join(REPO, "tooling", ".cache", "soundfont", "GeneralUser-GS.sf2")
+
+# General MIDI programs, chosen for the reference rather than for coverage. The nylon guitar is
+# the load-bearing one: the dark-fantasy town theme everyone actually means is a solo acoustic
+# guitar, not an orchestra, and no amount of string pad substitutes for it.
+GM_NYLON_GUITAR = 24
+GM_CELLO = 42
+GM_DOUBLE_BASS = 43
+GM_HARP = 46
+GM_TIMPANI = 47
+GM_FAST_STRINGS = 48
+GM_SLOW_STRINGS = 49
+GM_CHOIR = 52
+
+# MIDI note 38 is D2 — the tonic of everything in this file. Every pitch below is written as a
+# number of semitones from it, so a chord reads as intervals rather than as note numbers.
+TONIC_KEY = 38
+
+# Rendered at 2x and decimated. Linear-interpolating a 44 kHz violin sample straight down to
+# 22 kHz aliases its bow noise into audible grit; low-passing first and then dropping every
+# other sample costs nothing offline and is the difference between strings and sizzle.
+OVERSAMPLE = 2
+
+
+def bank():
+    """The SoundFont, downloaded and cached, or None if it cannot be had."""
+    if getattr(bank, "_cached", "missing") != "missing":
+        return bank._cached
+    bank._cached = None
+    try:
+        if not os.path.exists(SOUNDFONT_PATH):
+            os.makedirs(os.path.dirname(SOUNDFONT_PATH), exist_ok=True)
+            print("fetching GeneralUser GS (32 MB, cached, not committed)...")
+            with urllib.request.urlopen(SOUNDFONT_URL, timeout=120) as r:
+                data = r.read()
+            with open(SOUNDFONT_PATH, "wb") as f:
+                f.write(data)
+        bank._cached = sf2.load(SOUNDFONT_PATH)
+    except Exception as exc:                                      # noqa: BLE001
+        # NEVER fatal. The committed WAVs are the deliverable; this script must still run on a
+        # machine with no network, and must say plainly that it fell back rather than quietly
+        # shipping a worse bed that looks identical in a diff.
+        print("WARNING: SoundFont unavailable (%s)." % exc)
+        print("         Falling back to synthesis — the beds will be the OLD, worse ones.")
+    return bank._cached
+
+
+def play(sf, program, midi_key, seconds, gain=1.0, release=0.4):
+    """One note at the oversampled rate. MIDI key 38 is D2, the tonic of everything here."""
+    return sf.note(0, program, int(midi_key), seconds, SR * OVERSAMPLE,
+                   gain=gain, release=release)
+
+
+def decimate(x):
+    """Anti-aliased 2:1 downsample. A four-tap half-band is plenty at this ratio."""
+    kernel = np.array([0.25, 0.5, 0.25], dtype=np.float64)
+    smoothed = np.convolve(x, kernel, mode="same")
+    return smoothed[::OVERSAMPLE]
 
 
 # --- an instrument, a room, and a loop that is musical ----------------------
@@ -337,17 +415,29 @@ def gate_add(seed=0):
 
 
 def gate_multiply():
-    """A rising arpeggio. Multiplying is the best thing that happens in a run; it should go
-    UP, and it should take longer than an add so the difference is legible at a glance."""
+    """
+    A rising harp run. Multiplying is the best thing that happens in a run, so it goes UP, and
+    it takes longer than an add so the difference is legible at a glance rather than by ear.
+    """
+    sf = bank()
     n = int(0.72 * SR)
-    out = np.zeros(n)
-    for i, f in enumerate([523.25, 659.25, 783.99, 1046.5]):
-        start = int(i * 0.052 * SR)
-        m = n - start
-        x = np.arange(m) / SR
-        out[start:] += (np.sin(2 * np.pi * f * x) * 0.55
-                        + np.sin(2 * np.pi * f * 2 * x) * 0.12) * env(m, 0.003, 0.20)
-    return oneshot(room(out, 0.16), 0.90)
+    if sf is None:
+        out = np.zeros(n)
+        for i, f in enumerate([523.25, 659.25, 783.99, 1046.5]):
+            start = int(i * 0.052 * SR)
+            m = n - start
+            x = np.arange(m) / SR
+            out[start:] += (np.sin(2 * np.pi * f * x) * 0.55
+                            + np.sin(2 * np.pi * f * 2 * x) * 0.12) * env(m, 0.003, 0.20)
+        return oneshot(room(out, 0.16), 0.90)
+
+    rate = SR * OVERSAMPLE
+    out = np.zeros(int(0.72 * rate) + rate, dtype=np.float64)
+    for i, degree in enumerate([12, 15, 19, 24]):            # D minor, rising
+        at = int(i * 0.048 * rate)
+        v = play(sf, GM_HARP, TONIC_KEY + degree, 0.6, gain=0.85 - i * 0.06)
+        out[at:at + len(v)] += v
+    return oneshot(room(decimate(out)[:n], 0.18), 0.90)
 
 
 def gate_subtract():
@@ -470,13 +560,26 @@ def boss_death():
 
 
 def loot_reveal():
-    """A bright major third with a long tail. The one unambiguously GOOD sound in the game."""
+    """
+    A harp arpeggio up a D major triad — the one unambiguously GOOD sound in the game, and
+    the one that most obviously wanted a real instrument. Major against a game in D minor,
+    deliberately: loot is the moment the world stops being grim at you.
+    """
+    sf = bank()
     n = int(1.5 * SR)
-    x = np.arange(n) / SR
-    chord = sum(np.sin(2 * np.pi * f * x) * a
-                for f, a in [(659.25, 0.45), (830.6, 0.32), (987.77, 0.26), (1318.5, 0.16)])
-    shimmer = np.sin(2 * np.pi * 2637 * x) * 0.08 * env(n, 0.05, 0.5)
-    return oneshot(room(chord * env(n, 0.01, 0.55) + shimmer, 0.26), 0.85)
+    if sf is None:
+        x = t(1.5)
+        chord = sum(np.sin(2 * np.pi * f * x) * g
+                    for f, g in [(523.25, 0.5), (659.25, 0.4), (783.99, 0.3), (1046.5, 0.2)])
+        return oneshot(room(chord * env(n, 0.01, 0.55), 0.26), 0.90)
+
+    rate = SR * OVERSAMPLE
+    out = np.zeros(int(1.5 * rate) + rate, dtype=np.float64)
+    for i, degree in enumerate([12, 16, 19, 24, 28]):        # D major, rising, up two octaves
+        at = int(i * 0.055 * rate)
+        v = play(sf, GM_HARP, TONIC_KEY + degree, 1.3, gain=0.9 - i * 0.09)
+        out[at:at + len(v)] += v
+    return oneshot(room(decimate(out)[:n], 0.24), 0.90)
 
 
 def ui_tap():
@@ -487,113 +590,203 @@ def ui_tap():
 
 
 def round_start():
-    """A low horn. It plays once as a round loads, which is the only moment the player is
-    told, rather than shown, that somewhere new has begun."""
+    """
+    A timpani stroke under a low string swell. The only moment the player is TOLD, rather
+    than shown, that somewhere new has begun, so it is the one cue allowed to be a fanfare.
+    """
+    sf = bank()
     n = int(1.6 * SR)
-    x = np.arange(n) / SR
-    horn = sum(np.sin(2 * np.pi * f * x + np.sin(2 * np.pi * 5.5 * x) * 0.08) * a
-               for f, a in [(87.31, 0.55), (130.81, 0.35), (174.61, 0.22), (261.63, 0.10)])
-    return oneshot(room(horn * env(n, 0.09, 0.7, 2.2), 0.30), 0.88)
+    if sf is None:
+        x = t(1.6)
+        horn = sum(np.sin(2 * np.pi * f * x) * a
+                   for f, a in [(87.31, 0.55), (130.81, 0.35), (174.61, 0.22), (261.63, 0.10)])
+        return oneshot(room(horn * env(n, 0.09, 0.7, 2.2), 0.30), 0.88)
+
+    rate = SR * OVERSAMPLE
+    out = np.zeros(int(1.6 * rate) + rate, dtype=np.float64)
+    for program, degree, gain, delay in [(GM_TIMPANI, 0, 0.75, 0.00),
+                                         (GM_SLOW_STRINGS, 12, 0.55, 0.02),
+                                         (GM_SLOW_STRINGS, 19, 0.34, 0.04),
+                                         (GM_CHOIR, 24, 0.20, 0.06)]:
+        at = int(delay * rate)
+        v = play(sf, program, TONIC_KEY + degree, 1.4, gain=gain)
+        out[at:at + len(v)] += v
+    return oneshot(room(decimate(out)[:n], 0.30), 0.88)
 
 
 def ambient_bed():
     """
-    Twenty-four seconds of composed music: eight bars in D natural minor, plucked strings
-    over a bowed drone, in a hall.
+    Twenty-four seconds in D natural minor, played on real instruments.
 
-    WHAT THIS REPLACES AND WHY. The old bed was a stack of detuned sine drones, filtered
-    noise for wind, and a slow amplitude swell. It was correctly described as "just a noize,
-    not a music, like an ocean sound", and that description was accurate: it contained no
-    notes, no harmony and no rhythm. It was ambience, and the brief asked for a score.
+    THE ARRANGEMENT IS THE POINT, AND SO IS THE INSTRUMENT. The dark-fantasy town theme
+    everyone actually means is a SOLO ACOUSTIC GUITAR over a held low string — not an
+    orchestra, and not a synthesiser pretending to be one. So: a nylon guitar carries the
+    arpeggio, a cello holds the root, slow strings sit underneath, and a choir is barely
+    there. Timpani marks the bar and is felt rather than heard.
+
+    Eight bars of i-i-VI-VI-iv-iv-v-v at three seconds each. Slow enough to read as
+    atmosphere rather than as a tune the player tires of on the fortieth round; long enough
+    that the loop point is not something the ear can time.
 
     ONE FILE STILL SERVES ALL EIGHT WORLDS, re-pitched and low-passed per world at runtime
-    from MusicMood — the same "one asset, themed" move the sky, the road and the scenery all
-    make. Eight beds would outweigh the rest of the project.
-
-    Three bars per chord at 24 s total is deliberate: slow enough that the progression reads
-    as atmosphere rather than as a tune the player will get sick of on the fortieth round,
-    and long enough that the loop point is not something the ear can time.
+    from MusicMood — the same "one asset, themed" move the sky, the road and the scenery make.
     """
+    sf = bank()
+    if sf is None:
+        return _synth_ambient_bed()
+
     bar = 3.0
     body = bar * len(AMBIENT_CHORDS)
-    overhang = 4.0                       # the last chord's decay and the reverb tail
-    n = int((body + overhang) * SR)
-    x = np.arange(n) / SR
-    dry = np.zeros(n)
+    overhang = 5.0                       # the last chord's decay and the reverb tail
+    rate = SR * OVERSAMPLE
+    n = int((body + overhang) * rate)
+    dry = np.zeros(n, dtype=np.float64)
+
+    def place(signal, at_seconds, gain=1.0):
+        at = int(at_seconds * rate)
+        if at >= n:
+            return
+        k = min(len(signal), n - at)
+        dry[at:at + k] += signal[:k] * gain
 
     for index, chord in enumerate(AMBIENT_CHORDS):
-        at = int(index * bar * SR)
+        at = index * bar
 
-        # ARPEGGIATED, not strummed. Four voices spread across the bar, each let ring into
-        # the next chord — a block chord struck on the downbeat is a hymn, and the thing
-        # being aimed at is a lute in an empty hall.
+        # The guitar, arpeggiated across the bar and left to ring into the next chord. A block
+        # chord on the downbeat is a hymn; this is a lute in an empty hall.
         for voice, degree in enumerate(chord):
-            offset = at + int((0.12 + voice * 0.46) * SR)
-            if offset >= n:
-                continue
-            freq = note(degree + 12)     # up an octave: this is the melodic register
-            note_len = min(bar * 1.8, (n - offset) / SR)
-            # Brightness falls with pitch so the top voice does not dominate, and the seed
-            # is per-note so no two plucks are the same noise burst.
-            v = pluck(freq, note_len, 4000 + index * 8 + voice,
-                      damping=0.9965, brightness=0.46 + voice * 0.03,
-                      gain=0.30 - voice * 0.035)
-            dry[offset:offset + len(v)] += v
+            offset = 0.10 + voice * 0.42
+            # THE GUITAR IS THE MELODY AND MUST SIT ON TOP. Measured on the first render, the
+            # bed put 43% of its energy under 160 Hz and 8% in the guitar's own register — the
+            # cello and the timpani were burying the only line that actually moves. Loud, and
+            # an octave higher than the cello's root so the two are not competing for the same
+            # place in the mix.
+            place(play(sf, GM_NYLON_GUITAR, TONIC_KEY + degree + 24, bar * 1.7,
+                       gain=1.15 - voice * 0.12),
+                  at + offset)
 
-        # A bowed root under it, crossing the bar line so the harmony never gaps.
-        root = note(chord[0])
-        span = min(int(bar * 1.15 * SR), n - at)
-        seg = np.arange(span) / SR
-        swell = np.minimum(seg / 0.9, 1.0) * np.exp(-seg / (bar * 1.6))
-        drone = (np.sin(2 * np.pi * root * seg) * 0.22
-                 + np.sin(2 * np.pi * root * 2.003 * seg) * 0.09   # 3 mHz of beating
-                 + np.sin(2 * np.pi * root * 3.0 * seg) * 0.035)
-        dry[at:at + span] += drone * swell
+        # The cello holds the root, crossing the bar line so the harmony never gaps.
+        place(play(sf, GM_CELLO, TONIC_KEY + chord[0], bar * 1.15, gain=0.22, release=0.9), at)
 
-    # A frame drum on the bar, and again on the third beat. Felt rather than heard: it is
-    # what keeps twenty-four seconds of slow harmony from floating away entirely.
-    for index in range(len(AMBIENT_CHORDS)):
-        for beat, level in ((0.0, 0.30), (bar * 0.5, 0.17)):
-            at = int((index * bar + beat) * SR)
-            if at >= n:
-                continue
-            span = min(int(0.5 * SR), n - at)
-            seg = np.arange(span) / SR
-            hit = (np.sin(2 * np.pi * 58.0 * seg) * np.exp(-seg * 13.0)
-                   + noise(span, 900 + index * 4 + int(beat * 10)) * np.exp(-seg * 46.0) * 0.30)
-            dry[at:at + span] += hit * level
+        # Slow strings a fifth up, quieter still — this is the thing you notice only when it
+        # stops, which is what a pad is for.
+        place(play(sf, GM_SLOW_STRINGS, TONIC_KEY + chord[0] + 19, bar * 1.2,
+                   gain=0.10, release=1.1), at + 0.25)
 
-    # The hall. Wet, because distance is most of the mood, and because a plucked string with
-    # no room around it sounds like a sample rather than like a place.
-    wet = reverb(dry, wet=0.42, size=1.25)
-    return normalise(wrap_tail(wet, body), 0.80)
+        # The choir is almost subliminal. Above about this level it stops being a room and
+        # starts being a choir, and a choir every three seconds for forty rounds is a lot.
+        place(play(sf, GM_CHOIR, TONIC_KEY + chord[0] + 24, bar * 1.1,
+                   gain=0.055, release=1.2), at + 0.5)
+
+        # Timpani on the bar and, softer, on the half. Felt rather than heard: it is what
+        # stops twenty-four seconds of slow harmony from floating away entirely.
+        place(play(sf, GM_TIMPANI, TONIC_KEY + chord[0], 1.2, gain=0.085), at)
+        place(play(sf, GM_TIMPANI, TONIC_KEY + chord[0], 0.9, gain=0.038), at + bar * 0.5)
+
+    wet = reverb(dry, wet=0.40, size=1.30)
+    return normalise(wrap_tail(decimate(wet), body), 0.82)
 
 
 def boss_bed():
     """
-    The layer that fades in for a fight. Same length, same key, same room, so the two beds
-    cross-fade at any point without a key change — which would be more distracting than the
-    fight itself.
+    The fight layer: same length, key and room, so the two cross-fade at any point without a
+    key change — which would be more distracting than the fight itself.
 
-    What changes is the harmony and the pulse. The progression tightens to i - VI - iv - V,
-    and that V is MAJOR: the raised third (C sharp against a D minor tonic) is the harmonic
-    minor's leading note, the one interval in this key that genuinely wants to resolve. It
-    is the difference between "somewhere dark" and "something is about to happen", and it
-    is why the ambient bed above deliberately does not use it.
+    What changes is the harmony, the instrument and the pulse. The guitar gives way to a
+    string section, the progression tightens to i-VI-iv-V, and that V is MAJOR: the raised
+    third against a D minor tonic is the one interval in this key that genuinely wants to
+    resolve, and it is why the ambient bed above deliberately never uses it.
     """
+    sf = bank()
+    if sf is None:
+        return _synth_boss_bed()
+
     bar = 3.0
     chords = [
         (0, 3, 7, 12),    # Dm
         (-4, 0, 3, 8),    # Bb
         (-7, -4, 0, 5),   # Gm
-        (-5, -1, 2, 7),   # A MAJOR — the C sharp is the whole point; see the docstring
+        (-5, -1, 2, 7),   # A MAJOR — the C sharp is the whole point
     ]
     body = bar * len(chords) * 2
-    overhang = 3.0
-    n = int((body + overhang) * SR)
+    overhang = 4.0
+    rate = SR * OVERSAMPLE
+    n = int((body + overhang) * rate)
+    dry = np.zeros(n, dtype=np.float64)
+
+    def place(signal, at_seconds, gain=1.0):
+        at = int(at_seconds * rate)
+        if at >= n:
+            return
+        k = min(len(signal), n - at)
+        dry[at:at + k] += signal[:k] * gain
+
+    for cycle in range(2):
+        for index, chord in enumerate(chords):
+            at = (cycle * len(chords) + index) * bar
+
+            # Fast strings, all four voices together — a section attacking a chord, not an
+            # arpeggio. The fight is not contemplative.
+            for voice, degree in enumerate(chord):
+                place(play(sf, GM_FAST_STRINGS, TONIC_KEY + degree + 24, bar * 1.1,
+                           gain=0.52 - voice * 0.04, release=0.5), at + 0.02 * voice)
+
+            place(play(sf, GM_DOUBLE_BASS, TONIC_KEY + chord[0], bar * 1.1,
+                       gain=0.34, release=0.7), at)
+            place(play(sf, GM_CHOIR, TONIC_KEY + chord[0] + 24, bar * 1.05,
+                       gain=0.20, release=0.8), at)
+
+    # Timpani at 80 bpm — four to the three-second bar. Fast enough to press, slow enough not
+    # to turn a boss fight into a dance track.
+    beat = 0.75
+    for k in range(int(body / beat) + 5):
+        strong = (k % 4 == 0)
+        place(play(sf, GM_TIMPANI, TONIC_KEY + (0 if strong else -5), 0.8,
+                   gain=0.16 if strong else 0.07), k * beat)
+
+    wet = reverb(dry, wet=0.32, size=1.10)
+    return normalise(wrap_tail(decimate(wet), body), 0.88)
+
+
+# --- the synthesised beds, kept as the fallback ----------------------------
+#
+# These are what shipped before the SoundFont, and they are kept for exactly one reason: this
+# script must still run on a machine that cannot reach the network. They are audibly worse and
+# the fallback says so out loud rather than producing a quietly inferior file.
+
+def _synth_ambient_bed():
+    bar = 3.0
+    body = bar * len(AMBIENT_CHORDS)
+    n = int((body + 4.0) * SR)
     x = np.arange(n) / SR
     dry = np.zeros(n)
+    for index, chord in enumerate(AMBIENT_CHORDS):
+        at = int(index * bar * SR)
+        for voice, degree in enumerate(chord):
+            offset = at + int((0.12 + voice * 0.46) * SR)
+            if offset >= n:
+                continue
+            v = pluck(note(degree + 12), min(bar * 1.8, (n - offset) / SR),
+                      4000 + index * 8 + voice, damping=0.9965,
+                      brightness=0.46 + voice * 0.03, gain=0.30 - voice * 0.035)
+            dry[offset:offset + len(v)] += v
+        root = note(chord[0])
+        span = min(int(bar * 1.15 * SR), n - at)
+        seg = np.arange(span) / SR
+        swell = np.minimum(seg / 0.9, 1.0) * np.exp(-seg / (bar * 1.6))
+        dry[at:at + span] += (np.sin(2 * np.pi * root * seg) * 0.22
+                              + np.sin(2 * np.pi * root * 2.003 * seg) * 0.09
+                              + np.sin(2 * np.pi * root * 3.0 * seg) * 0.035) * swell
+    return normalise(wrap_tail(reverb(dry, wet=0.42, size=1.25), body), 0.80)
 
+
+def _synth_boss_bed():
+    bar = 3.0
+    chords = [(0, 3, 7, 12), (-4, 0, 3, 8), (-7, -4, 0, 5), (-5, -1, 2, 7)]
+    body = bar * len(chords) * 2
+    n = int((body + 3.0) * SR)
+    x = np.arange(n) / SR
+    dry = np.zeros(n)
     for cycle in range(2):
         for index, chord in enumerate(chords):
             at = int((cycle * len(chords) + index) * bar * SR)
@@ -605,16 +798,12 @@ def boss_bed():
                           7000 + cycle * 64 + index * 8 + voice,
                           damping=0.9955, brightness=0.52, gain=0.26 - voice * 0.03)
                 dry[offset:offset + len(v)] += v
-
             root = note(chord[0])
             span = min(int(bar * 1.1 * SR), n - at)
             seg = np.arange(span) / SR
             dry[at:at + span] += (np.sin(2 * np.pi * root * seg) * 0.26
                                   + np.sin(2 * np.pi * root * 1.5 * seg) * 0.10) \
                                  * np.minimum(seg / 0.35, 1.0) * np.exp(-seg / (bar * 1.3))
-
-    # A heartbeat at 80 bpm, which is one beat per 0.75 s and four to the 3 s bar. Fast
-    # enough to press, slow enough not to turn a boss fight into a dance track.
     beat = 0.75
     for k in range(int(body / beat) + 4):
         at = int(k * beat * SR)
@@ -623,26 +812,14 @@ def boss_bed():
         span = min(int(0.45 * SR), n - at)
         seg = np.arange(span) / SR
         strong = (k % 4 == 0)
-        kick = sweep(126 if strong else 104, 44, span, 0.35) * np.exp(-seg * 15.0)
-        dry[at:at + span] += kick * (0.42 if strong else 0.22)
-
-    # The choir, well down: two voices a fifth apart, tremolo'd so it breathes. Both the
-    # voices and the tremolo are snapped to frequencies that complete whole cycles over the
-    # loop body — they are the only things here that never decay, so they are the only things
-    # that can put a step at the wrap.
+        dry[at:at + span] += sweep(126 if strong else 104, 44, span, 0.35) \
+                             * np.exp(-seg * 15.0) * (0.42 if strong else 0.22)
     tremolo = 0.6 + 0.4 * np.sin(2 * np.pi * wrapping(0.28, body) * x)
     for f, g in ((note(12), 0.055), (note(19), 0.040)):
         dry += np.sin(2 * np.pi * wrapping(f, body) * x) * g * tremolo
-
-    wet = reverb(dry, wet=0.34, size=1.1)
-    return normalise(wrap_tail(wet, body), 0.86)
+    return normalise(wrap_tail(reverb(dry, wet=0.34, size=1.10), body), 0.86)
 
 
-# name -> builder. A name ending in a digit is a VARIANT of the cue before it: Core names
-# `sfx_gate_add` and how many variants exist, and AudioDirector picks one at random per
-# play. The four that get variants are the four the player hears most — a gate add fires
-# several hundred times in a run, and no amount of pitch jitter stops one recording heard
-# that often from becoming a beep the ear stops hearing as an event.
 SOUNDS = [
     ("sfx_gate_add", gate_add),
     ("sfx_gate_add2", lambda: gate_add(1)),

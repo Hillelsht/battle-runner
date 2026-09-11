@@ -21,7 +21,7 @@ points → save → next level.
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
-| Audio | 15 cues in 21 files, 2 composed music beds bent per world; mute toggle on the menu |
+| Audio | 15 cues in 21 files, 2 music beds played on real instruments and bent per world; mute toggle |
 | Not started | Real ad SDK, analytics, battle pass |
 
 **Confirmed on device:** v0.1.2 plays as a lane game. The crowd stays in its lane at
@@ -33,6 +33,36 @@ army stands on the road instead of hovering over it — and a procedural cobbled
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
 corner notches, a gradient backdrop and readable disabled states, across every screen.
+**The music is played rather than synthesised.** Reported from device, flatly: *"music is bad.
+choose much better."* Correct, and the honest answer was not a better oscillator —
+Karplus-Strong is a plucked string and a summed sine stack is a pad, but neither of them is a
+cello. The beds are now PLAYED, on a General MIDI bank, by a SoundFont renderer written for this
+project (`tooling/sf2.py`): preset and instrument zone resolution, key ranges, sample loops,
+tuning and the volume envelope. Verified by autocorrelation — nylon guitar, cello, strings,
+choir, harp, double bass and oboe all land within 7 cents of equal temperament.
+
+GeneralUser GS's licence covers exactly this: "without restriction ... private or commercial",
+and the samples explicitly allow "musical recordings created with GeneralUser GS". It is a
+BUILD-TIME dependency only — 32 MB into the already-git-ignored tooling/.cache, never committed.
+Playing it at runtime would mean a native .so per ABI, 30 MB resident and +32 MB of install size
+on a title where install size is the most conversion-sensitive number there is. Rendering
+offline costs none of that and the device still sees two WAV files.
+
+The arrangement follows the reference rather than the orchestra: a nylon guitar carries the
+arpeggio over a bowed cello, slow strings underneath, a choir barely there, timpani on the bar.
+The boss bed swaps guitar for a string section and bass for double bass.
+
+THE BALANCE WAS MEASURED. The first render put 43% of the bed's energy under 160 Hz and 8% in
+the guitar's own register — the cello and timpani were burying the only line that moves. It now
+reads 17/67/14 across bass, low-mid and mid. The boss bed had it in reverse: normalising to a
+peak set by timpani transients left it at 0.087 rms against the ambient bed's 0.131, a fight
+layer QUIETER than the calm one. It sits at 0.114 now, 59% of its weight in the bass.
+
+TWO MORE CHORDS WERE WRONG, caught the same way as the first three: loot_reveal's docstring said
+D major and it played E major, gate_multiply said D minor and played E minor — both off by a
+whole tone, both invisible in review, both found by measuring the rendered file against the note
+names its own comment claimed.
+
 **The music plays notes now.** The bed was a stack of detuned sine drones, filtered noise for
 wind and a slow amplitude swell — correctly described as *"just a noize, not a music, like an
 ocean sound"*, and that description was accurate, because it contained none. It was ambience.

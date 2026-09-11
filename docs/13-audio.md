@@ -1,4 +1,4 @@
-# 13 — Audio: fifteen cues, twenty-one files, and two beds that play notes
+# 13 — Audio: fifteen cues, twenty-one files, and two beds played on real instruments
 
 ## The starting point was zero
 
@@ -42,19 +42,72 @@ instrument in a small room, not an orchestra, and no free orchestra is reachable
 Every clip loads **by name** through `Resources`, so any single file can be swapped for a real
 recording later without touching a line of code.
 
-### The instrument, the room and the mode
+## The synthesis had a ceiling, and it was reached
 
-Three pieces, all in `tooling/synth_audio.py`, and everything below is built out of them.
+The first pass replaced a noise drone with composed music — real harmony, real notes, played on
+a Karplus-Strong string model. Told plainly that it was still bad, the honest answer is not a
+better oscillator. **Karplus-Strong is a plucked string and a summed sine stack is a pad, but
+neither of them is a cello.**
 
-- **Karplus-Strong** — a delay line of low-passed noise, filtered a little on every lap. A
-  physical string model in about ten lines, and precisely the plucked, decaying timbre the
-  dark-fantasy reference is made of. Nothing else available here sounds like an *instrument*:
-  an oscillator under an envelope sounds like a synthesiser, and the gap between those two is
-  the gap between a score and a bed. The loop runs **over periods, not samples**, and is exact
-  rather than approximate — each period depends only on the one before it, except its last
-  sample, whose second term wraps into the period being written, so that element is computed
-  separately. A per-sample Python loop over the hundred-odd notes in a bed takes tens of
-  seconds; this takes milliseconds.
+So the beds are no longer synthesised. They are **played**, on a General MIDI bank, by a
+SoundFont renderer written for this project in `tooling/sf2.py`.
+
+**The licence covers exactly this use.** GeneralUser GS v2.0.3: *"You may use GeneralUser GS
+without restriction for your own music creation, private or commercial"*, and the samples
+*"allow full use in music production, including the ability to make profit from musical
+recordings created with GeneralUser GS"*. A rendered bed **is** a musical recording created with
+it. No share-alike, no attribution requirement, no non-commercial clause.
+
+**It is a build-time dependency and nothing else.** The 32 MB bank is downloaded into
+`tooling/.cache` — already git-ignored — and never committed. Playing it *at runtime* would mean
+bundling FluidSynth or TinySoundFont as a native `.so` per ABI, 30 MB resident and +32 MB of
+install size on a title where install size is the most conversion-sensitive number there is;
+that trade is indefensible. Rendering offline costs none of it, and the device still sees two
+WAV files. It is the same move the meshes, the sky, the road surfaces and the UI sprites already
+make: generate offline, commit the output, ship no tool.
+
+`sf2.py` implements preset and instrument zone resolution, key ranges, the sample loop, tuning
+and the volume envelope — the things that decide whether a note sounds like the instrument.
+Modulators, the low-pass filter, LFOs, velocity layers and pan are deliberately not implemented:
+the mix is mono, and the rest buys detail a 22 kHz bed under a runner cannot carry. Verified by
+autocorrelation against the equal-tempered frequency: **nylon guitar, cello, strings, choir,
+harp, double bass and oboe all land within 7 cents**. (Timpani reads wildly off, because a
+timpani is a drum — its autocorrelation finds a membrane mode, not a pitch.)
+
+### What plays what
+
+The dark-fantasy town theme everyone actually means is a **solo acoustic guitar over a held low
+string** — not an orchestra, and not a synthesiser pretending to be one.
+
+| | ambient bed | boss bed |
+|---|---|---|
+| melody | nylon guitar, arpeggiated | fast strings, block chords |
+| root | cello | double bass |
+| pad | slow strings | — |
+| voice | concert choir, barely there | concert choir |
+| pulse | timpani on the bar and half-bar | timpani at 80 bpm |
+
+Rendered at **2× and decimated**. Linear-interpolating a 44 kHz violin sample straight down to
+22 kHz aliases its bow noise into audible grit; low-passing first and dropping every other
+sample costs nothing offline and is the difference between strings and sizzle.
+
+**The balance was measured, not guessed.** The first render put **43% of the bed's energy under
+160 Hz and 8% in the guitar's own register** — the cello and the timpani were burying the only
+line that moves. The guitar went up an octave and up in level, the cello and timpani came down,
+and it now reads 17% / 67% / 14% across bass, low-mid and mid. The boss bed had the same problem
+in reverse: normalising to a peak set by timpani transients left it at 0.087 RMS against the
+ambient bed's 0.131 — **a fight layer quieter than the calm one**. Sustained content up,
+transients down, and it sits at 0.114 with 59% of its weight in the bass, which is what a boss
+theme should feel like.
+
+If the bank cannot be downloaded, the synthesised beds are still there as a fallback and the
+script **says so out loud** — a quietly inferior file that looks identical in a diff is worse
+than a failure.
+
+### The mode, and the room
+
+Two pieces survive from the synthesised version, and both still earn their place.
+
 - **A Schroeder reverb** — four parallel combs into two series allpasses, both computed a
   delay-period at a time for the same reason. The comb delays are **mutually prime on
   purpose**: combs at related delays reinforce the same partials, and the "room" then comes
@@ -70,13 +123,13 @@ Three pieces, all in `tooling/synth_audio.py`, and everything below is built out
 ### The beds
 
 `mus_bed` is twenty-four seconds: eight bars of **i–i–VI–VI–iv–iv–v–v**, four arpeggiated
-plucked voices per bar over a bowed root, with a frame drum on the bar and the half-bar. Three
+guitar voices per bar over a bowed cello root, with timpani on the bar and the half-bar. Three
 seconds a chord is slow enough that the progression reads as atmosphere rather than as a tune
 the player tires of on the fortieth round.
 
 `mus_boss` is the same length, key and room so the two cross-fade at any point without a key
 change — which would be more distracting than the fight. What changes is the harmony
-(**i–VI–iv–V**, twice) and an 80 bpm heartbeat.
+(**i–VI–iv–V**, twice) and an 80 bpm timpani pulse.
 
 **The loop wraps its tail rather than cross-fading.** The equal-power cross-fade the old beds
 used is right for ambience and wrong for music: it overlaps the last bar with the first, so two
@@ -85,12 +138,12 @@ rendered longer than its musical length and the overhang — the final chord's d
 reverb tail — is **added back at the head**, which is exactly where that sound belongs when the
 loop comes round. Sample-accurate, no fade, harmony intact.
 
-Anything that never decays has to land back on its starting phase at the wrap or the loop is a
-step discontinuity. The plucks and drum hits decay to nothing and are fine; the choir pad and
-its tremolo do not, so their frequencies are snapped to whole cycles over the loop body. The
-shift is inaudible — 146.80 Hz becomes 146.79.
+Every voice in the bed now decays to nothing on its own, so nothing needs phase-snapping to
+survive the wrap; the `wrapping()` helper stays for the synthesised fallback, which still has a
+choir pad that never decays. Measured, the two loops join at **0.17× and 0.02×** of the local
+99th-percentile sample step — inaudible.
 
-### Three chords were wrong, and a spectral check is what caught it
+### Five chords were wrong, and a spectral check is what caught every one
 
 Getting an interval wrong does not throw, does not sound obviously broken, and changes the
 **mode**. The first pass had `Gm` as `(-7, -3, 0, 5)` — a B natural, which is G *major* — and
@@ -99,8 +152,13 @@ leading note the ambient bed is documented as not using.
 
 An FFT of the rendered file found it: the G minor bar's strongest partial sat at **370.5 Hz**,
 and 370.5 is F sharp, not the F natural a G minor chord is made of. The chord table now writes
-the semitone map out in full above it. After the fix, every bar's strongest partials are chord
-tones and nothing else.
+the semitone map out in full above it.
+
+It happened twice more when the harp cues were written. `loot_reveal`'s docstring says D major
+and it was playing **E major**; `gate_multiply` says D minor and it was playing **E minor** —
+both off by a whole tone, both invisible in review, both caught by measuring the rendered file
+against the note names its own comment claimed. After the fix, every bar and every cue's
+strongest partials are the chord tones written down for them.
 
 The same check was almost fooled a second time. A first "seam ratio" compared the wrap
 discontinuity against the file's **mean** sample-to-sample step and reported the boss bed at
