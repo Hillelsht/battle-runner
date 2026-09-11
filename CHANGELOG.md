@@ -33,6 +33,51 @@ army stands on the road instead of hovering over it — and a procedural cobbled
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
 corner notches, a gradient backdrop and readable disabled states, across every screen.
+**Enemy packs became squads, and the fight takes a second.** A pack was five frozen bodies with
+a `-26` over them, in five separate MeshRenderers, and the frame the crowd's leading plane
+touched it the whole thing was subtracted and released to the pool. Two complaints at once: a
+number drawn over five men contradicts what it labels, and a fight one frame long cannot be
+animated because there is nothing to animate.
+
+A squad now has N soldiers in it, up to a display cap of 40, drawn through the same instanced
+path as the player's army. `Core/Run/Melee` spreads the same `force -= cost` across 1.15
+seconds, so every tuned difficulty number survives untouched while both sides visibly drain —
+a test pins that the outcome is EXACTLY the subtraction it replaced, across every combination
+of army and squad size.
+
+The detachment that runs out to meet them is drawn by the same renderer rather than detached
+from `CrowdController`. That was the obvious design and it is the wrong one: the crowd's
+formation is the most load-bearing maths in the project, its width and tail invariants are
+pinned by tests and its scale is CI-enforced against the shader that decodes the bob phase out
+of it — and a soldier leaving the front rank of a five-hundred-strong blob leaves no visible
+hole, so spending that risk buys nothing the player can see. It is also the largest draw-call
+saving available: roughly twenty-five draws a level in five-body packs are now two.
+
+**The doors became arches, and add gates became crowds.** "The doors with +-* look bad" was
+fair: four thin bars and an infill plate is a DIAGRAM of a gate, not a thing standing in a road.
+The plate alone was 77% of the gate's projected area, which is why a gate read as a solid
+coloured rectangle with no visible frame at all. It is an arch now — thick piers, an
+overhanging lintel, springers and a keystone — with no infill, because you run THROUGH it and
+seeing the road on the far side is most of what makes it read as a gate.
+
+And an ADD gate is not a door at all. A reinforcement is people, so the arch is hidden and the
+gate draws `Value` allied soldiers standing in the lane, who break and run into the army when
+it arrives, shrinking out on a cubed curve so they hold their ground and then go all at once.
+Multiply keeps the arch: multiplication has no crowd metaphor, because there is no number of
+men that IS "times three".
+
+**Headcounts over the army and over every squad**, billboarded. The point is comparison — my
+number against theirs in one glance, both attached to the thing they describe, which a readout
+at the top of the screen cannot do. Every label in the game before this was pinned at a fixed
+12 degree pitch on the assumption the camera never leaves -Z, which stopped being true the
+moment the rig gained dynamic pitch and shake.
+
+The army's number EASES rather than snapping, and that is a consequence of the melee: a clash
+subtracts the force on the frame of contact, but the squad drains over the next second, so left
+snapping the player would watch their own number fall instantly and the enemy's fall slowly —
+which reads as the fight being decorative. It flatters every other change too; a x3 gate now
+counts up instead of teleporting.
+
 **The music is played rather than synthesised.** Reported from device, flatly: *"music is bad.
 choose much better."* Correct, and the honest answer was not a better oscillator —
 Karplus-Strong is a plucked string and a summed sine stack is a pad, but neither of them is a

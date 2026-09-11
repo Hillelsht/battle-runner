@@ -23,8 +23,26 @@ namespace BattleRunner.Gameplay.Track
         /// </summary>
         public bool Resolved { get; private set; }
 
+        /// <summary>
+        /// True when this gate is drawn as a CROWD OF SOLDIERS rather than as an arch.
+        ///
+        /// "instead of doors, add soldiers, a crowd, like some of them join you". An add gate
+        /// is a reinforcement, and a reinforcement is people — so the arch is hidden and
+        /// SquadRenderer draws `Value` allied soldiers standing in the lane, who break and run
+        /// into the army when it reaches them. Multiply keeps the arch, because multiplication
+        /// has no crowd metaphor: there is no number of men that IS "times three".
+        /// </summary>
+        public bool DrawAsCrowd { get; private set; }
+
+        /// <summary>Seconds since this gate was consumed, for the run-and-join animation.</summary>
+        public float SinceConsumed { get; private set; } = -1f;
+
+        /// <summary>How long the joining takes. Short — it is a flourish, not an event.</summary>
+        public const float JoinSeconds = 0.55f;
+
         private TextMesh _label;
         private MeshRenderer _labelRenderer;
+        private Transform _labelPivot;
         private MeshRenderer[] _renderers;
         // A gate is a FRAME and a PLATE, and they must not look the same. The plate is
         // 1.60 x 2.36 m against four bars only 0.16 m thick — 77% of the gate's projected
@@ -94,19 +112,33 @@ namespace BattleRunner.Gameplay.Track
             // 6.74 m of a 7.07 m frame and read as one solid wall rather than three choices.
             // 1.92 m leaves a 0.28 m gap between neighbours, and the 1.60 m aperture is wide
             // enough for the 1.54 m crowd to visibly pass through.
-            gate._renderers = new MeshRenderer[4];
-            gate._renderers[0] = Bar(go.transform, new Vector3(-0.88f, 1.30f, 0f), new Vector3(0.16f, 2.60f, 0.20f));
-            gate._renderers[1] = Bar(go.transform, new Vector3(0.88f, 1.30f, 0f), new Vector3(0.16f, 2.60f, 0.20f));
-            gate._renderers[2] = Bar(go.transform, new Vector3(0f, 2.60f, 0f), new Vector3(1.92f, 0.16f, 0.20f));
-            gate._renderers[3] = Bar(go.transform, new Vector3(0f, 1.30f, 0.02f), new Vector3(1.60f, 2.36f, 0.06f));
+            // AN ARCH, NOT A DOOR FRAME. "The doors with +-* look bad" was fair: four thin
+            // bars and an infill plate is a diagram of a gate, not a thing standing in a
+            // road. Thick tapered piers, a stepped lintel and a keystone give it a
+            // silhouette — and a silhouette is what reads at fifty metres through fog,
+            // which is where the player actually has to make the decision.
+            gate._renderers = new MeshRenderer[6];
+            gate._renderers[0] = Bar(go.transform, new Vector3(-0.86f, 1.05f, 0f), new Vector3(0.34f, 2.10f, 0.40f));
+            gate._renderers[1] = Bar(go.transform, new Vector3(0.86f, 1.05f, 0f), new Vector3(0.34f, 2.10f, 0.40f));
+            // The lintel overhangs the piers, which is what makes it read as resting ON them
+            // rather than as a third bar of the same frame.
+            gate._renderers[2] = Bar(go.transform, new Vector3(0f, 2.26f, 0f), new Vector3(2.16f, 0.32f, 0.48f));
+            gate._renderers[3] = Bar(go.transform, new Vector3(0f, 2.58f, 0f), new Vector3(0.46f, 0.34f, 0.44f));
+            // Two springers where the piers meet the lintel: two small boxes that turn a
+            // rectangle into an arch for almost nothing.
+            gate._renderers[4] = Bar(go.transform, new Vector3(-0.60f, 2.06f, 0f), new Vector3(0.30f, 0.22f, 0.38f));
+            gate._renderers[5] = Bar(go.transform, new Vector3(0.60f, 2.06f, 0f), new Vector3(0.30f, 0.22f, 0.38f));
+
+            // Billboarded, via a pivot. The fixed 12-degree pitch this had assumed the
+            // camera never leaves -Z, which stopped being true the moment the rig gained
+            // dynamic pitch and shake.
+            var pivotGo = new GameObject("LabelPivot");
+            pivotGo.transform.SetParent(go.transform, false);
+            pivotGo.transform.localPosition = new Vector3(0f, 1.45f, -0.09f);
+            gate._labelPivot = pivotGo.transform;
 
             var labelGo = new GameObject("Label", typeof(TextMesh));
-            labelGo.transform.SetParent(go.transform, false);
-            labelGo.transform.localPosition = new Vector3(0f, 1.45f, -0.09f);
-            // A TextMesh is legible from its LOCAL -Z side, and the camera already sits
-            // at -Z looking toward +Z. The old 180-degree spin showed its back, which
-            // the font material's Cull Off rendered as mirrored text.
-            labelGo.transform.localRotation = Quaternion.Euler(12f, 0f, 0f);
+            labelGo.transform.SetParent(pivotGo.transform, false);
             gate._label = labelGo.GetComponent<TextMesh>();
             gate._label.font = font;
             gate._label.fontSize = 64;
@@ -136,7 +168,13 @@ namespace BattleRunner.Gameplay.Track
             Lane = lane;
             Consumed = false;
             Resolved = false;
-            if (_renderers.Length > 3 && _renderers[3] != null) _renderers[3].enabled = true;
+            SinceConsumed = -1f;
+            // An ADD gate is a reinforcement, and a reinforcement is people. The arch is
+            // hidden and SquadRenderer draws Value allied soldiers here instead.
+            DrawAsCrowd = op == GateOp.Add;
+            for (int i = 0; i < _renderers.Length; i++)
+                if (_renderers[i] != null)
+                    _renderers[i].enabled = !DrawAsCrowd;
             transform.position = worldPosition;
 
             Material frame = op switch
@@ -152,7 +190,11 @@ namespace BattleRunner.Gameplay.Track
                 _ => _subtractPlate
             };
 
-            // Renderers 0-2 are the bars; 3 is the infill plate that fills the aperture.
+            // The keystone takes the PLATE material and everything else the frame's. The
+            // plate used to fill the aperture — a 1.6 x 2.36 m slab that was 77% of the
+            // gate's projected area, which is why a gate read as a solid coloured rectangle
+            // with no visible frame. The arch has no infill at all: you run THROUGH it, and
+            // being able to see the road on the far side is most of why it reads as a gate.
             for (int i = 0; i < _renderers.Length; i++)
                 if (_renderers[i] != null)
                     _renderers[i].sharedMaterial = i == 3 ? plate : frame;
@@ -172,6 +214,17 @@ namespace BattleRunner.Gameplay.Track
         /// in the level otherwise paints its number through all geometry at once, piling the
         /// far ones into the unreadable stack on the horizon. The track hides distant labels.
         /// </summary>
+        /// <summary>Face the camera, and advance the run-and-join clock.</summary>
+        public void Tick(float dt, Vector3 cameraPosition)
+        {
+            if (SinceConsumed >= 0f && SinceConsumed < JoinSeconds) SinceConsumed += dt;
+            if (_labelPivot == null) return;
+            Vector3 toCamera = cameraPosition - _labelPivot.position;
+            toCamera.y = 0f;
+            if (toCamera.sqrMagnitude > 1e-4f)
+                _labelPivot.rotation = Quaternion.LookRotation(-toCamera, Vector3.up);
+        }
+
         public void SetLabelVisible(bool visible)
         {
             if (_labelRenderer != null && _labelRenderer.enabled != visible)
@@ -187,7 +240,10 @@ namespace BattleRunner.Gameplay.Track
         public void Consume()
         {
             Consumed = true;
-            if (_renderers.Length > 3 && _renderers[3] != null) _renderers[3].enabled = false;
+            SinceConsumed = 0f;
+            // The arch has no infill plate to open any more — you already run through it. An
+            // add gate's crowd, however, now breaks and runs into the army; SinceConsumed is
+            // the clock SquadRenderer animates that on.
         }
 
         /// <summary>The crowd has drawn level with this gate; it scores now or never.</summary>

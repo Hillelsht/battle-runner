@@ -49,11 +49,21 @@ namespace BattleRunner.Gameplay.Crowd
         private Mesh _enemyMesh;
         private Mesh _fighterMesh;
         private List<EnemyPackBehaviour> _squads;
+        private List<GateBehaviour> _gates;
+        private readonly Matrix4x4[] _allies = new Matrix4x4[MaxInstances];
         private bool _instancing;
 
+        /// <summary>
+        /// The most bodies drawn for one add gate. A +40 is already a wall of men across a
+        /// 1.9 m lane; past that the number over their heads carries the size, exactly as it
+        /// does for an enemy squad.
+        /// </summary>
+        private const int AllyDisplayCap = 28;
+
         public void Initialize(CrowdController crowd, Material enemyMaterial, Material allyMaterial,
-            List<EnemyPackBehaviour> squads)
+            List<EnemyPackBehaviour> squads, List<GateBehaviour> gates)
         {
+            _gates = gates;
             _crowd = crowd;
             _enemyMaterial = enemyMaterial;
             _allyMaterial = allyMaterial;
@@ -182,7 +192,52 @@ namespace BattleRunner.Gameplay.Crowd
                 }
             }
 
+            // Add gates are crowds of reinforcements rather than doors. They stand in the
+            // lane, and when the army reaches them they break and run into it.
+            int allyCount = 0;
+            if (_gates != null)
+            {
+                for (int g = 0; g < _gates.Count; g++)
+                {
+                    GateBehaviour gate = _gates[g];
+                    if (gate == null || !gate.DrawAsCrowd || gate.Value <= 0) continue;
+                    if (gate.SinceConsumed >= GateBehaviour.JoinSeconds) continue;
+
+                    int bodies = Mathf.Min(gate.Value, AllyDisplayCap);
+                    bodies = Mathf.Min(bodies, MaxInstances - allyCount);
+                    if (bodies <= 0) break;
+
+                    Vector3 origin = gate.transform.position;
+                    // Once taken, they run at the army and shrink out. Cubed, so they hold
+                    // their ground for a moment and then go all at once — a linear fade
+                    // reads as the gate being deleted rather than as men moving.
+                    float join = gate.SinceConsumed < 0f
+                        ? 0f
+                        : Mathf.Clamp01(gate.SinceConsumed / GateBehaviour.JoinSeconds);
+                    float gone = join * join * join;
+                    var muster = new Vector3(_crowd.CenterX, 0f, _crowd.FrontZ);
+
+                    for (int i = 0; i < bodies; i++)
+                    {
+                        Vector3 local = SquadSlot(i, bodies);
+                        float seed = Jitter(g + 4093, i);
+                        float beat = now * 5.0f + seed * 6.283f;
+                        Vector3 stand = origin + local;
+                        Vector3 pos = Vector3.Lerp(stand, muster, gone);
+                        // Facing the player while they wait, turning to march once taken.
+                        float yaw = Mathf.Lerp(180f + (seed - 0.5f) * 30f, 0f, gone)
+                                    + Mathf.Sin(beat) * 5f;
+                        float scale = BodyScale * (1f - gone * 0.85f);
+                        _allies[allyCount++] = Matrix4x4.TRS(pos,
+                            Quaternion.Euler(0f, yaw, 0f), Vector3.one * scale);
+                        if (allyCount >= MaxInstances) break;
+                    }
+                }
+            }
+
             if (enemyCount > 0) Submit(_enemies, enemyCount, _enemyMesh, _enemyMaterial);
+            if (allyCount > 0) Submit(_allies, allyCount, _fighterMesh,
+                _allyMaterial != null ? _allyMaterial : _enemyMaterial);
             if (fighterCount > 0) Submit(_fighters, fighterCount, _fighterMesh,
                 _allyMaterial != null ? _allyMaterial : _enemyMaterial);
         }

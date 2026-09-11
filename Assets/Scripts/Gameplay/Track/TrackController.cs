@@ -67,7 +67,7 @@ namespace BattleRunner.Gameplay.Track
         {
             if (_squadRenderer == null)
                 _squadRenderer = gameObject.AddComponent<SquadRenderer>();
-            _squadRenderer.Initialize(crowd, _enemyMaterial, allyMaterial, _activeEnemies);
+            _squadRenderer.Initialize(crowd, _enemyMaterial, allyMaterial, _activeEnemies, _activeGates);
         }
         private readonly List<GameObject> _groundStrips = new List<GameObject>();
 
@@ -584,6 +584,12 @@ namespace BattleRunner.Gameplay.Track
                         GateApplied?.Invoke(gate.Op, gate.Value, gate.transform.position);
                     }
                 }
+
+                // EVERY gate ticks, resolved or not: the billboard has to keep facing the
+                // camera on the way past, and an add gate's crowd runs into the army AFTER
+                // it is consumed — ticking only the unresolved ones would freeze the join
+                // animation on the exact frame it is supposed to start.
+                gate.Tick(Time.deltaTime, camera);
 
                 if (z < despawnZ)
                 {
