@@ -43,6 +43,7 @@ namespace BattleRunner.Gameplay.States
 
         public void Enter()
         {
+            _armyAdvance = 0f;
             // BossFor, not CurrentLevel.Boss. Taking the boss from the level tied the two
             // cycles together, so a player who saw level 3 twice fought its boss twice —
             // and with the old clamping LevelFor, round six onward was one boss forever.
@@ -89,6 +90,14 @@ namespace BattleRunner.Gameplay.States
 
         public void Exit()
         {
+            // UNWIND THE ADVANCE. AdvanceZ moves the crowd's centre permanently, so leaving
+            // the encounter without putting the army back on its mark would carry the offset
+            // into the next round — and into the one after that, cumulatively.
+            if (_armyAdvance != 0f)
+            {
+                _ctx.Crowd.AdvanceZ(-_armyAdvance);
+                _armyAdvance = 0f;
+            }
             _ctx.LaneTargetChannel.Unsubscribe(_ctx.Crowd.OnLaneTarget);
             _ctx.FlickUpChannel.Unsubscribe(OnFlickUp);
             _ctx.FlickDownChannel.Unsubscribe(OnFlickDown);
@@ -103,11 +112,25 @@ namespace BattleRunner.Gameplay.States
             _ctx.Effects.Clear();
         }
 
+        /// <summary>Where the army currently stands relative to its mark, in metres.</summary>
+        private float _armyAdvance;
+
         public void Tick(float dt)
         {
             if (_resolved || _awaitingPrompt) return;
 
             _ctx.Crowd.Tick(dt);
+
+            // THE ARMY ADVANCES. It used to stand on its mark for the whole fight while the
+            // boss stood on its own eleven metres away, which is half of why the encounter
+            // read as two objects near each other rather than as a battle. It presses forward
+            // as the fight goes on and is driven back by a blow — hard by one it did not
+            // block. Applied as an OFFSET from the mark the encounter parked it on, so the
+            // arithmetic that placed the boss relative to the crowd stays true.
+            float advance = _ctx.BossView.ArmyAdvance;
+            _ctx.Crowd.AdvanceZ(advance - _armyAdvance);
+            _armyAdvance = advance;
+
             _ctx.Spell.Tick(dt);
             _ctx.Shield.Tick(dt);
             _ctx.Hud.SetCooldowns(_ctx.Spell.CooldownRemaining, _ctx.Shield.CooldownRemaining, _ctx.Shield.IsActive);
@@ -388,6 +411,10 @@ namespace BattleRunner.Gameplay.States
             }
 
             _ctx.CameraRig.Apply(CameraFeel.ForBossStrike(before, after, blocked));
+            // The boss SWINGS. Its attack used to produce no geometry at its own end of the
+            // arena at all — every effect was centred on the crowd, so the blow appeared to
+            // come from nowhere.
+            _ctx.BossView.Strike(blocked);
 
             // A Vampiric boss feeds on what it takes, and blocking is what starves it — which
             // is the whole reason the affix exists rather than being another damage number.
@@ -445,6 +472,8 @@ namespace BattleRunner.Gameplay.States
             // full pool of debris. This is the one place worth spending every mote.
             Vector3 foot = _bossPosition;
             _ctx.Audio.Play(AudioCue.BossDeath);
+            // Falls, rather than ceasing to be drawn.
+            _ctx.BossView.Collapse();
             _ctx.Audio.SetCombat(false);
             _ctx.Effects.Shock(foot, DeathTint, 1.5f, 16f, 0.55f);
             _ctx.Effects.Shock(foot, DeathTint, 0.8f, 9f, 0.45f);

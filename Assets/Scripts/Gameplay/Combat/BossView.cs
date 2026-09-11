@@ -1,5 +1,6 @@
 using BattleRunner.Gameplay;
 using BattleRunner.Core.Boss;
+using BattleRunner.Core.Feel;
 using BattleRunner.Data.Definitions;
 using UnityEngine;
 
@@ -20,6 +21,18 @@ namespace BattleRunner.Gameplay.Combat
         private float _telegraphPulse;
         private float _baseScale = 6f;
         private float _hitFlash;
+
+        // The choreography clocks. Negative means "has not happened", which is what
+        // BossChoreography expects — a zero would read as "happening right now, forever".
+        private float _sinceBlow = -1f;
+        private float _sinceHit = -1f;
+        private float _fightSeconds;
+        private Vector3 _anchor;
+        private bool _blockedLastBlow;
+        private float _death = -1f;
+
+        /// <summary>How long the collapse takes. It is the last thing the player sees of a boss.</summary>
+        private const float DeathSeconds = 1.25f;
 
         // The champion aura. Black and inert when the boss carries no affix, so a plain
         // fight looks exactly as it did before affixes existed.
@@ -141,6 +154,11 @@ namespace BattleRunner.Gameplay.Combat
             _material.SetColorSafe("_EmissionColor", _baseEmission);
             _telegraphColor = def.TelegraphColor;
             transform.position = position;
+            _anchor = position;
+            _sinceBlow = -1f;
+            _sinceHit = -1f;
+            _fightSeconds = 0f;
+            _death = -1f;
 
             Mesh mesh = ProceduralMeshes.Boss(def.Archetype);
             _filter.sharedMesh = mesh;
@@ -178,9 +196,28 @@ namespace BattleRunner.Gameplay.Combat
         }
 
         /// <summary>The boss took a hit. This is the player's only confirmation it landed.</summary>
+        /// <summary>
+        /// The boss has swung. Starts the strike — a fast drive forward and a slow settle
+        /// back — so the attack has geometry at the BOSS's end of the arena, which it never
+        /// did: every effect the old fight produced was centred on the crowd.
+        /// </summary>
+        public void Strike(bool blocked)
+        {
+            _sinceBlow = 0f;
+            _blockedLastBlow = blocked;
+        }
+
+        /// <summary>How far the army should stand from its mark this frame, in metres.</summary>
+        public float ArmyAdvance =>
+            BossChoreography.ArmyAdvance(_fightSeconds, _sinceBlow, _blockedLastBlow);
+
+        /// <summary>Begin the collapse. The mesh used to simply stop being drawn.</summary>
+        public void Collapse() => _death = 0f;
+
         public void FlashHit()
         {
             if (_body == null) return;
+            _sinceHit = 0f;
             _hitFlash = 1f;
             // 0.96 was a 0.23-unit dip on the old 5.7-unit figure, recovered in 2.4
             // frames at the existing rate of 6/s — literally invisible. 0.90 is 0.67
@@ -192,8 +229,36 @@ namespace BattleRunner.Gameplay.Combat
         private void Update()
         {
             if (_body == null) return;
+
+            float dt = Time.deltaTime;
+            _fightSeconds += dt;
+            if (_sinceBlow >= 0f) _sinceBlow += dt;
+            if (_sinceHit >= 0f) _sinceHit += dt;
+
+            // THE BOSS MOVES. Its rotation was written once at construction and never again,
+            // and it never left its spawn point — two objects facing each other, one of them
+            // changing colour. See Core/Feel/BossChoreography for what each term is for.
+            BossPose pose = BossChoreography.Pose(_telegraphPulse, _sinceBlow, _sinceHit,
+                Time.time);
+
+            float collapse = 0f;
+            if (_death >= 0f)
+            {
+                _death += dt;
+                collapse = Mathf.Clamp01(_death / DeathSeconds);
+            }
+
+            // Falling forward onto its face, sinking as it goes. Cubed, so it hangs for a
+            // moment and then goes — which is what something heavy falling looks like, and
+            // is a great deal more than the mesh blinking out of existence.
+            float fall = collapse * collapse * collapse;
+            transform.position = _anchor
+                                 + new Vector3(0f, -3.4f * fall, pose.Surge);
+            transform.rotation = Quaternion.Euler(pose.Lean + 84f * fall, pose.Twist, 0f);
+
             float pulse = 1f + _telegraphPulse * 0.12f * Mathf.Sin(Time.time * 22f);
-            float recover = Mathf.MoveTowards(_body.localScale.x, _baseScale * pulse, Time.deltaTime * 6f);
+            float target = _baseScale * pulse * pose.Scale * (1f - 0.25f * fall);
+            float recover = Mathf.MoveTowards(_body.localScale.x, target, dt * 6f);
             _body.localScale = Vector3.one * recover;
 
             // LINEAR decay, not squared. A squared falloff at this rate is above half

@@ -17,7 +17,7 @@ points → save → next level.
 | Game loop | Complete end to end |
 | Content | 8 worlds, 6 levels, 6 bosses (6 archetypes) x 5 champion affixes = 30 fights, 15 gear items, 4 rarities, ~60 talents + endless paragon |
 | Art | Procedural meshes and code-built uGUI, 119 CC0 Kenney models in one 563 KB pack, and 8 generated ground surfaces with normal maps |
-| Tests | 365, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 372, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
@@ -33,6 +33,31 @@ army stands on the road instead of hovering over it — and a procedural cobbled
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
 corner notches, a gradient backdrop and readable disabled states, across every screen.
+**The boss fight was a tableau, and now it is a fight.** The audit is blunt about what was
+there: the boss was pinned at a fixed point, its rotation was written once at construction and
+**never written again**, the army never moved, and the only thing that ever crossed the eleven
+metre gap was a bolt the PLAYER fired. Its own attack produced no geometry at the boss's end at
+all — every effect was centred on the crowd. Two objects facing each other, one of them changing
+colour. *"it's just standing one close to another without animation"* is an exact description.
+
+`Core/Feel/BossChoreography` is the body language as arithmetic: an idle that never fully
+settles, a wind-up that **rears back and gathers** — pulling away is what makes the release read
+as coming at you — a strike that is fast in and slow out because an attack that returns as fast
+as it arrives has no weight, a recoil when the player's spell lands, and a collapse that falls
+forward and sinks on a cubed curve instead of the mesh blinking out.
+
+**And the army advances.** It presses forward as the fight goes on, flinches from a blow and is
+driven back hard by one it did not block. Applied as an offset from the mark the encounter
+parked it on, and unwound on exit — `AdvanceZ` moves the crowd permanently, so leaving without
+putting the army back would carry the offset into the next round, and the one after that.
+
+It is **not** a skeletal rig, and the docstring says so. The boss meshes are built from
+contiguous box and prism blocks and could be sliced into limbs, but that is a much larger change
+than the fight needed to stop being a tableau — a creature that rears, drives, recoils and falls
+reads as fighting, and all of it is the body transform. The one property that is load-bearing on
+fairness rather than looks is pinned by a test: the wind-up peaks **before** the blow, because
+it is the only warning the player gets and a warning that arrives with the hit is not a warning.
+
 **Enemy packs became squads, and the fight takes a second.** A pack was five frozen bodies with
 a `-26` over them, in five separate MeshRenderers, and the frame the crowd's leading plane
 touched it the whole thing was subtracted and released to the pool. Two complaints at once: a
@@ -830,7 +855,7 @@ The v0.4.0 screenshots confirmed the art pass landed — sky, stars, shadows, ro
 gates and UI frames all correct on device — and surfaced two bugs that were never about
 art: `Focus -0 %` on the menu and `+0.01 Focus` on the loot card. Both were units chosen
 from the ModifierKind rather than from the stat, plus a hard-coded minus sign in front of
-a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 365 tests today).
+a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 372 tests today).
 
 A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
 11 survived adversarial refutation. The headline three: the key light pointed the same way
