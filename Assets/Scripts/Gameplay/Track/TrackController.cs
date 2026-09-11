@@ -27,6 +27,48 @@ namespace BattleRunner.Gameplay.Track
         private ObjectPool<EnemyPackBehaviour> _enemyPool;
         private readonly List<GateBehaviour> _activeGates = new List<GateBehaviour>();
         private readonly List<EnemyPackBehaviour> _activeEnemies = new List<EnemyPackBehaviour>();
+        private Material _enemyMaterial;
+        private SquadRenderer _squadRenderer;
+        private Transform _cameraTransform;
+
+        /// <summary>
+        /// How far in front of the army's leading plane a squad is held while it is being
+        /// fought. The road is still moving at 10 m/s under both of them, so without this the
+        /// army would simply walk through the squad it is supposedly fighting.
+        /// </summary>
+        private const float EngageGap = 2.6f;
+
+        /// <summary>
+        /// Where to point the headcounts. Resolved lazily because the runtime camera is built
+        /// by GameBootstrap after this component exists, and cached because Camera.main is a
+        /// tagged-object search.
+        /// </summary>
+        private Vector3 CameraPosition
+        {
+            get
+            {
+                if (_cameraTransform == null)
+                {
+                    UnityEngine.Camera main = UnityEngine.Camera.main;
+                    if (main != null) _cameraTransform = main.transform;
+                }
+                return _cameraTransform != null
+                    ? _cameraTransform.position
+                    : new Vector3(0f, 6f, -12f);
+            }
+        }
+
+        /// <summary>
+        /// Squads are drawn instanced, and the renderer needs the crowd to know where the
+        /// army's front rank is. Called once, from GameBootstrap, after both exist.
+        /// </summary>
+        public void AttachSquadRenderer(BattleRunner.Gameplay.Crowd.CrowdController crowd,
+            Material allyMaterial)
+        {
+            if (_squadRenderer == null)
+                _squadRenderer = gameObject.AddComponent<SquadRenderer>();
+            _squadRenderer.Initialize(crowd, _enemyMaterial, allyMaterial, _activeEnemies);
+        }
         private readonly List<GameObject> _groundStrips = new List<GameObject>();
 
         /// <summary>Gates beyond this hide their label; 45 m chunks put the next decision well inside it.</summary>
@@ -111,6 +153,7 @@ namespace BattleRunner.Gameplay.Track
             var poolRoot = new GameObject("TrackPools").transform;
             poolRoot.SetParent(transform, false);
 
+            _enemyMaterial = enemyMaterial;
             GateBehaviour.SetSharedMaterials(baseMaterial);
             _gatePool = new ObjectPool<GateBehaviour>(() => GateBehaviour.Build(font), poolRoot);
             _enemyPool = new ObjectPool<EnemyPackBehaviour>(
@@ -502,6 +545,7 @@ namespace BattleRunner.Gameplay.Track
             // Resolve where the player can SEE the crowd touching things, not at an
             // arbitrary offset from the centroid.
             float frontZ = crowd.FrontZ;
+            Vector3 camera = CameraPosition;
             int crowdLane = CrowdMath.LaneIndex(crowd.CenterX, _laneWidth);
             float despawnZ = TrackVisibility.DespawnPlane(
                 crowd.CenterZ, CameraRig.SetbackMeters, DespawnMarginMeters);
@@ -556,24 +600,44 @@ namespace BattleRunner.Gameplay.Track
                 if (!pack.Resolved && z > frontZ)
                 {
                     pack.SetLabelVisible(z - frontZ <= LabelVisibleMeters);
+                    pack.FaceCamera(camera);
                     continue;
                 }
 
                 if (!pack.Resolved && z <= frontZ)
                 {
                     pack.Resolve();
-                    pack.SetLabelVisible(false);
                     if (pack.Lane == crowdLane)
                     {
-                        pack.Defeat();
+                        // THE CLASH STARTS HERE AND TAKES A SECOND. The force is still
+                        // subtracted in full on this frame — every tuned difficulty number in
+                        // the game depends on that — but the squad now stands and fights while
+                        // its count drains, instead of being deleted on the frame it is
+                        // touched. See Core/Run/Melee and SquadRenderer.
+                        pack.BeginFight(crowd.ForceCount);
                         EnemyContact?.Invoke(pack.ForceCost, pack.transform.position);
+                    }
+                    else
+                    {
+                        // Dodged. It keeps its count and slides past, like a gate does.
+                        pack.SetLabelVisible(false);
                     }
                 }
 
-                // A pack the crowd fought is dead and goes immediately; one in another lane
-                // was dodged and slides past like a gate does. Lingering only makes sense for
-                // the things the player went around.
-                if (pack.Defeated || z < despawnZ)
+                // A squad mid-clash is pinned to the army's front so the two lines stay in
+                // contact while they fight; the road is still moving under both of them.
+                if (pack.Fighting)
+                {
+                    pack.TickFight(Time.deltaTime);
+                    Vector3 held = pack.transform.position;
+                    held.z = frontZ + EngageGap;
+                    pack.transform.position = held;
+                }
+
+                pack.FaceCamera(camera);
+
+                // A squad the crowd fought goes once the clash is over, not on contact.
+                if ((pack.Defeated && !pack.Fighting) || z < despawnZ)
                 {
                     _activeEnemies.RemoveAt(i);
                     _enemyPool.Release(pack);

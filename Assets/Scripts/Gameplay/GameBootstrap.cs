@@ -169,6 +169,9 @@ namespace BattleRunner.Gameplay
             ctx.Crowd.Initialize(ctx.ForceChangedChannel, ctx.TierCap, ctx.Config.Balance.LaneWidthMeters);
             var crowdRenderer = crowdGo.AddComponent<CrowdRenderer>();
             crowdRenderer.Initialize(ctx.Crowd, ProceduralMeshes.Unit, crowdMaterial);
+            // The army's headcount, in world space over the crowd — so the player compares it
+            // against a squad's number in one glance instead of against the HUD readout.
+            crowdGo.AddComponent<Crowd.ArmyCountLabel>().Initialize(ctx.Crowd, UiFactory.Font);
 
             var heroGo = new GameObject("Hero");
             heroGo.transform.SetParent(ctx.ArenaRoot.transform, false);
@@ -180,6 +183,9 @@ namespace BattleRunner.Gameplay
             ctx.TrackController = trackGo.AddComponent<TrackController>();
             ctx.TrackController.Initialize(ctx.CrowdMaterial, enemyMaterial, ProceduralMeshes.Unit,
                 UiFactory.Font, ctx.Config.Balance.LaneWidthMeters);
+            // Enemy squads and the detachment that fights them are drawn instanced, which
+            // needs the crowd (for where the army's front rank is) and the ally material.
+            ctx.TrackController.AttachSquadRenderer(ctx.Crowd, crowdMaterial);
 
             // On the same object as the track, and after the crowd: the prop field needs the
             // crowd to know which slice of the verge is worth drawing.
