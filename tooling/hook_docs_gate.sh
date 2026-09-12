@@ -47,6 +47,18 @@ $output
 Fix the file, then push again. To push anyway: git push --no-verify."
 fi
 
+# Then locals: the Gameplay assembly has no local compiler, so a name collision there
+# costs a full CI round trip to discover. This finds the one class of it that a text
+# check can find honestly.
+shadow="$root/tooling/check_local_shadowing.py"
+if [ -f "$shadow" ] && ! output=$(python3 "$shadow" 2>&1); then
+  deny "A local variable is declared twice in one scope, so this push is blocked.
+
+$output
+
+Rename one of them, then push again. To push anyway: git push --no-verify."
+fi
+
 checker="$root/tooling/check_docs.py"
 [ -f "$checker" ] || exit 0
 

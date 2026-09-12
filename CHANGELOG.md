@@ -33,6 +33,25 @@ army stands on the road instead of hovering over it — and a procedural cobbled
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
 corner notches, a gradient backdrop and readable disabled states, across every screen.
+**A second gate for a second five-minute mistake.** `dotnet test` compiles `BattleRunner.Core`
+and nothing else — the Gameplay, Meta, Data and Editor assemblies reference UnityEngine, so the
+first compiler that ever sees them is the headless editor in CI. Two commits went out with a
+`Matrix4x4[] into` declared in a method that already had a `float into` eighty lines below it in
+the same block: `CS0128`, plus a `CS1503` cascade where `Mathf.Lerp` was handed an array. Both
+obvious on sight; neither catchable by any gate that existed.
+
+`tooling/check_local_shadowing.py` tracks brace depth inside method bodies and flags a local
+whose name is already live in an enclosing or equal scope. Like the brace checker it is
+deliberately not a parser and CI is still the compiler; it just stops the cheapest mistake from
+costing a round trip. Verified against the real defect: run against the rejected commit it
+names `'into' is already declared`, at the line the compiler named.
+
+Writing it produced a false positive worth recording, being the same trap as the road work. The
+first version also accepted a declaration ending in `)`, meaning to catch a parameter on a
+continuation line — and caught them so well that every method *parameter* was recorded in the
+class scope and never popped, so the next method to reuse a name was reported. A checker that
+finds a problem is not the same as a checker that is right.
+
 **The boss fight had no fighting in it.** The army's damage to a boss was `dps * dt`, applied
 sixty times a second, writing nothing but the HUD bar. The only fight geometry in the whole
 encounter was the boss's own one or two swings per attack cycle: the player could watch a bar

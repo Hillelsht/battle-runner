@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using BattleRunner.Core.Boss;
 using BattleRunner.Core.Run;
-using BattleRunner.Gameplay;
 using BattleRunner.Gameplay.Track;
 using UnityEngine;
 
@@ -248,7 +247,7 @@ namespace BattleRunner.Gameplay.Crowd
 
                 Vector3 origin = squad.transform.position;
                 // A squad in a clash goes into the brawl bucket, which is the one with legs.
-                Matrix4x4[] into = squad.Fighting ? _brawlers : _enemies;
+                Matrix4x4[] bucket = squad.Fighting ? _brawlers : _enemies;
                 int already = squad.Fighting ? brawlCount : enemyCount;
                 int bodies = Mathf.Min(squad.DisplayedCount, MaxInstances - already);
 
@@ -279,7 +278,7 @@ namespace BattleRunner.Gameplay.Crowd
                         yaw += Mathf.Sin(beat * 0.5f) * 18f;
                     }
                     Vector3 pos = origin + local + new Vector3(0f, 0f, -press + lunge);
-                    into[already++] = Matrix4x4.TRS(pos,
+                    bucket[already++] = Matrix4x4.TRS(pos,
                         Quaternion.Euler(0f, yaw, 0f), Vector3.one * PhasedScale(seed));
                     if (already >= MaxInstances) break;
                 }
@@ -330,11 +329,11 @@ namespace BattleRunner.Gameplay.Crowd
                     // A hostile gate's men go in the ENEMY bucket, and once the clash starts
                     // in the brawling one, so the same split that gave a fighting squad legs
                     // gives these legs too.
-                    Matrix4x4[] into;
+                    Matrix4x4[] bucket;
                     int already;
-                    if (!hostile) { into = _allies; already = allyCount; }
-                    else if (gate.SinceConsumed >= 0f) { into = _brawlers; already = brawlCount; }
-                    else { into = _enemies; already = enemyCount; }
+                    if (!hostile) { bucket = _allies; already = allyCount; }
+                    else if (gate.SinceConsumed >= 0f) { bucket = _brawlers; already = brawlCount; }
+                    else { bucket = _enemies; already = enemyCount; }
 
                     int bodies = Mathf.Min(gate.Value, AllyDisplayCap);
                     bodies = Mathf.Min(bodies, MaxInstances - already);
@@ -383,7 +382,7 @@ namespace BattleRunner.Gameplay.Crowd
                         // phase pins, which is correct: a body that small is two pixels and
                         // its legs are not the thing being read.)
                         float scale = PhasedScale(seed) * (1f - gone * 0.85f);
-                        into[already++] = Matrix4x4.TRS(pos,
+                        bucket[already++] = Matrix4x4.TRS(pos,
                             Quaternion.Euler(0f, yaw, 0f), Vector3.one * scale);
                         if (already >= MaxInstances) break;
                     }

@@ -37,6 +37,14 @@ jobs:
       - name: Verify C# brackets balance
         run: python3 tooling/check_csharp_braces.py
 
+      # dotnet test compiles BattleRunner.Core and NOTHING else — the Gameplay, Meta,
+      # Data and Editor assemblies reference UnityEngine, so the first compiler to see
+      # them is the headless editor six minutes downstream. Two commits went out with a
+      # `Matrix4x4[] into` declared in a method that already had a `float into`: CS0128
+      # plus a CS1503 cascade, obvious on sight, catchable by nothing that existed.
+      - name: Verify no local is declared twice in one scope
+        run: python3 tooling/check_local_shadowing.py
+
   # Decides whether a COMPLETE Unity activation strategy is configured.
   # GameCI ALWAYS needs the Unity account credentials to reach the licensing
   # servers, plus proof of licence:

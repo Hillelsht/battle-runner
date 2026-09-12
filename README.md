@@ -116,7 +116,7 @@ Assets/Scripts/Editor    URP auto-setup, content generation, and build guards
 Assets/Tests/EditMode    NUnit suite (runs in Unity Test Runner AND under plain dotnet)
 tooling/                 mirrored csprojs for Unity-less testing, meta generator,
                          YAML lint, the docs checker, and its Claude Code gate
-.githooks/               versioned git hooks (pre-push docs check)
+.githooks/               versioned git hooks (pre-push braces, locals, docs)
 ```
 
 ### Build guards

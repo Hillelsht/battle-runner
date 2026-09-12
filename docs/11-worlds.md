@@ -372,3 +372,23 @@ ahead of the docs check, because a file that cannot parse makes every other chec
 
 It was verified against the real defect rather than a synthetic one: reproducing the exact
 missing brace from that commit makes it exit 1 and name the file.
+
+### And the second one: a local declared twice
+
+The same five minutes went again for the same reason in a different shape. `SquadRenderer` had
+a `float into` — the detachment's run-in interpolant — and a later edit added a
+`Matrix4x4[] into` eighty lines above it *in the same block*. `error CS0128`, plus a `CS1503`
+cascade where `Mathf.Lerp` was handed an array. Both obvious on sight; neither catchable by
+anything that existed, because `dotnet test` compiles `BattleRunner.Core` and nothing else.
+
+`tooling/check_local_shadowing.py` tracks brace depth inside method bodies and flags a local
+declaration whose name is already live in an enclosing or equal scope. Like the brace checker
+it is deliberately not a parser and says nothing about types, members or overloads — CI is
+still the compiler. It also was verified against the real defect: run against the rejected
+commit it reports `'into' is already declared`, at the line the compiler named.
+
+Writing it turned up a false positive worth recording, because it is the same trap the road
+work fell into. The first version also accepted a declaration ending in `)`, meaning to catch a
+parameter on a continuation line — and caught them so well that every method PARAMETER was
+recorded in the class scope and never popped, so the next method to reuse a name was reported.
+A checker that finds a problem is not the same as a checker that is right.
