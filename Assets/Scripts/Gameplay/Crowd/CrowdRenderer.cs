@@ -47,8 +47,14 @@ namespace BattleRunner.Gameplay.Crowd
         //
         // CrowdInstanced.shader recovers the bob phase from this scale — CROWD_SCALE_MIN
         // and CROWD_SCALE_SPAN there must match these two exactly.
-        private const float ScaleMin = 0.44f;
-        private const float ScaleSpan = 0.06f;
+        //
+        // PUBLIC because SquadRenderer draws bodies through the same shader and has to encode
+        // a phase into the same window. It drew every one of them at a flat 0.47 — dead centre
+        // of the window — so the shader decoded phase 0.5 for the whole line and an enemy
+        // squad marched as one synchronised band with every leg at the same point of the same
+        // stride. tooling/lint_unity_yaml.py:247 still matches these declarations.
+        public const float ScaleMin = 0.44f;
+        public const float ScaleSpan = 0.06f;
 
         // One bucket per soldier archetype. Four instanced draws instead of one is still
         // nothing on any GPU, and it is the difference between an army and a photocopy.

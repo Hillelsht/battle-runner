@@ -33,6 +33,33 @@ army stands on the road instead of hovering over it — and a procedural cobbled
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
 corner notches, a gradient backdrop and readable disabled states, across every screen.
+**Two bugs made every red crowd look wrong, and both were one line.**
+
+`CrowdInstanced.shader` recovers each body's walk phase from its uniform **scale** — there is no
+second per-instance channel, only the matrix, so the 0.44–0.50 window is the entire animation
+bus. `SquadRenderer` drew every body at a flat **0.47**, which is the exact centre of that
+window, so the shader decoded phase 0.5 for all of them: an enemy squad marched as one
+synchronised band with every left leg forward on the same frame. The player's own army has
+looked right the whole time because `CrowdRenderer` varies it. `ScaleMin`/`ScaleSpan` are now
+`public const` and the squads encode a real per-body phase through them (the CI coupling that
+pins those declarations against the shader still matches).
+
+And `enemyMaterial._BobAmount` was **0**, which is right for a squad standing in the road
+waiting and wrong for the whole duration of a clash: the player's soldiers animated while the
+red side was a rigid statue sliding along the road. A second material with the bob back on, and
+a squad routes into it while it is fighting — **one extra instanced draw, only while a clash is
+on screen**.
+
+**`−N` gates are crowds now too.** The ask was "some join you, others attack you" and the first
+pass shipped only half of it: `DrawAsCrowd = op == GateOp.Add`, so a −26 was still a door with a
+number on it. A subtract gate is now men standing in the road who take that many of yours down
+with them, in the enemy silhouette and the enemy red, and when the army reaches them they are
+driven **backward** and scattered — each man his own distance and his own way, so the line comes
+apart instead of sliding off as one piece. It runs on its own clock (`RoutSeconds` 0.85 against
+`JoinSeconds` 0.55), because being overrun is the only moment in a run where the army visibly
+pays for something and at 0.55 s it was over before the eye found it. The multiply gate stays an
+arch: a ×3 is not a number of men.
+
 **Eight worlds were painted three-quarters over with one colour each.** `VergeTint` sat at
 0.60–0.78, meaning up to 78% of every roadside piece's albedo was replaced by a single
 per-world stone. Worlds 1-1 and 2-1 share **zero** verge pieces and still arrived on device as

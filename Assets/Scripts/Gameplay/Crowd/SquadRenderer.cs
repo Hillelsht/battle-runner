@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using BattleRunner.Core.Run;
+using BattleRunner.Gameplay;
 using BattleRunner.Gameplay.Track;
 using UnityEngine;
 
@@ -12,9 +13,10 @@ namespace BattleRunner.Gameplay.Crowd
     /// THE GAMEPLAY FIX IS ALSO THE PERFORMANCE FIX. A render audit found a typical frame
     /// submitting roughly 200-230 draw calls against doc 04's ceiling of 120, and the single
     /// worst contributor after the gates was enemy packs: five separate MeshRenderers each,
-    /// about twenty-five draws a level. Every squad in the level is now TWO draws — one for
-    /// the enemies, one for the fighters — and they are bigger, countable and animated as
-    /// well as cheaper.
+    /// about twenty-five draws a level. Every squad in the level is now THREE draws at the
+    /// absolute worst — standing enemies, brawling enemies, and the detachment — and the
+    /// middle one exists only while a clash is on screen. They are bigger, countable and
+    /// animated as well as cheaper.
     ///
     /// WHY THE FIGHTERS ARE DRAWN HERE AND NOT DETACHED FROM THE CROWD ITSELF. The obvious
     /// design is a detached mode in CrowdController: let real units leave their formation
@@ -30,8 +32,21 @@ namespace BattleRunner.Gameplay.Crowd
         /// <summary>Enemy squads plus their fighters, at the display cap, with headroom.</summary>
         private const int MaxInstances = 512;
 
-        /// <summary>Matches CrowdRenderer so an enemy is the same size as a soldier.</summary>
-        private const float BodyScale = EnemyPackBehaviour.BodyScale;
+        /// <summary>
+        /// The walk phase, encoded where the shader reads it.
+        ///
+        /// CrowdInstanced.shader recovers each body's stride from its uniform SCALE — there is
+        /// no second per-instance channel, only the matrix, so the 0.44-0.50 window is the
+        /// whole animation bus. Every squad body was drawn at a flat 0.47, which is the exact
+        /// middle of that window, so the shader decoded phase 0.5 for all of them and a squad
+        /// marched as one synchronised band: every left leg forward on the same frame. The
+        /// player's own army has looked right the whole time because CrowdRenderer varies it.
+        ///
+        /// The 6% size spread this introduces is the same spread the army already has, and it
+        /// is the reason the army does not read as a photocopy either.
+        /// </summary>
+        private static float PhasedScale(float jitter) =>
+            CrowdRenderer.ScaleMin + jitter * CrowdRenderer.ScaleSpan;
 
         /// <summary>
         /// How far in front of the army the fighting happens. Far enough that the clash is
@@ -40,11 +55,30 @@ namespace BattleRunner.Gameplay.Crowd
         /// </summary>
         private const float EngageOffset = 1.9f;
 
+        /// <summary>How hard a brawling enemy works its legs. See _brawlMaterial.</summary>
+        private const float BrawlBob = 0.10f;
+
         private readonly Matrix4x4[] _enemies = new Matrix4x4[MaxInstances];
+        /// <summary>The enemies of squads currently in a clash. See _brawlMaterial.</summary>
+        private readonly Matrix4x4[] _brawlers = new Matrix4x4[MaxInstances];
         private readonly Matrix4x4[] _fighters = new Matrix4x4[MaxInstances];
 
         private CrowdController _crowd;
         private Material _enemyMaterial;
+        /// <summary>
+        /// The same red, with legs.
+        ///
+        /// `enemyMaterial._BobAmount` is 0 (GameBootstrap), which is correct for a squad
+        /// STANDING in the road waiting — a man at a halt should not be walking on the spot.
+        /// It was also applied while the two lines were inside each other, so in every clash
+        /// the player's soldiers animated and the red side was a rigid statue sliding along
+        /// the road. Two materials, and the split costs ONE extra instanced draw that exists
+        /// only while a clash is actually on screen.
+        ///
+        /// 0.10 rather than the crowd's own amount: this is men trading blows on the spot,
+        /// not men running. The stride wants to read as bracing, not as a march.
+        /// </summary>
+        private Material _brawlMaterial;
         private Material _allyMaterial;
         private Mesh _enemyMesh;
         private Mesh _fighterMesh;
@@ -54,9 +88,9 @@ namespace BattleRunner.Gameplay.Crowd
         private bool _instancing;
 
         /// <summary>
-        /// The most bodies drawn for one add gate. A +40 is already a wall of men across a
-        /// 1.9 m lane; past that the number over their heads carries the size, exactly as it
-        /// does for an enemy squad.
+        /// The most bodies drawn for one gate crowd, on either sign. A +40 is already a wall
+        /// of men across a 1.9 m lane; past that the number over their heads carries the size,
+        /// exactly as it does for an enemy squad.
         /// </summary>
         private const int AllyDisplayCap = 28;
 
@@ -76,6 +110,12 @@ namespace BattleRunner.Gameplay.Crowd
 
             if (_enemyMaterial != null && !_enemyMaterial.enableInstancing)
                 _enemyMaterial.enableInstancing = true;
+            if (_enemyMaterial != null)
+            {
+                _brawlMaterial = ShaderSafety.CreateMaterial(_enemyMaterial);
+                _brawlMaterial.SetFloatSafe("_BobAmount", BrawlBob);
+                _brawlMaterial.enableInstancing = true;
+            }
             if (_allyMaterial != null && !_allyMaterial.enableInstancing)
                 _allyMaterial.enableInstancing = true;
 
@@ -124,6 +164,7 @@ namespace BattleRunner.Gameplay.Crowd
             if (_squads == null || _enemyMaterial == null || _crowd == null) return;
 
             int enemyCount = 0;
+            int brawlCount = 0;
             int fighterCount = 0;
             float now = Time.time;
 
@@ -133,7 +174,10 @@ namespace BattleRunner.Gameplay.Crowd
                 if (squad == null || squad.DisplayedCount <= 0) continue;
 
                 Vector3 origin = squad.transform.position;
-                int bodies = Mathf.Min(squad.DisplayedCount, MaxInstances - enemyCount);
+                // A squad in a clash goes into the brawl bucket, which is the one with legs.
+                Matrix4x4[] into = squad.Fighting ? _brawlers : _enemies;
+                int already = squad.Fighting ? brawlCount : enemyCount;
+                int bodies = Mathf.Min(squad.DisplayedCount, MaxInstances - already);
 
                 // While fighting, the two lines press into each other. A squad that stands
                 // still while the army arrives reads as scenery being deleted, not as a fight.
@@ -162,10 +206,12 @@ namespace BattleRunner.Gameplay.Crowd
                         yaw += Mathf.Sin(beat * 0.5f) * 18f;
                     }
                     Vector3 pos = origin + local + new Vector3(0f, 0f, -press + lunge);
-                    _enemies[enemyCount++] = Matrix4x4.TRS(pos,
-                        Quaternion.Euler(0f, yaw, 0f), Vector3.one * BodyScale);
-                    if (enemyCount >= MaxInstances) break;
+                    into[already++] = Matrix4x4.TRS(pos,
+                        Quaternion.Euler(0f, yaw, 0f), Vector3.one * PhasedScale(seed));
+                    if (already >= MaxInstances) break;
                 }
+
+                if (squad.Fighting) brawlCount = already; else enemyCount = already;
 
                 if (!squad.Fighting || fighterCount >= MaxInstances) continue;
 
@@ -188,12 +234,15 @@ namespace BattleRunner.Gameplay.Crowd
                     var pos = new Vector3(origin.x + local.x * 0.9f, 0f, z);
                     float yaw = Mathf.Sin(beat * 0.5f) * 20f;
                     _fighters[fighterCount++] = Matrix4x4.TRS(pos,
-                        Quaternion.Euler(0f, yaw, 0f), Vector3.one * BodyScale);
+                        Quaternion.Euler(0f, yaw, 0f), Vector3.one * PhasedScale(seed));
                 }
             }
 
-            // Add gates are crowds of reinforcements rather than doors. They stand in the
-            // lane, and when the army reaches them they break and run into it.
+            // Gates that change the army by a COUNT are people, on both signs. An add gate
+            // is a reinforcement standing in the lane that breaks and runs into you; a
+            // subtract gate is men who stand in the road and take that many of yours down
+            // with them, and get ridden down doing it. Only the multiply gate is still an
+            // arch, because a x3 is not a number of men.
             int allyCount = 0;
             if (_gates != null)
             {
@@ -201,41 +250,80 @@ namespace BattleRunner.Gameplay.Crowd
                 {
                     GateBehaviour gate = _gates[g];
                     if (gate == null || !gate.DrawAsCrowd || gate.Value <= 0) continue;
-                    if (gate.SinceConsumed >= GateBehaviour.JoinSeconds) continue;
+                    if (gate.SinceConsumed >= gate.CrowdSeconds) continue;
+
+                    bool hostile = gate.Op == GateOp.Subtract;
+
+                    // A hostile gate's men go in the ENEMY bucket, and once the clash starts
+                    // in the brawling one, so the same split that gave a fighting squad legs
+                    // gives these legs too.
+                    Matrix4x4[] into;
+                    int already;
+                    if (!hostile) { into = _allies; already = allyCount; }
+                    else if (gate.SinceConsumed >= 0f) { into = _brawlers; already = brawlCount; }
+                    else { into = _enemies; already = enemyCount; }
 
                     int bodies = Mathf.Min(gate.Value, AllyDisplayCap);
-                    bodies = Mathf.Min(bodies, MaxInstances - allyCount);
-                    if (bodies <= 0) break;
+                    bodies = Mathf.Min(bodies, MaxInstances - already);
+                    if (bodies <= 0) continue;
 
                     Vector3 origin = gate.transform.position;
-                    // Once taken, they run at the army and shrink out. Cubed, so they hold
-                    // their ground for a moment and then go all at once — a linear fade
-                    // reads as the gate being deleted rather than as men moving.
-                    float join = gate.SinceConsumed < 0f
+                    float t = gate.SinceConsumed < 0f
                         ? 0f
-                        : Mathf.Clamp01(gate.SinceConsumed / GateBehaviour.JoinSeconds);
-                    float gone = join * join * join;
+                        : Mathf.Clamp01(gate.SinceConsumed / gate.CrowdSeconds);
+                    // Cubed, so they hold their ground for a moment and then go all at once —
+                    // a linear fade reads as the gate being deleted rather than as men moving.
+                    float gone = t * t * t;
                     var muster = new Vector3(_crowd.CenterX, 0f, _crowd.FrontZ);
 
                     for (int i = 0; i < bodies; i++)
                     {
                         Vector3 local = SquadSlot(i, bodies);
-                        float seed = Jitter(g + 4093, i);
-                        float beat = now * 5.0f + seed * 6.283f;
+                        float seed = Jitter(g + (hostile ? 8191 : 4093), i);
+                        float beat = now * (hostile ? 7.5f : 5f) + seed * 6.283f;
                         Vector3 stand = origin + local;
-                        Vector3 pos = Vector3.Lerp(stand, muster, gone);
-                        // Facing the player while they wait, turning to march once taken.
-                        float yaw = Mathf.Lerp(180f + (seed - 0.5f) * 30f, 0f, gone)
-                                    + Mathf.Sin(beat) * 5f;
-                        float scale = BodyScale * (1f - gone * 0.85f);
-                        _allies[allyCount++] = Matrix4x4.TRS(pos,
+                        Vector3 pos;
+                        float yaw;
+                        if (hostile)
+                        {
+                            // Driven BACKWARD and scattered sideways, not absorbed. Each man
+                            // goes his own distance and his own way, so the line comes apart
+                            // rather than sliding off as one piece — being overrun is the
+                            // only moment in a run where the army visibly pays for something.
+                            float shove = (0.9f + seed * 1.6f) * gone;
+                            float slew = (seed - 0.5f) * 1.8f * gone;
+                            pos = stand + new Vector3(slew, 0f, shove + Mathf.Sin(beat) * 0.12f);
+                            // Facing the army, then spun as they go down.
+                            yaw = 180f + (seed - 0.5f) * 30f + Mathf.Sin(beat * 0.6f) * 22f
+                                  + gone * (seed < 0.5f ? -120f : 120f);
+                        }
+                        else
+                        {
+                            pos = Vector3.Lerp(stand, muster, gone);
+                            // Facing the player while they wait, turning to march once taken.
+                            yaw = Mathf.Lerp(180f + (seed - 0.5f) * 30f, 0f, gone)
+                                  + Mathf.Sin(beat) * 5f;
+                        }
+                        // The shrink-out multiplies the PHASED scale, so a body keeps its own
+                        // stride right up to the moment it is gone. (Once the factor is past
+                        // ~0.15 the scale leaves the window the shader decodes from and the
+                        // phase pins, which is correct: a body that small is two pixels and
+                        // its legs are not the thing being read.)
+                        float scale = PhasedScale(seed) * (1f - gone * 0.85f);
+                        into[already++] = Matrix4x4.TRS(pos,
                             Quaternion.Euler(0f, yaw, 0f), Vector3.one * scale);
-                        if (allyCount >= MaxInstances) break;
+                        if (already >= MaxInstances) break;
                     }
+
+                    if (!hostile) allyCount = already;
+                    else if (gate.SinceConsumed >= 0f) brawlCount = already;
+                    else enemyCount = already;
                 }
             }
 
             if (enemyCount > 0) Submit(_enemies, enemyCount, _enemyMesh, _enemyMaterial);
+            if (brawlCount > 0) Submit(_brawlers, brawlCount, _enemyMesh,
+                _brawlMaterial != null ? _brawlMaterial : _enemyMaterial);
             if (allyCount > 0) Submit(_allies, allyCount, _fighterMesh,
                 _allyMaterial != null ? _allyMaterial : _enemyMaterial);
             if (fighterCount > 0) Submit(_fighters, fighterCount, _fighterMesh,

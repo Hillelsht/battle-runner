@@ -40,6 +40,19 @@ namespace BattleRunner.Gameplay.Track
         /// <summary>How long the joining takes. Short — it is a flourish, not an event.</summary>
         public const float JoinSeconds = 0.55f;
 
+        /// <summary>
+        /// How long a subtract gate's men take to be ridden down, against JoinSeconds for a
+        /// reinforcement running in.
+        ///
+        /// Longer on purpose. A reinforcement joining is a transition the player has already
+        /// won and wants over with; men being overrun is the only moment in the run where the
+        /// army visibly PAYS for something, and at 0.55 s it was over before the eye found it.
+        /// </summary>
+        public const float RoutSeconds = 0.85f;
+
+        /// <summary>How long this gate's crowd animation runs, by what kind of crowd it is.</summary>
+        public float CrowdSeconds => Op == GateOp.Subtract ? RoutSeconds : JoinSeconds;
+
         private TextMesh _label;
         private MeshRenderer _labelRenderer;
         private Transform _labelPivot;
@@ -169,9 +182,15 @@ namespace BattleRunner.Gameplay.Track
             Consumed = false;
             Resolved = false;
             SinceConsumed = -1f;
-            // An ADD gate is a reinforcement, and a reinforcement is people. The arch is
-            // hidden and SquadRenderer draws Value allied soldiers here instead.
-            DrawAsCrowd = op == GateOp.Add;
+            // A gate that changes the size of the army by a COUNT is people, on both signs.
+            // An add gate is a reinforcement that joins you; a subtract gate is men who stand
+            // in the road and take that many of yours down with them. Only the multiply gate
+            // stays an arch, because a x3 is not a number of men — it is a thing that happens
+            // to the army, and there is no headcount to draw.
+            //
+            // The ask was "some join you, others attack you", and the first pass shipped only
+            // the first half: DrawAsCrowd was `op == GateOp.Add`, so a -26 was still a door.
+            DrawAsCrowd = op == GateOp.Add || op == GateOp.Subtract;
             for (int i = 0; i < _renderers.Length; i++)
                 if (_renderers[i] != null)
                     _renderers[i].enabled = !DrawAsCrowd;
@@ -217,7 +236,7 @@ namespace BattleRunner.Gameplay.Track
         /// <summary>Face the camera, and advance the run-and-join clock.</summary>
         public void Tick(float dt, Vector3 cameraPosition)
         {
-            if (SinceConsumed >= 0f && SinceConsumed < JoinSeconds) SinceConsumed += dt;
+            if (SinceConsumed >= 0f && SinceConsumed < CrowdSeconds) SinceConsumed += dt;
             if (_labelPivot == null) return;
             Vector3 toCamera = cameraPosition - _labelPivot.position;
             toCamera.y = 0f;

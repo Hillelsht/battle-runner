@@ -137,6 +137,11 @@ namespace BattleRunner.Gameplay
             var enemyMaterial = ShaderSafety.CreateMaterial(ctx.CrowdMaterial);
             enemyMaterial.SetColorSafe("_BaseColor", new Color(0.35f, 0.08f, 0.08f));
             enemyMaterial.SetColorSafe("_EmissionColor", new Color(0.6f, 0.08f, 0.05f));
+            // No legs, because a squad STANDING in the road waiting for the army should not
+            // be walking on the spot. SquadRenderer derives a second material from this one
+            // with the bob back on, and routes a squad into it for the duration of a clash —
+            // before that split, the player's soldiers animated while the red side was a
+            // rigid statue sliding along the road through the entire fight.
             enemyMaterial.SetFloatSafe("_BobAmount", 0f);
 
             var heroMaterial = ShaderSafety.CreateMaterial(ctx.CrowdMaterial);
