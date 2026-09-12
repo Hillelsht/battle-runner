@@ -614,6 +614,240 @@ def round_start():
     return oneshot(room(decimate(out)[:n], 0.30), 0.88)
 
 
+# --- the driving bed --------------------------------------------------------
+#
+# THE THIRD ATTEMPT, AND THE GENRE WAS THE PROBLEM RATHER THAN THE EXECUTION.
+#
+# The first bed was a drone stack and filtered noise: "just a noize, not a music, like an
+# ocean sound", which was accurate because it had no notes in it. The second was the eight
+# bars of slow D-minor harmony below — real instruments, real chords, correctly voiced — and
+# the report was still "music is bad".
+#
+# It is not badly played. It is the WRONG MUSIC. It is a twenty-four-second ambient loop at
+# roughly forty beats a minute, playing under a forty-second sprint in which the player makes
+# a lane decision every two seconds. A score that slow does not fail to support that; it
+# actively works against it, because the tempo the ear is given is the tempo the hands expect.
+#
+# So: a frame-drum and low-string ostinato at 132 BPM under a modal melody, eighty-seven
+# seconds long in four sections so the loop is not a four-bar figure repeated. Same key, same
+# room, same soundfont — only the pulse and the arrangement change.
+
+# 132 BPM in 4/4. Fast enough to drive, slow enough that the ear can still hear the harmony
+# move; at 150+ the bass ostinato turns into a texture and stops being a line.
+BEAT = 60.0 / 132.0
+BAR = BEAT * 4.0
+
+
+def frame_drum(freq, seconds, seed, hit=1.0, rate=None):
+    """
+    A hand-struck frame drum: a taut skin over a shallow body.
+
+    SYNTHESISED RATHER THAN SAMPLED, and for a reason worth recording. GeneralUser-GS has a
+    standard GM drum kit on bank 128, and this project's minimal SoundFont reader resolves
+    exactly ONE of its keys — every other key falls outside the zone it picks, and returns
+    silence. Probed: of thirty-five kit keys, only the crash cymbal sounds.
+
+    Fighting the reader for a kick drum is the wrong trade when a membrane is four lines of
+    arithmetic: a noise burst through a resonant band for the skin, a pitched thump an octave
+    below for the body, and a fast exponential on both. It also means the drum can be tuned to
+    the key, which a sampled kit cannot be.
+    """
+    rate = rate or (SR * OVERSAMPLE)
+    n = int(seconds * rate)
+    if n <= 0:
+        return np.zeros(0)
+    x = np.arange(n) / rate
+
+    # The skin: filtered noise, decaying fast. The bandwidth is what separates a drum from
+    # a click — too narrow and it is a pitched bloop, too wide and it is a handclap.
+    rng = np.random.default_rng(seed)
+    skin = rng.normal(0.0, 1.0, n)
+    skin = skin * np.exp(-x * 46.0)
+    # A crude two-pole resonance at the skin frequency, run forward in place.
+    out = np.zeros(n)
+    b = 2.0 * np.cos(2.0 * np.pi * freq * 2.1 / rate) * 0.986
+    c = -0.986 * 0.986
+    y1 = y2 = 0.0
+    for i in range(n):
+        y = skin[i] + b * y1 + c * y2
+        y2, y1 = y1, y
+        out[i] = y
+    out *= 0.06
+
+    # The body: a short pitched thump that falls a little, which is what a hand on a skin
+    # actually does as the tension releases.
+    body = np.sin(2.0 * np.pi * np.cumsum(freq * (1.0 + 0.35 * np.exp(-x * 24.0))) / rate)
+    body *= np.exp(-x * 13.0)
+
+    return (out * 0.55 + body * 0.9) * hit
+
+
+# The run's progression. D aeolian, four bars, i - VII - VI - VII: the modal loop that
+# actually drives, because VII (C major) is a whole tone BELOW the tonic and pulls back up to
+# it without the leading-note pull of a harmonic-minor V. That pull is what the ambient bed
+# saves for the boss, and a run should not sound like it is resolving every four bars.
+#
+# Written as intervals from D for the same reason as AMBIENT_CHORDS: a wrong semitone here
+# does not throw and does not sound broken, it changes the mode. Checked by FFT of the render.
+#   up   D 0  Eb 1  E 2  F 3  F# 4  G 5  G# 6  A 7  Bb 8  B 9  C 10
+#   down C -2  Bb -4  A -5  G -7
+DRIVE_CHORDS = [
+    (0, 3, 7),        # Dm   (i)     D  F  A
+    (-2, 2, 5),       # C    (VII)   C  E  G
+    (-4, 0, 3),       # Bb   (VI)    Bb D  F
+    (-2, 2, 5),       # C    (VII)   C  E  G
+]
+
+# The melody, as scale degrees above D in the natural minor, with None for a rest. Four bars
+# of eighths against the four chords above, so it lands on a chord tone at every bar line.
+# D aeolian degrees: 0 D, 2 E, 3 F, 5 G, 7 A, 8 Bb, 10 C, 12 D
+DRIVE_MELODY = [
+    12, None, 10, 12, None, 8, 7, None,
+    10, None, 8, 10, None, 7, 5, None,
+    8, None, 7, 8, 10, None, 7, 5,
+    3, 5, 7, None, 10, None, 12, None,
+]
+
+
+# The frame-drum pattern, as (beat, gain). Dum on one, a lighter dum on three, teks between.
+# THE DYNAMIC RANGE IS THE PATTERN: measured on a first render whose strokes were all within
+# 0.5-0.95 of each other, the beat, the eighth and the half bar all autocorrelated within 12%
+# and there was no pulse to hear at any of them.
+DRUM_PATTERN = (
+    (0.00, 1.00),     # dum
+    (1.00, 0.34),     # tek
+    (1.50, 0.22),
+    (2.00, 0.72),     # dum
+    (3.00, 0.40),     # tek
+    (3.50, 0.26),
+)
+
+
+def driving_bed():
+    """
+    Eighty-seven seconds of D-aeolian battle music at 132 BPM.
+
+    FOUR SECTIONS, not one loop played twelve times. A four-bar figure repeated for a minute
+    and a half is the thing the ear times and then stops hearing, which is the same failure
+    the twenty-four-second ambient loop had at a different speed:
+
+        bars  0-7   the engine starts   drums and bass only, no melody
+        bars  8-23  the tune            melody on strings over the full kit
+        bars 24-31  the breakdown       drums thin out, guitar carries it alone
+        bars 32-47  the return          melody an octave up, everything in
+
+    ONE FILE STILL SERVES ALL EIGHT WORLDS, re-pitched and low-passed per world at runtime
+    from MusicMood — the same "one asset, themed" move the sky, the road and the scenery make.
+    """
+    sf = bank()
+    if sf is None:
+        return _synth_ambient_bed()
+
+    bars = 48
+    body = BAR * bars
+    overhang = 3.0
+    rate = SR * OVERSAMPLE
+    n = int((body + overhang) * rate)
+    dry = np.zeros(n, dtype=np.float64)
+
+    def place(signal, at_seconds, gain=1.0):
+        at = int(at_seconds * rate)
+        if at >= n or len(signal) == 0:
+            return
+        k = min(len(signal), n - at)
+        dry[at:at + k] += signal[:k] * gain
+
+    # Two frame drums, tuned a fifth apart: a low one on the downbeats and a high one on the
+    # off-beats. Rendered ONCE each and placed repeatedly, because synthesising a resonator
+    # per hit for four hundred hits is a minute of Python for no audible difference.
+    low_drum = frame_drum(note(0) * 0.5, 0.55, seed=11)
+    high_drum = frame_drum(note(7) * 0.5, 0.34, seed=12, hit=0.62)
+    ghost = frame_drum(note(7) * 0.5, 0.22, seed=13, hit=0.26)
+
+    for bar in range(bars):
+        at = bar * BAR
+        chord = DRIVE_CHORDS[bar % 4]
+        section_full = bar >= 8 and not (24 <= bar < 32)
+        breakdown = 24 <= bar < 32
+
+        # THE PULSE. A frame-drum pattern with the off-beat displaced: the low drum on 1 and
+        # 3, the high on the "and" of 2 and on 4, plus ghost strokes on the sixteenths that
+        # are what makes a hand drum sound played rather than sequenced.
+        # SOMETHING ON EVERY BEAT. The first version put the low drum on 1 and 3 and the high
+        # on the off-beats, and measured on the render the strongest periodicity was the HALF
+        # BAR: the tempo came back as 66 BPM in a track written at 132. That is the original
+        # complaint reproduced exactly, at twice the written speed. The pulse the ear takes
+        # is the one that repeats, so every beat now carries a stroke and the accents make
+        # the pattern rather than the gaps.
+        if not breakdown or bar >= 28:
+            for beat, gain in DRUM_PATTERN:
+                place(low_drum if beat in (0.0, 2.0) else high_drum, at + BEAT * beat, gain)
+        if section_full:
+            # Two ghost strokes only. The first version had six, and measured on the render
+            # the onset envelope came out FLAT: the one-beat lag autocorrelated at 0.161
+            # against 0.153 for the eighth and 0.142 for the half bar, which is not a groove,
+            # it is an undifferentiated stream of eighth notes. A hand drum is loud on one and
+            # quiet everywhere else; that difference IS the pattern.
+            place(ghost, at + BEAT * 2.5, 0.9)
+            place(ghost, at + BEAT * 3.75, 1.1)
+            # A crash on the section boundaries. Key 49 is the ONE percussion key this
+            # project's SoundFont reader resolves out of the whole GM kit, which is why the
+            # rest of the drums are synthesised — see frame_drum.
+            if bar in (8, 32):
+                place(sf.note(128, 0, 49, 2.4, rate, gain=0.30, release=0.6), at)
+
+        # THE BASS OSTINATO. Driving eighths on the root with a walk up to the next chord on
+        # the last beat -- the figure that makes this a battle rather than a chord chart.
+        root = TONIC_KEY + chord[0]
+        for i, beat in enumerate((0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5)):
+            degree = chord[0]
+            if i == 7:
+                nxt = DRIVE_CHORDS[(bar + 1) % 4][0]
+                degree = chord[0] + (1 if nxt > chord[0] else -1) * 2
+            place(play(sf, GM_DOUBLE_BASS, TONIC_KEY + degree, BEAT * 0.62,
+                       gain=0.30 if i % 2 == 0 else 0.20, release=0.10),
+                  at + BEAT * beat)
+
+        # THE CHORD, not just its root. The first render played `chord[0]` here and nowhere
+        # else, so DRIVE_CHORDS' thirds were never sounded at all: an FFT of bar 0 heard a
+        # bare D-A fifth, which is neither major nor minor, and bar 3 had no E in it. The
+        # progression existed only in the comments. Cello on all three voices, crossing the
+        # bar so the harmony never gaps.
+        for voice, degree in enumerate(chord):
+            place(play(sf, GM_CELLO, TONIC_KEY + degree + 12, BAR * 1.05,
+                       gain=0.17 - voice * 0.03, release=0.55), at)
+
+        if section_full:
+            # THE MELODY. Fast strings, which is the section that plays a tune in this genre,
+            # doubled an octave up in the final section so the return is a lift and not a
+            # repeat.
+            octave = 12 if bar >= 32 else 0
+            for step in range(8):
+                degree = DRIVE_MELODY[((bar % 4) * 8 + step) % len(DRIVE_MELODY)]
+                if degree is None:
+                    continue
+                place(play(sf, GM_FAST_STRINGS, TONIC_KEY + degree + 12 + octave,
+                           BEAT * 0.55, gain=0.26, release=0.16),
+                      at + BEAT * step * 0.5)
+            # Strings underneath the tune, one note a bar, so the melody has something to
+            # sit on that is not the bass.
+            place(play(sf, GM_SLOW_STRINGS, root + 19, BAR * 1.1, gain=0.075, release=0.9), at)
+
+        if breakdown:
+            # THE BREAKDOWN. The guitar alone with the chord arpeggiated, which is what makes
+            # the return at bar 32 land -- eighty-seven seconds of full arrangement is a wall.
+            for voice, degree in enumerate(chord):
+                place(play(sf, GM_NYLON_GUITAR, TONIC_KEY + degree + 24, BEAT * 2.2,
+                           gain=0.40 - voice * 0.06),
+                      at + BEAT * voice * 0.75)
+            place(play(sf, GM_CHOIR, root + 24, BAR * 1.1, gain=0.05, release=1.0), at)
+
+    # Less room than the ambient bed: a long reverb on a 132 BPM ostinato smears the pulse
+    # into mud, and the pulse is the entire point of this arrangement.
+    wet = reverb(dry, wet=0.22, size=0.85)
+    return normalise(wrap_tail(decimate(wet), body), 0.86)
+
+
 def ambient_bed():
     """
     Twenty-four seconds in D natural minor, played on real instruments.
@@ -840,7 +1074,7 @@ SOUNDS = [
     ("sfx_loot_reveal", loot_reveal),
     ("sfx_ui_tap", ui_tap),
     ("sfx_round_start", round_start),
-    ("mus_bed", ambient_bed),
+    ("mus_bed", driving_bed),
     ("mus_boss", boss_bed),
 ]
 

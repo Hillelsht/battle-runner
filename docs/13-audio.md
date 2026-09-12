@@ -312,3 +312,77 @@ drift: both report every consequence (the clip Core wants that is not made, the 
 nothing plays, and the missing file). The clip-name scan is scoped to the `SOUNDS` table
 because the first version matched the argparse calls further down the same file and reported
 that the synthesiser makes a clip called `--report`.
+
+
+# The third attempt at the music, and why the first two were not badly played
+
+The report after the second pass was *"music is bad"* — the same words as after the first.
+
+The second bed is not badly played. It is eight bars of D natural minor on a nylon guitar over
+a cello, correctly voiced, in a real room, with its chords verified by FFT. **It is the wrong
+music.** It is a twenty-four-second ambient loop at roughly forty beats a minute, playing under
+a forty-second sprint in which the player makes a lane decision every two seconds. A score that
+slow does not merely fail to support that — it works against it, because the tempo the ear is
+given is the tempo the hands expect.
+
+So the run bed is now **eighty-seven seconds of D aeolian at 132 BPM**: a frame-drum and
+low-string ostinato under a modal melody, in four sections.
+
+| bars | section | what plays |
+|---|---|---|
+| 0–7 | the engine starts | drums and bass only |
+| 8–23 | the tune | melody on fast strings, full kit |
+| 24–31 | the breakdown | drums thin, nylon guitar alone |
+| 32–47 | the return | melody an octave up, everything in |
+
+Four sections rather than one loop twelve times, because a four-bar figure repeated for ninety
+seconds is the thing the ear times and then stops hearing — the same failure the ambient loop
+had, at a different speed. The bed is `loop = true` and is never restarted per round, so a
+player hears the whole arrangement across successive rounds rather than the first twenty
+seconds forty times.
+
+The progression is **i – VII – VI – VII** (Dm – C – Bb – C). The VII is a whole tone *below* the
+tonic and pulls back up to it without the leading-note pull of a harmonic-minor V — a run should
+not sound like it is resolving every four bars. That pull is what the boss bed keeps.
+
+## The drums are synthesised, and the reason is worth recording
+
+GeneralUser-GS has a standard GM kit on bank 128, and this project's minimal SoundFont reader
+resolves **exactly one of its keys**. Probed across thirty-five kit keys, only the crash cymbal
+sounds; every other key falls outside the zone the reader picks and returns silence.
+
+Fighting the reader for a kick drum is the wrong trade when a membrane is four lines of
+arithmetic: a noise burst through a resonant band for the skin, a pitched thump an octave below
+for the body, fast exponentials on both. It also lets the drum be **tuned to the key**, which a
+sampled kit cannot be.
+
+## What measuring the render caught, again
+
+Three things, and two were real bugs that sounded plausible in the source:
+
+- **The chords were never played.** `DRIVE_CHORDS` holds three voices per bar and the code used
+  `chord[0]` — the root — and nothing else. An FFT of bar 0 heard a bare D–A fifth, which is
+  neither major nor minor; bar 3 had no E in it at all. The progression existed only in the
+  comments. The cello now plays all three voices.
+- **The pulse was at half speed.** The low drum sat on beats 1 and 3 only, so the strongest
+  periodicity in the render was the *half bar*: the measured tempo came back at **66 BPM in a
+  track written at 132**. That is the original complaint reproduced exactly, at twice the
+  written speed.
+- **And then the groove went flat.** Putting a stroke on every eighth at similar gains made the
+  onset envelope uniform — the beat, the eighth and the half bar all autocorrelated within 12%
+  of each other, which is not a groove but an undifferentiated stream. A hand drum is loud on
+  one and quiet everywhere else, and **that difference is the pattern**. `DRUM_PATTERN` now
+  spans 1.00 down to 0.22.
+
+One measurement mistake of my own is worth recording next to them: the first tempo check took
+the **argmax** of the onset autocorrelation and reported 66 BPM. In 4/4 the half bar always
+correlates strongly, so argmax says nothing about whether the beat is there — the right question
+is whether the one-beat lag is a local peak, which is what the check asks now.
+
+## It is the third attempt
+
+If driving battle music is also wrong, the honest next step is a reference track rather than a
+fourth guess. What can be stated as measured rather than intended: 132 BPM written with a stroke
+on every beat and a 4.5:1 accent range, an eighth-note bass ostinato, chord tones present in
+every bar, four sections with the breakdown 36% quieter than the tune, no step discontinuity at
+the loop point, and the fight layer louder than the calm one.

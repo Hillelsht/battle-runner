@@ -33,6 +33,47 @@ army stands on the road instead of hovering over it — and a procedural cobbled
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
 corner notches, a gradient backdrop and readable disabled states, across every screen.
+**The music was the wrong genre, not badly played.** The second bed is eight bars of D natural
+minor on a nylon guitar over a cello, correctly voiced, in a real room, with its chords verified
+by FFT — and the report was still *"music is bad"*, the same words as after the first. It is a
+**twenty-four-second ambient loop at roughly forty beats a minute, playing under a forty-second
+sprint in which the player makes a lane decision every two seconds**. A score that slow does not
+merely fail to support that; it works against it, because the tempo the ear is given is the tempo
+the hands expect.
+
+The run bed is now **eighty-seven seconds of D aeolian at 132 BPM** — a frame-drum and low-string
+ostinato under a modal melody, in four sections: drums and bass alone, the tune, a breakdown on
+solo guitar, and the return an octave up. Four sections rather than one loop twelve times,
+because a four-bar figure repeated for ninety seconds is the thing the ear times and then stops
+hearing. The bed loops and is never restarted per round, so the whole arrangement is heard across
+successive rounds. The progression is i–VII–VI–VII: the VII pulls back to the tonic without the
+leading-note pull of a harmonic-minor V, which the boss bed keeps.
+
+**The drums are synthesised because the SoundFont reader resolves exactly one kit key.** Probed
+across thirty-five keys of GeneralUser-GS's GM kit, only the crash sounds; every other key falls
+outside the zone the reader picks. A membrane is four lines of arithmetic, and tuning it to the
+key is something a sampled kit cannot do.
+
+Measuring the render caught three things, two of them real bugs that read as correct in source:
+
+- **The chords were never played.** `DRIVE_CHORDS` holds three voices a bar and the code used
+  `chord[0]` and nothing else. An FFT of bar 0 heard a bare D–A fifth — neither major nor minor —
+  and bar 3 had no E in it. The progression existed only in the comments.
+- **The pulse was at half speed.** With the low drum on beats 1 and 3 only, the strongest
+  periodicity was the half bar: the measured tempo came back at **66 BPM in a track written at
+  132**, which is the original complaint reproduced exactly.
+- **Then the groove went flat.** A stroke on every eighth at similar gains made the onset
+  envelope uniform — beat, eighth and half bar all within 12% of each other. A hand drum is loud
+  on one and quiet everywhere else, and that difference is the pattern.
+
+And one measurement mistake of my own, recorded beside them: the first tempo check took the
+**argmax** of the onset autocorrelation. In 4/4 the half bar always correlates strongly, so
+argmax says nothing about whether the beat is there; the check now asks whether the one-beat lag
+is a local peak.
+
+This is the third attempt. If driving battle music is also wrong, the honest next step is a
+reference track rather than a fourth guess.
+
 **The game was too easy AND unfinishable, and both had one cause.** `BossSim.BossHp` compounded
 its growth on the **round** index while a boss is fought once per **act** — and acts are three to
 five rounds. At the authored 0.25–0.29 that is about **3.0× more health between consecutive
