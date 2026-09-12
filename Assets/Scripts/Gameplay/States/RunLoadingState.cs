@@ -3,7 +3,6 @@ using BattleRunner.Core.Audio;
 using BattleRunner.Core.Progression;
 using BattleRunner.Core.Run;
 using BattleRunner.Core.World;
-using BattleRunner.Data.Definitions;
 using BattleRunner.Meta.Services;
 
 namespace BattleRunner.Gameplay.States
@@ -21,7 +20,6 @@ namespace BattleRunner.Gameplay.States
 
         public void Enter()
         {
-            LevelDefinition level = _ctx.CurrentLevel;
 
             // The world is dressed BEFORE the road is built, so the very first frame of a
             // round is already the right place rather than the last round's place repainted.
@@ -37,8 +35,15 @@ namespace BattleRunner.Gameplay.States
             // levels cycled forever — which is why round eight used to replay round two's
             // gates. Eight chunk shapes, sequenced from the round index.
             ChunkLayout[] layouts = ChunkLayouts.BuildRound(plan);
-            _ctx.CurrentPar = ChunkLayouts.EstimateParForce(
-                layouts, level.StartingForce, _ctx.Config.Balance.SoftCap);
+
+            // THE ARMY IS CARRIED IN. It used to be set to level.StartingForce — five men —
+            // on every single round, which is the whole of "now every round the crowd shrinks
+            // to minimum". StartOfRound is what replaces it: whatever survived the last round,
+            // lifted to the permanent floor, so this number can never be smaller than it was
+            // at the start of any previous round.
+            _ctx.ArmyFloor = StandingArmy.Floor(_ctx.Profile.ArmyBestEver);
+            double army = StandingArmy.StartOfRound(_ctx.Profile.ArmyBanked, _ctx.Profile.ArmyBestEver);
+            _ctx.CurrentPar = ChunkLayouts.EstimateParForce(layouts, army);
 
             _ctx.ArenaRoot.SetActive(true);
             _ctx.TrackController.BuildLevel(layouts);
@@ -57,7 +62,7 @@ namespace BattleRunner.Gameplay.States
             _ctx.Audio.SetCombat(false);
             _ctx.Audio.Play(AudioCue.RoundStart);
 
-            _ctx.Crowd.ResetRun(level.StartingForce, 0f);
+            _ctx.Crowd.ResetRun(army, 0f);
             _ctx.CameraRig.SnapToCrowd();
 
             _ctx.CurrentStats = ProfileStatsResolver.Resolve(_ctx.Profile, _ctx.Config);
@@ -66,11 +71,10 @@ namespace BattleRunner.Gameplay.States
             _ctx.Spell.ResetForPhase();
             _ctx.Shield.ResetForPhase();
 
-            _ctx.Run = new RunState
-            {
-                ForceCount = level.StartingForce,
-                SpellCharges = 0
-            };
+            _ctx.Run = new RunState { StartingForce = army };
+            _ctx.Run.SetForce(army);
+            _ctx.Run.SpellCharges = _ctx.Spell.Charges;
+
             _ctx.LastResult = null;
         }
 

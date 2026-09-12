@@ -4,146 +4,163 @@ using NUnit.Framework;
 
 namespace BattleRunner.Tests
 {
+    /// <summary>
+    /// THIS WHOLE FIXTURE IS A DELIBERATE REWRITE, and the reason is worth stating because
+    /// the project's rule is that a pinned test is never edited quietly.
+    ///
+    /// Every assertion here used to be about ABSOLUTE arithmetic — a +5 gate adds five men,
+    /// a x3 gate triples, a soft cap converts the excess into overflow. Those were correct
+    /// statements about a game that re-mustered five men at the start of every round, and
+    /// they are meaningless in a game whose army is continuous, because that game has no
+    /// absolute gate values and no cap for anything to spill over. Keeping the old tests
+    /// passing would have required keeping the old arithmetic, which is the change.
+    ///
+    /// What survives is the INTENT of each one, re-expressed:
+    ///   Add_IncreasesForce          -> a recruit gate still pays, at any scale
+    ///   Multiply_ScalesForce        -> a rally is still worth more than a recruit
+    ///   Subtract_NeverGoesBelowZero -> an ambush still cannot make the army negative
+    ///   SoftCap_*                   -> retired; the cap is gone, and the property that
+    ///                                  replaces it is scale invariance, tested below
+    ///   MultiplyChain_NeverOverflows-> replaced by a full-campaign range test
+    ///   RandomizedSequences_*       -> kept, against the new reference arithmetic
+    ///   OverflowBonus_*             -> now SurplusToBonusMultiplier, same curve shape
+    /// </summary>
     [TestFixture]
     public class GateMathTests
     {
-        private const long Cap = 100_000;
-
         [Test]
-        public void Add_IncreasesForce()
+        public void ARecruitGateIsWorthTheSameShareAtEveryScale()
         {
-            Assert.AreEqual(15, GateMath.ApplyGate(10, GateOp.Add, 5, Cap, out long overflow));
-            Assert.AreEqual(0, overflow);
+            // The whole point of the change: a gate cannot become irrelevant as the army
+            // grows, because what it gives is measured in the army it meets.
+            double small = GateMath.ApplyGate(50.0, GateOp.Add, 1, 0) / 50.0;
+            double huge = GateMath.ApplyGate(50e12, GateOp.Add, 1, 0) / 50e12;
+            Assert.AreEqual(small, huge, 1e-9,
+                "a recruit gate must pay the same ratio at fifty men and at fifty trillion");
+            Assert.Greater(small, 1.0);
         }
 
         [Test]
-        public void Multiply_ScalesForce()
+        public void ARallyIsWorthMoreThanARecruit()
         {
-            Assert.AreEqual(30, GateMath.ApplyGate(10, GateOp.Multiply, 3, Cap, out _));
+            Assert.Greater(GateMath.Factor(GateOp.Multiply, 1, 0),
+                GateMath.Factor(GateOp.Add, 1, 0),
+                "the golden arch has to be the gate worth steering for");
         }
 
         [Test]
-        public void Subtract_NeverGoesBelowZero()
+        public void AnAmbushTakesForceAndNeverGoesBelowZero()
         {
-            Assert.AreEqual(0, GateMath.ApplyGate(10, GateOp.Subtract, 25, Cap, out _));
+            Assert.Less(GateMath.ApplyGate(100.0, GateOp.Subtract, 1, 0), 100.0);
+            Assert.GreaterOrEqual(GateMath.ApplyGate(100.0, GateOp.Subtract, 9, 40), 0.0);
+            Assert.AreEqual(0.0, GateMath.ApplyGate(0.0, GateOp.Subtract, 3, 0));
         }
 
         [Test]
-        public void MultiplyByZero_IsZero()
+        public void NoSingleAmbushCanTakeTheWholeArmy()
         {
-            Assert.AreEqual(0, GateMath.ApplyGate(10, GateOp.Multiply, 0, Cap, out _));
+            // A gate that could zero the army in one touch would make the run a coin flip
+            // rather than a sequence of decisions, however deep the round got.
+            for (int depth = 0; depth < 60; depth++)
+                for (int weight = 1; weight <= 6; weight++)
+                {
+                    double left = GateMath.ApplyGate(1000.0, GateOp.Subtract, weight, depth);
+                    Assert.Greater(left, 0.0, $"weight {weight} at depth {depth} wiped the army");
+                }
         }
 
         [Test]
-        public void SoftCap_ConvertsExcessToOverflow()
+        public void TheRedSideScalesWithDepthAndTheGreenSideDoesNot()
         {
-            long force = GateMath.ApplyGate(60_000, GateOp.Multiply, 3, Cap, out long overflow);
-            Assert.AreEqual(Cap, force);
-            Assert.AreEqual(80_000, overflow);
+            // The difficulty asked for, as an assertion. If this ever flips, the run has
+            // stopped getting harder as it goes on.
+            Assert.Less(GateMath.Factor(GateOp.Subtract, 1, 12),
+                GateMath.Factor(GateOp.Subtract, 1, 0),
+                "an ambush must bite harder deeper into a round");
+            Assert.AreEqual(GateMath.Factor(GateOp.Add, 1, 0),
+                GateMath.Factor(GateOp.Add, 1, 12), 1e-12,
+                "a recruit gate must NOT scale with depth, or the two cancel out");
         }
 
         [Test]
-        public void MultiplyChain_NeverOverflowsLong()
+        public void TheSignShowsAHeadcountEvenWhenTheShareIsTiny()
         {
-            long force = 2;
-            for (int i = 0; i < 80; i++)
-                force = GateMath.ApplyGate(force, GateOp.Multiply, 1000, long.MaxValue - 1, out _);
-            Assert.Greater(force, 0, "saturating multiply must never wrap negative");
+            // A gate reading "+0" in front of a player about to gain from it is a lie about
+            // the mechanic, and at ten men a 3% share rounds to nothing.
+            Assert.AreEqual(1L, GateMath.Headcount(10.0, GateOp.Add, 1, 0));
+            Assert.AreEqual(-1L, GateMath.Headcount(3.0, GateOp.Subtract, 1, 0));
+            Assert.Greater(GateMath.Headcount(1_000_000.0, GateOp.Add, 1, 0), 1000L);
         }
 
         [Test]
-        public void RandomizedSequences_MatchReferenceArithmetic()
+        public void NegativeGateWeightThrows()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(
+                () => GateMath.ApplyGate(10.0, GateOp.Add, -1, 0));
+        }
+
+        [Test]
+        public void RandomizedSequencesMatchReferenceArithmetic()
         {
             var random = new Random(1234);
             for (int trial = 0; trial < 500; trial++)
             {
-                long force = random.Next(0, 500);
-                long expected = force;
-                long totalOverflow = 0;
+                double force = random.Next(1, 500);
+                double expected = force;
                 for (int g = 0; g < 12; g++)
                 {
                     var op = (GateOp)random.Next(0, 3);
-                    int value = op == GateOp.Multiply ? random.Next(0, 5) : random.Next(0, 200);
-                    force = GateMath.ApplyGate(force, op, value, Cap, out long overflow);
-                    totalOverflow += overflow;
+                    int weight = random.Next(0, 4);
+                    int depth = random.Next(0, 20);
+                    force = GateMath.ApplyGate(force, op, weight, depth);
 
-                    expected = op switch
+                    double factor = op switch
                     {
-                        GateOp.Add => expected + value,
-                        GateOp.Multiply => expected * value,
-                        _ => Math.Max(0, expected - value)
+                        GateOp.Add => 1.0 + GateMath.RecruitShare * weight,
+                        GateOp.Multiply => 1.0 + GateMath.RallyShare * weight,
+                        _ => 1.0 - Math.Min(GateMath.AmbushShareMax,
+                            (GateMath.AmbushShare + GateMath.AmbushDepthStep * depth) * weight)
                     };
-                    if (expected > Cap) expected = Cap; // reference clamps too; overflow tracked separately
+                    expected = Math.Max(0.0, expected * factor);
                 }
-                Assert.AreEqual(expected, force, $"trial {trial} diverged");
-                Assert.GreaterOrEqual(totalOverflow, 0);
+                Assert.AreEqual(expected, force, Math.Abs(expected) * 1e-9,
+                    $"trial {trial} diverged");
             }
         }
 
         [Test]
-        public void OverflowBonus_IsOneWithoutOverflow_AndGrowsDiminishingly()
+        public void YieldAmplifiesWhatAGateGainedAndNeverSoftensALoss()
         {
-            Assert.AreEqual(1f, GateMath.OverflowToBonusMultiplier(0, Cap));
-            float small = GateMath.OverflowToBonusMultiplier(Cap, Cap);
-            float large = GateMath.OverflowToBonusMultiplier(Cap * 8, Cap);
+            double plain = GateMath.ApplyGate(100.0, GateOp.Add, 1, 0);
+            double yielded = GateMath.ApplyGateWithYield(100.0, GateOp.Add, 1, 0, 0.5);
+            Assert.AreEqual((plain - 100.0) * 1.5, yielded - 100.0, 1e-9);
+
+            // Same rule for the arch: the GAIN is scaled, not the factor.
+            double rallyPlain = GateMath.ApplyGate(100.0, GateOp.Multiply, 1, 0);
+            double rallyYielded = GateMath.ApplyGateWithYield(100.0, GateOp.Multiply, 1, 0, 0.5);
+            Assert.AreEqual((rallyPlain - 100.0) * 1.5, rallyYielded - 100.0, 1e-9);
+
+            // A loss is untouched. Yield is a reward, not a shield.
+            Assert.AreEqual(GateMath.ApplyGate(100.0, GateOp.Subtract, 1, 0),
+                GateMath.ApplyGateWithYield(100.0, GateOp.Subtract, 1, 0, 0.5), 1e-9);
+
+            // And zero yield changes nothing at all, which is what makes it safe to thread
+            // through a path every player runs.
+            Assert.AreEqual(plain, GateMath.ApplyGateWithYield(100.0, GateOp.Add, 1, 0, 0.0), 1e-12);
+        }
+
+        [Test]
+        public void SurplusBonusIsOneWithoutGrowthAndThenDiminishes()
+        {
+            Assert.AreEqual(1f, GateMath.SurplusToBonusMultiplier(100.0, 100.0));
+            Assert.AreEqual(1f, GateMath.SurplusToBonusMultiplier(50.0, 100.0),
+                "a round that lost ground must not pay a bonus");
+
+            float small = GateMath.SurplusToBonusMultiplier(200.0, 100.0);
+            float large = GateMath.SurplusToBonusMultiplier(1600.0, 100.0);
             Assert.Greater(small, 1f);
             Assert.Greater(large, small);
-            float gainSmall = small - 1f;
-            float gainLarge = large - small;
-            Assert.Less(gainLarge / 7f, gainSmall, "per-overflow gain must diminish");
-        }
-
-        [Test]
-        public void NegativeGateValue_Throws()
-        {
-            Assert.Throws<ArgumentOutOfRangeException>(
-                () => GateMath.ApplyGate(10, GateOp.Add, -1, Cap, out _));
-        }
-
-        // --- Gate yield (skill tree) --------------------------------------------------
-
-        [Test]
-        public void GateYield_AmplifiesWhatAnAddGatePaid()
-        {
-            long result = GateMath.ApplyGateWithYield(100, GateOp.Add, 10, 100_000, 0.20f, out _);
-            Assert.AreEqual(112, result, "gained 10, +20% yield = 12");
-        }
-
-        [Test]
-        public void GateYield_AmplifiesAMultiplierByTheSameRule()
-        {
-            // x2 on 50 gains 50; +20% of the GAIN is 60, not 120.
-            long result = GateMath.ApplyGateWithYield(50, GateOp.Multiply, 2, 100_000, 0.20f, out _);
-            Assert.AreEqual(110, result);
-        }
-
-        [Test]
-        public void GateYield_NeverSoftensALoss()
-        {
-            long withYield = GateMath.ApplyGateWithYield(100, GateOp.Subtract, 30, 100_000, 0.50f, out _);
-            long without = GateMath.ApplyGate(100, GateOp.Subtract, 30, 100_000, out _);
-            Assert.AreEqual(without, withYield, "yield is a reward, not a shield");
-        }
-
-        [Test]
-        public void GateYield_OfZeroChangesNothing()
-        {
-            foreach (GateOp op in new[] { GateOp.Add, GateOp.Multiply, GateOp.Subtract })
-            {
-                long plain = GateMath.ApplyGate(250, op, 7, 100_000, out long o1);
-                long yielded = GateMath.ApplyGateWithYield(250, op, 7, 100_000, 0f, out long o2);
-                Assert.AreEqual(plain, yielded, $"{op} drifted at zero yield");
-                Assert.AreEqual(o1, o2);
-            }
-        }
-
-        [Test]
-        public void GateYield_StillRespectsTheSoftCap()
-        {
-            long result = GateMath.ApplyGateWithYield(99_000, GateOp.Add, 5_000, 100_000, 1.0f,
-                out long overflow);
-            Assert.AreEqual(100_000, result, "the cap holds however generous the yield");
-            Assert.Greater(overflow, 0, "everything past the cap becomes overflow");
+            Assert.Less(large - small, (small - 1f) * 7f, "per-doubling gain must diminish");
         }
     }
 }

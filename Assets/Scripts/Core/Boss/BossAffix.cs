@@ -169,9 +169,9 @@ namespace BattleRunner.Core.Boss
         /// compounded per round. See BossSim.BossHp for the measurement and the fix.
         /// </summary>
         public static float BossHp(float baseHp, float pressurePerAct, int actIndex,
-            float statDamageAtAct, float statDamageAtFirstAct, long softCap, BossAffix affix) =>
+            float statDamageAtAct, float statDamageAtFirstAct, double armyAtFight, BossAffix affix) =>
             BossSim.BossHp(baseHp, pressurePerAct, actIndex,
-                statDamageAtAct, statDamageAtFirstAct, softCap) * HpScale(affix);
+                statDamageAtAct, statDamageAtFirstAct, armyAtFight) * HpScale(affix);
 
         /// <summary>
         /// One blow's share of the crowd, CLAMPED to [0,1].

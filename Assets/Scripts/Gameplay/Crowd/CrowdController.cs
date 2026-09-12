@@ -7,7 +7,7 @@ namespace BattleRunner.Gameplay.Crowd
     /// <summary>
     /// The crowd is data, not GameObjects (doc 04): one controller owns every unit's
     /// position in plain arrays; rendering happens in CrowdRenderer via instancing.
-    /// ForceCount (long) is the source of truth for damage and UI; rendered bodies
+    /// ForceCount (double) is the source of truth for damage and UI; rendered bodies
     /// saturate at the device-tier cap.
     ///
     /// The formation is bounded to the road. Everything that needs to know where the
@@ -24,7 +24,7 @@ namespace BattleRunner.Gameplay.Crowd
         private readonly Vector2[] _slotOffsets = new Vector2[MaxSimulated];
         private readonly float[] _phases = new float[MaxSimulated];
 
-        private LongEventChannel _forceChanged;
+        private DoubleEventChannel _forceChanged;
         private int _tierCap = 200;
         private float _laneWidth = 2.2f;
 
@@ -36,14 +36,14 @@ namespace BattleRunner.Gameplay.Crowd
         private const float LeaderMargin = 0.30f;
         private const float MinLeaderOffset = 0.60f;
 
-        private long _forceCount;
+        private double _forceCount;
         private int _visibleUnits;
         private float _centerX;
         private float _targetX;
         private float _centerZ;
         private float _centerVelX;
 
-        public long ForceCount => _forceCount;
+        public double ForceCount => _forceCount;
         public int VisibleUnits => _visibleUnits;
         public float CenterX => _centerX;
         public float CenterZ => _centerZ;
@@ -64,7 +64,7 @@ namespace BattleRunner.Gameplay.Crowd
         private System.Numerics.Vector3 Envelope() =>
             CrowdMath.FormationEnvelope(_visibleUnits, _halfWidthMax);
 
-        public void Initialize(LongEventChannel forceChanged, int tierCap, float laneWidthMeters)
+        public void Initialize(DoubleEventChannel forceChanged, int tierCap, float laneWidthMeters)
         {
             _forceChanged = forceChanged;
             _tierCap = Mathf.Min(tierCap, MaxSimulated);
@@ -73,7 +73,7 @@ namespace BattleRunner.Gameplay.Crowd
             _halfWidthMax = CrowdMath.HalfWidthMaxFor(laneWidthMeters);
         }
 
-        public void ResetRun(long startingForce, float startZ)
+        public void ResetRun(double startingForce, float startZ)
         {
             _centerX = 0f;
             _targetX = 0f;
@@ -95,7 +95,7 @@ namespace BattleRunner.Gameplay.Crowd
             _targetX = lane * _laneWidth;
         }
 
-        public void SetForce(long force)
+        public void SetForce(double force)
         {
             int previous = _visibleUnits;
             _forceCount = force < 0 ? 0 : force;

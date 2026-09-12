@@ -10,8 +10,7 @@ namespace BattleRunner.Data.Definitions
         public ChunkDefinition[] Chunks;
         public BossDefinition Boss;
         public LootTableDefinition LootTable;
-        [Tooltip("Force a par player is expected to hold at the finish line — used to validate gate authoring against R4.")]
-        public long ParForceAtFinish = 150;
-        [Min(1)] public int StartingForce = 5;
+        [Tooltip("Army a par player is expected to hold at the finish — advisory, from the seed muster.")]
+        public double ParForceAtFinish = 150;
     }
 }

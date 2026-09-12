@@ -108,7 +108,7 @@ namespace BattleRunner.Gameplay.Crowd
         /// this component owns no fight state of its own beyond who is down, so a fight that
         /// ends mid-frame cannot leave a body standing in an empty arena.
         /// </summary>
-        public void SetBossSkirmish(Vector3 bossFoot, float fightSeconds, long force)
+        public void SetBossSkirmish(Vector3 bossFoot, float fightSeconds, double force)
         {
             if (!_bossSkirmish)
             {
@@ -321,7 +321,7 @@ namespace BattleRunner.Gameplay.Crowd
                 for (int g = 0; g < _gates.Count; g++)
                 {
                     GateBehaviour gate = _gates[g];
-                    if (gate == null || !gate.DrawAsCrowd || gate.Value <= 0) continue;
+                    if (gate == null || gate.Destroyed || !gate.DrawAsCrowd) continue;
                     if (gate.SinceConsumed >= gate.CrowdSeconds) continue;
 
                     bool hostile = gate.Op == GateOp.Subtract;
@@ -335,7 +335,15 @@ namespace BattleRunner.Gameplay.Crowd
                     else if (gate.SinceConsumed >= 0f) { bucket = _brawlers; already = brawlCount; }
                     else { bucket = _enemies; already = enemyCount; }
 
-                    int bodies = Mathf.Min(gate.Value, AllyDisplayCap);
+                    // FROM THE HEADCOUNT, NOT THE WEIGHT. A gate's authored number is how many
+                    // SHARES it is worth now, so drawing `Value` men would put one or two
+                    // soldiers in the road in front of an army of a billion. The resolved
+                    // headcount is what the sign says, so it is what the crowd must be.
+                    long men = BattleRunner.Core.Run.GateMath.Headcount(
+                        _crowd.ForceCount, gate.Op, gate.Weight, gate.Depth);
+                    if (men == 0L) continue;
+                    int bodies = (int)Mathf.Min(Mathf.Abs(men), AllyDisplayCap);
+                    if (bodies <= 0) continue;
                     bodies = Mathf.Min(bodies, MaxInstances - already);
                     if (bodies <= 0) continue;
 

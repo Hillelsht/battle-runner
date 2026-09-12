@@ -115,7 +115,7 @@ namespace BattleRunner.Core.Boss
         /// appeared. Always at least one while the army exists: a boss fight with nobody
         /// visibly fighting is the bug this class removes.
         /// </summary>
-        public static int Fighters(long force)
+        public static int Fighters(double force)
         {
             if (force <= 0) return 0;
             double want = 4.0 + Math.Sqrt(force) * 1.15;

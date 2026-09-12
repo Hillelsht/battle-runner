@@ -136,11 +136,17 @@ namespace BattleRunner.Core.Progression
             Minor("wl_temper", SkillBranch.Warlord, 2, 5, "Temper", "+8% spell damage",
                 Flat(StatIds.SpellPower, 0.08f)),
             Notable("wl_echo", SkillBranch.Warlord, 2, "Echoing Word",
-                "12% chance the spell casts twice", "wl_lance",
+                "12% chance the spell casts twice", "wl_lance|wl_quiver",
                 Flat(StatIds.SpellEcho, 0.12f)),
             Notable("wl_lance", SkillBranch.Warlord, 2, "Sunder",
-                "+22% spell damage, +6 Might", "wl_echo",
+                "+22% spell damage, +6 Might", "wl_echo|wl_quiver",
                 Flat(StatIds.SpellPower, 0.22f), Flat(StatIds.Damage, 6f)),
+            // THE SPELL IS A MAGAZINE NOW, and this is the line that buys it. A second cast
+            // matters most on the road, where the spell destroys red gates as well as packs
+            // and a single chunk can put three ambushes in front of you at once.
+            Notable("wl_quiver", SkillBranch.Warlord, 2, "Full Quiver",
+                "Hold a second spell", "wl_echo|wl_lance",
+                Flat(StatIds.SpellCharges, 1f)),
 
             Minor("wl_grind", SkillBranch.Warlord, 3, 5, "Whetstone", "+5 Might",
                 Flat(StatIds.Damage, 5f)),
@@ -160,8 +166,11 @@ namespace BattleRunner.Core.Progression
                 "Execute threshold +7%", "wl_swift",
                 Flat(StatIds.Execute, 0.07f)),
             Notable("wl_swift", SkillBranch.Warlord, 4, "Swiftness",
-                "+9% Focus, 10% spell echo", "wl_reap",
+                "+9% Focus, 10% spell echo", "wl_reap|wl_arsenal",
                 Flat(StatIds.Cooldown, 0.09f), Flat(StatIds.SpellEcho, 0.10f)),
+            Notable("wl_arsenal", SkillBranch.Warlord, 4, "Arsenal",
+                "Hold a third spell", "wl_reap|wl_swift",
+                Flat(StatIds.SpellCharges, 1f)),
 
             Minor("wl_malice", SkillBranch.Warlord, 5, 5, "Malice", "+6% Might",
                 Pct(StatIds.Damage, 0.06f)),
@@ -180,8 +189,9 @@ namespace BattleRunner.Core.Progression
                 "Execute threshold +20%", "wl_annihilation|wl_tempest",
                 Flat(StatIds.Execute, 0.20f)),
             Keystone("wl_tempest", SkillBranch.Warlord, "TEMPEST",
-                "45% spell echo, +25% Focus", "wl_annihilation|wl_headsman",
-                Flat(StatIds.SpellEcho, 0.45f), Flat(StatIds.Cooldown, 0.25f)),
+                "Two more spells, 45% echo, +25% Focus", "wl_annihilation|wl_headsman",
+                Flat(StatIds.SpellEcho, 0.45f), Flat(StatIds.Cooldown, 0.25f),
+                Flat(StatIds.SpellCharges, 2f)),
 
             // ================= WARDEN — survive ====================================
             Minor("wd_hide", SkillBranch.Warden, 1, 5, "Thick Hide", "+18 Vigor",
@@ -198,6 +208,14 @@ namespace BattleRunner.Core.Progression
             Notable("wd_shatter", SkillBranch.Warden, 2, "Shatterguard",
                 "14% chance a pack shatters and costs nothing", "wd_bulwark",
                 Flat(StatIds.PackShatter, 0.14f)),
+            // THE SHIELD IS A MAGAZINE NOW, so how many raises you hold is a separate thing
+            // to buy from how long each one lasts and how fast they return. One extra raise
+            // at tier 2, a second at tier 4, a third on the keystone: three points across a
+            // whole branch, because a charge is worth far more than a tenth of a second of
+            // uptime and pricing them the same would make duration dead.
+            Notable("wd_doubleguard", SkillBranch.Warden, 2, "Doubleguard",
+                "Hold a second shield raise", "wd_bulwark|wd_shatter",
+                Flat(StatIds.ShieldCharges, 1f)),
             Notable("wd_bulwark", SkillBranch.Warden, 2, "Bulwark",
                 "Shield holds 1s longer, +30 Vigor", "wd_shatter",
                 Flat(StatIds.ShieldDuration, 1.0f), Flat(StatIds.Health, 30f)),
@@ -211,6 +229,8 @@ namespace BattleRunner.Core.Progression
             Notable("wd_reflect", SkillBranch.Warden, 3, "Riposte",
                 "A blocked blow returns 25% of it to the boss", null,
                 Flat(StatIds.ShieldReflect, 0.25f)),
+            Minor("wd_ready", SkillBranch.Warden, 3, 5, "At the Ready", "Shields return 4% sooner",
+                Flat(StatIds.Cooldown, 0.04f)),
 
             Minor("wd_bastion", SkillBranch.Warden, 4, 5, "Bastion", "+6% Vigor",
                 Pct(StatIds.Health, 0.06f)),
@@ -220,8 +240,11 @@ namespace BattleRunner.Core.Progression
                 "Once per run, death restores 30% of your army", "wd_aegis",
                 Flat(StatIds.SecondWind, 0.30f)),
             Notable("wd_aegis", SkillBranch.Warden, 4, "Aegis",
-                "Shield holds 1.4s longer, 18% shatter", "wd_wind",
+                "Shield holds 1.4s longer, 18% shatter", "wd_wind|wd_triguard",
                 Flat(StatIds.ShieldDuration, 1.4f), Flat(StatIds.PackShatter, 0.18f)),
+            Notable("wd_triguard", SkillBranch.Warden, 4, "Triguard",
+                "Hold a third shield raise", "wd_wind|wd_aegis",
+                Flat(StatIds.ShieldCharges, 1f)),
 
             Minor("wd_iron", SkillBranch.Warden, 5, 5, "Ironbound", "+34 Vigor",
                 Flat(StatIds.Health, 34f)),
@@ -239,9 +262,13 @@ namespace BattleRunner.Core.Progression
             Keystone("wd_immovable", SkillBranch.Warden, "IMMOVABLE",
                 "Packs cost 40% less, 30% shatter", "wd_undying|wd_mirror",
                 Flat(StatIds.EnemyResist, 0.40f), Flat(StatIds.PackShatter, 0.30f)),
+            // The charge payoff is folded into an EXISTING keystone rather than added as a
+            // fourth. Three mutually exclusive keystones per branch is a design rule with a
+            // test on it, and quietly making it four to fit a new stat in would be changing
+            // the shape of every build in the game to avoid an edit.
             Keystone("wd_mirror", SkillBranch.Warden, "MIRROR OF THORNS",
-                "Blocked blows return 90%, shield holds 2s longer", "wd_undying|wd_immovable",
-                Flat(StatIds.ShieldReflect, 0.90f), Flat(StatIds.ShieldDuration, 2.0f)),
+                "Two more shield raises, blocked blows return 90%", "wd_undying|wd_immovable",
+                Flat(StatIds.ShieldReflect, 0.90f), Flat(StatIds.ShieldCharges, 2f)),
 
             // ================= ZEALOT — grow the army ==============================
             Minor("zl_avarice", SkillBranch.Zealot, 1, 5, "Avarice", "+3% from every gate",

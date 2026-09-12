@@ -42,16 +42,16 @@ namespace BattleRunner.Core.Feel
         /// half strength, two is full. 10 to 20 therefore lands exactly as hard as
         /// 1000 to 2000, which is the whole point.
         /// </summary>
-        private static float Ratio(long before, long after)
+        private static float Ratio(double before, double after)
         {
-            if (before <= 0L) return after > 0L ? 1f : 0f;
-            double r = (double)after / before;
+            if (before <= 0.0) return after > 0.0 ? 1f : 0f;
+            double r = after / before;
             if (r <= 0.0) return 1f;
             double octaves = Math.Abs(Math.Log(r, 2.0));
             return (float)Math.Min(1.0, octaves / 2.0);
         }
 
-        public static CameraFeel ForGate(GateOp op, long before, long after)
+        public static CameraFeel ForGate(GateOp op, double before, double after)
         {
             float m = Ratio(before, after);
             // Multiply gets slightly more punch than Add at the same ratio: it is the
@@ -63,14 +63,14 @@ namespace BattleRunner.Core.Feel
         }
 
         /// <summary>An enemy pack biting into the army.</summary>
-        public static CameraFeel ForLoss(long before, long after)
+        public static CameraFeel ForLoss(double before, double after)
         {
             float m = Ratio(before, after);
             return new CameraFeel(0.18f + 0.42f * m, -0.05f - 0.10f * m);
         }
 
         /// <summary>A boss blow. A blocked one is a fixed, lighter thud.</summary>
-        public static CameraFeel ForBossStrike(long before, long after, bool blocked)
+        public static CameraFeel ForBossStrike(double before, double after, bool blocked)
         {
             if (blocked) return Blocked;
             float m = Ratio(before, after);

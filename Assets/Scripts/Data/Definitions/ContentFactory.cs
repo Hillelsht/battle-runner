@@ -168,27 +168,27 @@ namespace BattleRunner.Data.Definitions
                 // 0.263 linear, and BossView used to halve it first, landing the boss on a
                 // 5% reflectance — darker than the road it stands on. See BossView.Show.
                 Boss("Boss_BoneColossus", "Bone Colossus", BossArchetype.Slam,
-                    1150f, 0.042f, 4.0f, 1.20f, 0.30f,
+                    690f, 0.036f, 4.0f, 1.20f, 0.30f,
                     new Color(0.78f, 0.74f, 0.66f), new Color(1.40f, 0.50f, 0.20f)),
 
                 Boss("Boss_EmberLich", "Ember Lich", BossArchetype.Volley,
-                    1330f, 0.047f, 4.4f, 1.10f, 0.30f,
+                    798f, 0.040f, 4.4f, 1.10f, 0.30f,
                     new Color(0.95f, 0.52f, 0.22f), new Color(1.60f, 0.62f, 0.18f)),
 
                 Boss("Boss_GraveWarden", "Grave Warden", BossArchetype.Warded,
-                    1450f, 0.052f, 3.8f, 1.30f, 0.34f,
+                    870f, 0.044f, 3.8f, 1.30f, 0.34f,
                     new Color(0.52f, 0.62f, 0.72f), new Color(0.45f, 1.10f, 1.55f)),
 
                 Boss("Boss_HollowLeech", "Hollow Leech", BossArchetype.Drain,
-                    1320f, 0.050f, 5.0f, 1.10f, 0.26f,
+                    792f, 0.042f, 5.0f, 1.10f, 0.26f,
                     new Color(0.44f, 0.66f, 0.50f), new Color(0.55f, 1.50f, 0.62f)),
 
                 Boss("Boss_PaleShepherd", "Pale Shepherd", BossArchetype.Summoner,
-                    1390f, 0.057f, 4.6f, 1.25f, 0.22f,
+                    834f, 0.047f, 4.6f, 1.25f, 0.22f,
                     new Color(0.72f, 0.60f, 0.86f), new Color(1.15f, 0.55f, 1.60f)),
 
                 Boss("Boss_GoreHound", "Gore Hound", BossArchetype.Enrage,
-                    1510f, 0.062f, 3.6f, 0.95f, 0.28f,
+                    906f, 0.051f, 3.6f, 0.95f, 0.28f,
                     new Color(0.80f, 0.34f, 0.30f), new Color(1.70f, 0.30f, 0.22f))
             };
         }
@@ -227,14 +227,12 @@ namespace BattleRunner.Data.Definitions
                 level.Chunks = BuildChunksForLevel(i);
                 level.Boss = bosses[i % bosses.Length];
                 level.LootTable = lootTable;
-                level.StartingForce = 5;
-                // Advisory only now: the runtime computes par from the round it is actually
-                // building (GameContext.CurrentPar), because a level asset cannot know which
-                // round is being played. Kept on the asset so designer-facing content still
-                // carries a sensible number.
+                // Advisory only: the runtime computes par from the round it is actually
+                // building AND from the army that walks into it (GameContext.CurrentPar),
+                // because a level asset can know neither. Quoted from the seed muster so the
+                // designer-facing number still means something concrete.
                 level.ParForceAtFinish = ChunkLayouts.EstimateParForce(
-                    ChunkLayouts.BuildRound(RoundPlan.For(i)), level.StartingForce,
-                    BalanceSettings.DefaultSoftCap);
+                    ChunkLayouts.BuildRound(RoundPlan.For(i)), StandingArmy.Seed);
                 levels[i] = level;
             }
             return levels;

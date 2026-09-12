@@ -41,9 +41,9 @@ namespace BattleRunner.Core.Boss
         /// It is also half of the fix for the difficulty treadmill, because BossHp is scaled
         /// by this same function at the force the act expects — see there.
         /// </summary>
-        public static float CrowdFactor(long force)
+        public static float CrowdFactor(double force)
         {
-            if (force <= 0L) return 1f;
+            if (force <= 0.0 || double.IsNaN(force)) return 1f;
             double t = force <= CrowdKnee
                 ? Math.Pow(force, CrowdExponentLow)
                 : Math.Pow(CrowdKnee, CrowdExponentLow)
@@ -59,42 +59,33 @@ namespace BattleRunner.Core.Boss
 
         /// <summary>
         /// Player damage per second against the boss: the hero's Damage stat scaled by crowd
-        /// size and the overflow bonus from over-cap gates.
+        /// size and the bonus earned by growing the army hard during the round.
         /// </summary>
-        public static float PlayerDps(RunResult result, long softCap)
+        public static float PlayerDps(RunResult result)
         {
             if (result == null) throw new ArgumentNullException(nameof(result));
             float damage = result.HeroStats?.Get(StatIds.Damage) ?? 0f;
-            long force = Math.Max(0L, result.FinalForceCount);
-            return Math.Max(0f, damage) * CrowdFactor(force) * result.OverflowBonus(softCap);
+            double force = Math.Max(0.0, result.FinalForceCount);
+            return Math.Max(0f, damage) * CrowdFactor(force) * result.SurplusBonus();
         }
 
         /// <summary>
-        /// The army a competent player brings to the boss of act <paramref name="actIndex"/>.
+        /// The army a brand new profile musters, and the anchor every boss is priced against.
         ///
-        /// Not a guess about skill: it is what the generator hands out. Gate values scale with
-        /// depth and rounds get longer per act, so the force reaching a boss roughly doubles
-        /// each act until the soft cap stops it — after which it is FLAT, and that flatness is
-        /// the single most important fact about this game's late difficulty.
+        /// THIS REPLACED A MODEL, AND THAT IS THE POINT. Until now the boss was priced against
+        /// ExpectedForceAtAct — 60 * 2.2^act, capped — a closed-form guess at what a competent
+        /// player would be carrying. That guess was reasonable while the army was reset to five
+        /// every round and the soft cap put a ceiling over the whole game. With the army
+        /// continuous there is no such curve to guess: simulated over sixty rounds, a player at
+        /// skill 0.80 ends with 1.1e17 men and one at 0.90 with 2.2e19, and no fixed ladder can
+        /// be fair to both. A boss priced for the ladder is a formality for one of them and a
+        /// wall for the other.
+        ///
+        /// So the boss is priced against the army that ACTUALLY WALKS INTO IT, and the act
+        /// index now carries only the pressure — "each fight is harder than the last" — which
+        /// is all it was ever meant to say.
         /// </summary>
-        public static long ExpectedForceAtAct(int actIndex, long softCap)
-        {
-            if (actIndex < 0) actIndex = 0;
-            if (softCap <= 0L) return 0L;
-            double f = FirstBossForce * Math.Pow(ForcePerAct, Math.Min(actIndex, ExponentGuard));
-            return f >= softCap ? softCap : (long)f;
-        }
-
-        private const double FirstBossForce = 60.0;
-        private const double ForcePerAct = 2.2;
-
-        /// <summary>
-        /// Only an overflow guard, NOT where the army stops growing — the soft cap decides
-        /// that, and at these numbers it bites at act 10. Capping the exponent at 9 instead
-        /// was a first draft, and it quietly meant the model believed the army kept growing
-        /// past a cap it had already hit; a test caught it.
-        /// </summary>
-        private const int ExponentGuard = 40;
+        public const double SeedArmy = StandingArmy.Seed;
 
         /// <summary>
         /// Boss HP for the boss of one ACT.
@@ -110,8 +101,10 @@ namespace BattleRunner.Core.Boss
         /// So the boss is priced against WHAT THE PLAYER PROVABLY HAS at that depth:
         ///
         ///   * the army it will face, through the same CrowdFactor its damage is multiplied
-        ///     by, at the force the act expects. When the soft cap flattens the army, it
-        ///     flattens the boss too, automatically and for the same reason.
+        ///     by, at the force that army ACTUALLY reaches the fight with. The two terms are
+        ///     the same function of the same number, so they cancel: the fight lasts about as
+        ///     long whether the player arrives with a thousand men or a trillion, and what
+        ///     decides it is the shield, the spell and the affix rather than the run's luck.
         ///   * the stat points the game has handed out by then, which is arithmetic the
         ///     balance settings already fix.
         ///
@@ -125,15 +118,14 @@ namespace BattleRunner.Core.Boss
         /// 9 seconds rising to two hours.
         /// </summary>
         public static float BossHp(float baseHp, float pressurePerAct, int actIndex,
-            float statDamageAtAct, float statDamageAtFirstAct, long softCap)
+            float statDamageAtAct, float statDamageAtFirstAct, double armyAtFight)
         {
             if (baseHp <= 0f) throw new ArgumentOutOfRangeException(nameof(baseHp));
             if (actIndex < 0) throw new ArgumentOutOfRangeException(nameof(actIndex));
             if (statDamageAtFirstAct <= 0f)
                 throw new ArgumentOutOfRangeException(nameof(statDamageAtFirstAct));
 
-            float army = CrowdFactor(ExpectedForceAtAct(actIndex, softCap))
-                         / CrowdFactor(ExpectedForceAtAct(0, softCap));
+            float army = CrowdFactor(Math.Max(SeedArmy, armyAtFight)) / CrowdFactor(SeedArmy);
             float stats = Math.Max(0f, statDamageAtAct) / statDamageAtFirstAct;
             float screw = (float)Math.Pow(1.0 + Math.Max(0f, pressurePerAct), actIndex);
             return baseHp * army * stats * screw;
@@ -215,15 +207,14 @@ namespace BattleRunner.Core.Boss
         /// a large one, and rounded UP only when it would otherwise round to nothing — a
         /// drain that shows as zero for a whole second reads as a broken mechanic.
         /// </summary>
-        public static long DrainTick(BossArchetype archetype, long force, float hitFraction,
+        public static double DrainTick(BossArchetype archetype, double force, float hitFraction,
             float seconds, bool shieldActive)
         {
-            if (archetype != BossArchetype.Drain || shieldActive || force <= 0 || seconds <= 0f)
-                return 0L;
+            if (archetype != BossArchetype.Drain || shieldActive || force <= 0.0 || seconds <= 0f)
+                return 0.0;
             double rate = Math.Max(0f, hitFraction) * 0.20;   // per second, of current force
             double loss = force * rate * seconds;
-            if (loss <= 0.0) return 0L;
-            return Math.Max(1L, (long)Math.Floor(loss));
+            return loss <= 0.0 ? 0.0 : Math.Min(force, loss);
         }
 
         /// <summary>The ward a Warded boss raises, in HP.</summary>
@@ -266,17 +257,15 @@ namespace BattleRunner.Core.Boss
         /// <summary>
         /// What un-cleared adds cost the crowd when the next cycle comes round.
         ///
-        /// Proportional per add, with a floor of one unit each: a flat cost would be
-        /// meaningless to a crowd of four hundred and lethal to a crowd of twenty, and the
-        /// same fight has to work at both ends. The floor is what stops "ignore the adds"
-        /// from becoming correct against a small army that has already rounded the
-        /// percentage away to nothing.
+        /// Proportional per add: a flat cost would be meaningless to a crowd of four hundred
+        /// and lethal to a crowd of twenty, and the same fight has to work at both ends. The
+        /// floor of one unit each that used to sit here is gone with the integer force — a
+        /// share of a continuous army never rounds away to nothing in the first place.
         /// </summary>
-        public static long AddBite(int adds, long force)
+        public static double AddBite(int adds, double force)
         {
-            if (adds <= 0 || force <= 0) return 0L;
-            long bite = adds * (long)Math.Ceiling(force * 0.06);
-            return Math.Min(force, Math.Max(adds, bite));
+            if (adds <= 0 || force <= 0.0) return 0.0;
+            return Math.Min(force, adds * force * 0.06);
         }
 
         /// <summary>
@@ -284,7 +273,7 @@ namespace BattleRunner.Core.Boss
         /// otherwise the attack removes a fraction of current force, cushioned by the
         /// hero's Health stat (100 Health halves losses).
         /// </summary>
-        public static long ApplyBossHit(long force, float hitFraction, float heroHealth, bool shieldActive) =>
+        public static double ApplyBossHit(double force, float hitFraction, float heroHealth, bool shieldActive) =>
             ApplyBossHit(force, hitFraction, heroHealth, shieldActive, force);
 
         /// <summary>
@@ -311,11 +300,11 @@ namespace BattleRunner.Core.Boss
         /// the four-argument overload above delegates here and every existing test is
         /// untouched rather than rewritten.
         /// </summary>
-        public static long ApplyBossHit(long force, float hitFraction, float heroHealth,
-            bool shieldActive, long referenceForce)
+        public static double ApplyBossHit(double force, float hitFraction, float heroHealth,
+            bool shieldActive, double referenceForce)
         {
             if (hitFraction < 0f || hitFraction > 1f) throw new ArgumentOutOfRangeException(nameof(hitFraction));
-            if (shieldActive || force <= 0) return Math.Max(0L, force);
+            if (shieldActive || force <= 0.0) return Math.Max(0.0, force);
             if (referenceForce < force) referenceForce = force;
 
             // Everything in double: float intermediates round differently across
@@ -323,14 +312,8 @@ namespace BattleRunner.Core.Boss
             // 400.0000059), which silently changed how much force a hit removed.
             double mitigation = 1.0 / (1.0 + Math.Max(0f, heroHealth) / 100.0);
             double basis = (1.0 - OpeningForceWeight) * force + OpeningForceWeight * referenceForce;
-            double raw = basis * (double)hitFraction * mitigation;
-
-            // A float fraction puts an exact result a hair ABOVE itself, so a naive
-            // Ceiling turns a clean 40% of 1000 into 401. Nudge down by a relative
-            // epsilon so whole results stay whole, while genuine fractions still
-            // round up (a hit that lands always costs at least one unit).
-            long losses = (long)Math.Ceiling(raw - Math.Abs(raw) * 1e-6);
-            return Math.Max(0L, force - losses);
+            double losses = basis * (double)hitFraction * mitigation;
+            return Math.Max(0.0, force - losses);
         }
 
         /// <summary>
@@ -355,28 +338,24 @@ namespace BattleRunner.Core.Boss
         ///   - Tiny per beat, so it can colour a fight without ever deciding one.
         ///   - Scaled by Health identically, so the stat means the same thing in both places.
         ///
-        /// Rounds DOWN, with a floor of one whenever the army is large enough to lose one.
-        /// Rounding up, as a real blow does, would make a 0.14% bite cost an army of five the
-        /// same as an army of five thousand and quietly wipe small crowds.
+        /// It can never take the last man, which is the one clamp here that is a design
+        /// decision rather than an arithmetic one.
         /// </summary>
-        public static long MaulBite(long force, float fraction, float heroHealth)
+        public static double MaulBite(double force, float fraction, float heroHealth)
         {
-            if (force <= 0L || fraction <= 0f) return 0L;
+            if (force <= 0.0 || fraction <= 0f) return 0.0;
             if (fraction > 1f) fraction = 1f;
 
             double mitigation = 1.0 / (1.0 + Math.Max(0f, heroHealth) / 100.0);
-            double raw = force * (double)fraction * mitigation;
+            double bite = force * (double)fraction * mitigation;
 
-            // A relative epsilon UPWARD, the mirror of the nudge ApplyBossHit applies
-            // downward and for the same reason: a float fraction puts an exact result a hair
-            // BELOW itself, so a naive floor turns a clean 0.14% of 10 000 into 13 rather
-            // than 14. Genuine fractions still round down, which is the rule this wants.
-            long bite = (long)(raw + Math.Abs(raw) * 1e-6);
-            // At least one, but never the last man: the maul is attrition, and a fight lost to
-            // attrition alone is a fight the player was given no way to answer.
-            if (bite < 1L && raw > 0.0 && force > 1L) bite = 1L;
-            if (bite >= force) bite = force - 1L;
-            return bite < 0L ? 0L : bite;
+            // Never the last man: the maul is attrition, and a fight lost to attrition alone
+            // is a fight the player was given no way to answer. The epsilon nudges that used
+            // to live here were about integer rounding and have no meaning in a continuous
+            // army; this one clamp is all that is left of them, and it is the one that was
+            // ever about the design rather than about the arithmetic.
+            if (bite >= force) bite = force * 0.999;
+            return bite < 0.0 ? 0.0 : bite;
         }
     }
 }

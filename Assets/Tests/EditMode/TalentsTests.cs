@@ -60,54 +60,67 @@ namespace BattleRunner.Tests
         [Test]
         public void AGateWithNoTalentsMatchesThePlainArithmetic()
         {
-            long plain = GateMath.ApplyGate(40L, GateOp.Multiply, 3, Cap, out long plainOver);
-            long talented = Talents.ApplyGate(40L, GateOp.Multiply, 3, Cap, 0f, 0f, false, out long over);
-            Assert.AreEqual(plain, talented);
-            Assert.AreEqual(plainOver, over);
+            double plain = GateMath.ApplyGate(40.0, GateOp.Multiply, 2, 0);
+            double talented = Talents.ApplyGate(40.0, GateOp.Multiply, 2, 0, 0f, 0f, false);
+            Assert.AreEqual(plain, talented, 1e-12);
         }
 
         [Test]
         public void ACriticalDoublesTheGainNotThePrintedValue()
         {
-            // x3 on 40 gains 80. Doubled, it gains 160, so it lands on 200 — not on 240,
-            // which is what doubling the multiplier would have given.
-            long crit = Talents.ApplyGate(40L, GateOp.Multiply, 3, Cap, 0f, 0f, true, out _);
-            Assert.AreEqual(200L, crit);
+            // A crit doubles the GAIN, which is the only definition that behaves the same
+            // for both operators. It reads as a ratio now rather than as round numbers,
+            // because the gate itself is a ratio.
+            double gain = GateMath.ApplyGate(40.0, GateOp.Multiply, 2, 0) - 40.0;
+            Assert.AreEqual(40.0 + gain * 2.0,
+                Talents.ApplyGate(40.0, GateOp.Multiply, 2, 0, 0f, 0f, true), 1e-9);
 
-            // And the same rule reads correctly for an add: +10 gains 10, so it gains 20.
-            Assert.AreEqual(60L, Talents.ApplyGate(40L, GateOp.Add, 10, Cap, 0f, 0f, true, out _));
+            double addGain = GateMath.ApplyGate(40.0, GateOp.Add, 1, 0) - 40.0;
+            Assert.AreEqual(40.0 + addGain * 2.0,
+                Talents.ApplyGate(40.0, GateOp.Add, 1, 0, 0f, 0f, true), 1e-9);
         }
 
         [Test]
         public void ACriticalStacksMultiplicativelyOnTopOfYield()
         {
-            // 50% yield turns a gain of 80 into 120; the crit then doubles it to 240.
-            Assert.AreEqual(280L, Talents.ApplyGate(40L, GateOp.Multiply, 3, Cap, 0.5f, 0f, true, out _));
+            // 50% yield lifts the gain by half; the crit then doubles what is left.
+            double gain = GateMath.ApplyGate(40.0, GateOp.Multiply, 2, 0) - 40.0;
+            Assert.AreEqual(40.0 + gain * 3.0,
+                Talents.ApplyGate(40.0, GateOp.Multiply, 2, 0, 0.5f, 0f, true), 1e-9);
         }
 
         [Test]
         public void ACriticalNeverSoftensALoss()
         {
-            long normal = Talents.ApplyGate(100L, GateOp.Subtract, 30, Cap, 0f, 0f, false, out _);
-            long crit = Talents.ApplyGate(100L, GateOp.Subtract, 30, Cap, 2f, 3f, true, out _);
-            Assert.AreEqual(70L, normal);
-            Assert.AreEqual(normal, crit, "yield and crits are rewards, not shields");
+            double normal = Talents.ApplyGate(100.0, GateOp.Subtract, 1, 0, 0f, 0f, false);
+            double crit = Talents.ApplyGate(100.0, GateOp.Subtract, 1, 0, 2f, 3f, true);
+            Assert.Less(normal, 100.0);
+            Assert.AreEqual(normal, crit, 1e-9, "yield and crits are rewards, not shields");
         }
 
         [Test]
         public void ChainYieldAndGateYieldAddBeforeTheyAmplify()
         {
-            long a = Talents.ApplyGate(40L, GateOp.Multiply, 3, Cap, 0.25f, 0.25f, false, out _);
-            long b = Talents.ApplyGate(40L, GateOp.Multiply, 3, Cap, 0.50f, 0.00f, false, out _);
-            Assert.AreEqual(b, a);
+            double a = Talents.ApplyGate(40.0, GateOp.Multiply, 2, 0, 0.25f, 0.25f, false);
+            double b = Talents.ApplyGate(40.0, GateOp.Multiply, 2, 0, 0.50f, 0.00f, false);
+            Assert.AreEqual(b, a, 1e-9);
         }
 
+        /// <summary>
+        /// REPLACES EverythingAboveTheCapStillBecomesOverflow, which asserted that a big
+        /// enough gate chain pinned the army at 100,000 and spilled the rest. There is no
+        /// cap any more — it was the single thing that made carrying the army between rounds
+        /// unplayable, pinning a player flat by round five — so the property worth pinning
+        /// in its place is that nothing runs away without one.
+        /// </summary>
         [Test]
-        public void EverythingAboveTheCapStillBecomesOverflow()
+        public void NothingRunsAwayNowThatThereIsNoCapToStopIt()
         {
-            long result = Talents.ApplyGate(80_000L, GateOp.Multiply, 4, Cap, 1f, 1f, true, out long over);
-            Assert.AreEqual(Cap, result);
-            Assert.Greater(over, 0L);
+            double force = 5.0;
+            for (int i = 0; i < 400; i++)
+                force = Talents.ApplyGate(force, GateOp.Multiply, 3, 0, 1f, 1f, true);
+            Assert.IsFalse(double.IsInfinity(force), "a gate chain must stay a finite number");
+            Assert.Greater(force, 0.0);
         }
 
         // --- magnetism ---------------------------------------------------------
@@ -151,16 +164,22 @@ namespace BattleRunner.Tests
         [Test]
         public void AShatteredPackCostsNothing()
         {
-            Assert.AreEqual(0L, Talents.PackBite(400, 0f, true));
+            Assert.AreEqual(0.0, Talents.PackBite(400.0, 2, 0, 0f, true));
         }
 
         [Test]
         public void ResistIsCappedSoAPackAlwaysBites()
         {
-            Assert.AreEqual(400L, Talents.PackBite(400, 0f, false));
-            Assert.AreEqual(200L, Talents.PackBite(400, 0.5f, false));
-            Assert.AreEqual(60L, Talents.PackBite(400, 0.99f, false), "resist caps at 85%");
-            Assert.AreEqual(1L, Talents.PackBite(1, 0.99f, false));
+            double full = Talents.PackBite(400.0, 2, 0, 0f, false);
+            Assert.Greater(full, 0.0);
+            Assert.AreEqual(full * 0.5, Talents.PackBite(400.0, 2, 0, 0.5f, false), 1e-9);
+            Assert.AreEqual(full * 0.15, Talents.PackBite(400.0, 2, 0, 0.99f, false), full * 1e-6,
+                "resist caps at 85%");
+            // A pack is a SHARE now, so it scales with the army instead of rounding away:
+            // the old floor of one man existed because an absolute cost of three against an
+            // army of four hundred had already stopped meaning anything.
+            Assert.AreEqual(full * 1000.0, Talents.PackBite(400_000.0, 2, 0, 0f, false),
+                full * 1000.0 * 1e-9);
         }
 
         // --- overflow ----------------------------------------------------------
@@ -168,17 +187,17 @@ namespace BattleRunner.Tests
         [Test]
         public void OverflowWithoutBankingMatchesTheOriginalCurve()
         {
-            Assert.AreEqual(GateMath.OverflowToBonusMultiplier(50_000L, Cap),
-                Talents.OverflowMultiplier(50_000L, Cap, 0f), 1e-6f);
-            Assert.AreEqual(1f, Talents.OverflowMultiplier(0L, Cap, 5f));
+            Assert.AreEqual(GateMath.SurplusToBonusMultiplier(400.0, 100.0),
+                Talents.SurplusMultiplier(400.0, 100.0, 0f), 1e-6f);
+            Assert.AreEqual(1f, Talents.SurplusMultiplier(100.0, 100.0, 5f));
         }
 
         [Test]
         public void BankingScalesTheBonusAndNotTheBaseline()
         {
-            float plain = Talents.OverflowMultiplier(Cap, Cap, 0f);
-            float banked = Talents.OverflowMultiplier(Cap, Cap, 1f);
-            Assert.AreEqual(1.25f, plain, 1e-5f, "one cap of overflow is +25%");
+            float plain = Talents.SurplusMultiplier(200.0, 100.0, 0f);
+            float banked = Talents.SurplusMultiplier(200.0, 100.0, 1f);
+            Assert.AreEqual(1.25f, plain, 1e-5f, "doubling the army over a round is +25%");
             Assert.AreEqual(1.50f, banked, 1e-5f, "doubling the bonus, never the whole multiplier");
         }
 
@@ -202,11 +221,17 @@ namespace BattleRunner.Tests
         }
 
         [Test]
-        public void SecondWindRevivesAgainstParAndNeverBelowAFloor()
+        public void SecondWindRevivesAgainstTheArmyAndNeverBelowTheSeed()
         {
-            Assert.AreEqual(200L, Talents.SecondWindForce(800L, 0.25f));
-            Assert.AreEqual(10L, Talents.SecondWindForce(4L, 0.25f), "a token army is not a comeback");
-            Assert.AreEqual(10L, Talents.SecondWindForce(0L, 0.25f));
+            // AGAINST THE ARMY THAT WALKED IN, not against par. Par is a share of the best
+            // line through the round and, measured against the shipped generator, it falls
+            // below 1.0 from about round twenty — a revive sized off it would have handed a
+            // deep-run player fewer men than they started with, which is the opposite of a
+            // comeback. The floor is the seed muster rather than a hard-coded ten.
+            Assert.AreEqual(200.0, Talents.SecondWindForce(800.0, 0.25f), 1e-9);
+            Assert.AreEqual(StandingArmy.Seed, Talents.SecondWindForce(4.0, 0.25f), 1e-9,
+                "a token army is not a comeback");
+            Assert.AreEqual(StandingArmy.Seed, Talents.SecondWindForce(0.0, 0.25f), 1e-9);
         }
 
         [Test]
@@ -222,29 +247,34 @@ namespace BattleRunner.Tests
         public void AFourGateMultiplyChainOutRunsFourLoneMultiplies()
         {
             const float chainStat = 0.6f;
-            long chained = 10L;
-            long lone = 10L;
+            double chained = 10.0;
+            double lone = 10.0;
             for (int i = 0; i < 4; i++)
             {
-                chained = Talents.ApplyGate(chained, GateOp.Multiply, 2, Cap, 0f,
-                    Talents.ChainYield(i, chainStat), false, out _);
-                lone = Talents.ApplyGate(lone, GateOp.Multiply, 2, Cap, 0f, 0f, false, out _);
+                chained = Talents.ApplyGate(chained, GateOp.Multiply, 2, 0, 0f,
+                    Talents.ChainYield(i, chainStat), false);
+                lone = Talents.ApplyGate(lone, GateOp.Multiply, 2, 0, 0f, 0f, false);
             }
-            Assert.AreEqual(160L, lone);
-            Assert.Greater(chained, lone * 3, "the whole point of a chain is that it compounds");
+            Assert.Greater(chained, lone * 1.5, "the whole point of a chain is that it compounds");
         }
 
         [Test]
-        public void OverflowBankReachesTheBossThroughTheRunResult()
+        public void SurplusBankReachesTheBossThroughTheRunResult()
         {
             StatSheet stats = StatSheet.Resolve(
                 new System.Collections.Generic.Dictionary<string, float>(),
                 new[] { new StatModifier(StatIds.OverflowBank, ModifierKind.Flat, 1f) });
-            var result = new RunResult { OverflowAccumulated = Cap, HeroStats = stats };
-            Assert.AreEqual(1.50f, result.OverflowBonus(Cap), 1e-5f);
+            var result = new RunResult
+            {
+                StartingForceCount = 100.0, FinalForceCount = 200.0, HeroStats = stats
+            };
+            Assert.AreEqual(1.50f, result.SurplusBonus(), 1e-5f);
 
-            var bare = new RunResult { OverflowAccumulated = Cap, HeroStats = null };
-            Assert.AreEqual(1.25f, bare.OverflowBonus(Cap), 1e-5f);
+            var bare = new RunResult
+            {
+                StartingForceCount = 100.0, FinalForceCount = 200.0, HeroStats = null
+            };
+            Assert.AreEqual(1.25f, bare.SurplusBonus(), 1e-5f);
         }
     }
 }

@@ -7,11 +7,14 @@ namespace BattleRunner.Data.Definitions
     [CreateAssetMenu(menuName = "BattleRunner/Balance Settings", fileName = "Balance")]
     public sealed class BalanceSettings : ScriptableObject
     {
-        [Header("Force (doc 01, R4)")]
-        /// <summary>The shipped soft cap, for the few places that need it before a config exists.</summary>
-        public const long DefaultSoftCap = 100_000L;
-
-        public long SoftCap = DefaultSoftCap;
+        // THE FORCE SOFT CAP IS GONE. It was 100,000, and it was correct for a game that
+        // re-mustered five men every round: a ceiling was the only thing stopping a multiply
+        // chain from running away inside one run. With the army continuous it stops being a
+        // safety rail and becomes the whole game — simulated with the army carried over, a
+        // player is pinned at the cap by ROUND FIVE and every round after it is a flat 1.00x,
+        // with every gate on the road doing nothing measurable. Nothing needs capping now
+        // because nothing is absolute: a gate is a share, so it cannot run away in the first
+        // place. See Core/Run/GateMath.
 
         [Header("Crowd rendering tier caps (doc 04)")]
         public int TierCapLow = 100;

@@ -93,7 +93,8 @@ namespace BattleRunner.Gameplay.States
 
             _ctx.Spell.Tick(dt);
             _ctx.Shield.Tick(dt);
-            _ctx.Hud.SetCooldowns(_ctx.Spell.CooldownRemaining, _ctx.Shield.CooldownRemaining, _ctx.Shield.IsActive);
+            _ctx.Hud.SetAbilities(_ctx.Spell.Fill, _ctx.Spell.Charges, _ctx.Spell.Capacity,
+                _ctx.Shield.Fill, _ctx.Shield.Charges, _ctx.Shield.Capacity, _ctx.Shield.IsActive);
         }
 
         // Peak channels sit near 1.6, not 2.5+. These reach the GPU through a
@@ -121,14 +122,27 @@ namespace BattleRunner.Gameplay.States
 
         private void OnSpellCast()
         {
+            // FROM THE FRONT OF THE ARMY, not its centre. The crowd's leading plane stands
+            // up to CrowdMath.FrontDepthMax (7 m) ahead of the centroid, so sweeping from
+            // the centroid spent seven of the spell's fifteen metres on road the army was
+            // already standing on. What reached ahead was eight metres — under a second at
+            // the run speed — which is why the report was that the spell does nothing.
+            float from = _ctx.Crowd.FrontZ;
             float range = _ctx.Config.Spells.ClearRangeMeters;
-            int cleared = _ctx.TrackController.ClearEnemiesAhead(_ctx.Crowd.CenterZ, range);
+
+            _spellHits.Clear();
+            _ctx.TrackController.CollectAmbushesAhead(from, range, _spellHits);
+            int cleared = _ctx.TrackController.ClearAmbushesAhead(from, range);
 
             // An echo on the road clears a SECOND, longer sweep rather than firing the same
-            // one twice: the packs inside the first range are already gone, so a literal
+            // one twice: everything inside the first range is already gone, so a literal
             // second cast would do nothing at all and the talent would read as broken.
             bool echo = Talents.Rolls(_ctx.CurrentStats.Get(StatIds.SpellEcho), Random.value);
-            if (echo) cleared += _ctx.TrackController.ClearEnemiesAhead(_ctx.Crowd.CenterZ, range * 1.9f);
+            if (echo)
+            {
+                _ctx.TrackController.CollectAmbushesAhead(from, range * 1.9f, _spellHits);
+                cleared += _ctx.TrackController.ClearAmbushesAhead(from, range * 1.9f);
+            }
 
             // A BOLT, not an instant ring. The spell used to be a cause with no middle: you
             // flicked, and packs stopped existing. Now something leaves the hero, travels,
@@ -139,21 +153,50 @@ namespace BattleRunner.Gameplay.States
             var origin = new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.FrontZ);
             _ctx.Audio.Play(AudioCue.SpellCast);
             _ctx.Effects.Burst(origin, SpellTint, 8, 3.2f, 0.35f);
-            _ctx.Effects.Bolt(origin, new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.CenterZ + range),
+            _ctx.Effects.Bolt(origin, new Vector3(_ctx.Crowd.CenterX, 0f, from + range),
                 SpellTint, 45f);
             if (echo)
                 _ctx.Effects.Bolt(origin,
-                    new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.CenterZ + range * 1.9f),
+                    new Vector3(_ctx.Crowd.CenterX, 0f, from + range * 1.9f),
                     EchoTint, 45f);
 
-            if (cleared > 0)
-                Debug.Log($"[Run] Spell cleared {cleared} enemy pack(s).");
+            // EVERY THING DESTROYED GETS ITS OWN DETONATION. A single bolt landing in empty
+            // road while three red crowds silently stopped existing is exactly as unreadable
+            // as the old ring was, and it is the other half of "the spell doesn't destroy
+            // enemy packs" — an effect the player cannot see did not happen, as far as they
+            // are concerned.
+            for (int i = 0; i < _spellHits.Count; i++)
+            {
+                _ctx.Effects.Shock(_spellHits[i], SpellTint, 0.35f, 5.5f, 0.45f);
+                _ctx.Effects.Burst(_spellHits[i], SpellTint, 14, 5f, 0.55f);
+            }
+            if (cleared > 0) _ctx.Audio.Play(AudioCue.SpellHit, 0.85f);
+            _spellHits.Clear();
         }
 
-        private void OnGateApplied(GateOp op, int value, Vector3 where)
+        /// <summary>Reused so a cast never allocates; cleared on both sides of every use.</summary>
+        private readonly System.Collections.Generic.List<Vector3> _spellHits =
+            new System.Collections.Generic.List<Vector3>(8);
+
+        private void OnGateApplied(GateOp op, int weight, int depth, Vector3 where)
         {
             RunState run = _ctx.Run;
-            long before = run.ForceCount;
+            double before = run.ForceCount;
+
+            // THE SHIELD ANSWERS RED GATES NOW, and it did not before. It stopped an enemy
+            // PACK and nothing else, which left the most common red thing on the road —
+            // a subtract gate, drawn since v0.20 as a crowd of men — walking straight
+            // through a raised shield. From a player's seat those two are the same object
+            // with the same colour doing the same thing, so a shield that stops one and not
+            // the other does not read as a rule; it reads as a shield that does not work.
+            if (op == GateOp.Subtract && _ctx.Shield.IsActive)
+            {
+                _ctx.Audio.Play(AudioCue.ShieldBlock, 0.85f);
+                _ctx.Effects.Shock(where, ShatterTint, 0.5f, 6.5f, 0.5f);
+                _ctx.Effects.Burst(where, ShatterTint, 20, 5.8f, 0.6f);
+                run.GatesHit++;
+                return;
+            }
 
             // Chain counts the multiplies ALREADY landed, so it is read before this gate is
             // folded in — otherwise the first multiply of a run would pay its own bonus.
@@ -161,35 +204,27 @@ namespace BattleRunner.Gameplay.States
                 _ctx.CurrentStats.Get(StatIds.ChainMultiply));
             bool crit = Talents.Rolls(_ctx.CurrentStats.Get(StatIds.GateCrit), Random.value);
 
-            run.ForceCount = Talents.ApplyGate(run.ForceCount, op, value,
-                _ctx.Config.Balance.SoftCap, _ctx.CurrentStats.Get(StatIds.GateYield), chain,
-                crit, out long overflow);
+            run.SetForce(Talents.ApplyGate(run.ForceCount, op, weight, depth,
+                _ctx.CurrentStats.Get(StatIds.GateYield), chain, crit));
             run.MultiplyChain = op == GateOp.Multiply ? run.MultiplyChain + 1 : 0;
-            run.OverflowAccumulated += overflow;
             run.GatesHit++;
             _ctx.Crowd.SetForce(run.ForceCount);
             _ctx.Hud.SetForce(run.ForceCount);
 
-            // Scaled by the RATIO, so a x2 lands the same at 10 units and at 1000.
+            // Scaled by the RATIO, so a gate lands the same at 10 men and at 10 billion.
             _ctx.CameraRig.Apply(CameraFeel.ForGate(op, before, run.ForceCount));
             if (run.ForceCount > before)
                 _ctx.CameraRig.PunchFov(1.4f + 2.6f * CameraFeel.ForGate(op, before, run.ForceCount).Trauma);
 
-            // Sized by the same octave ratio the camera uses, so a x2 at 10 units and a x2
-            // at 1000 throw the same ring — and a +1 barely ripples. The gate is the whole
-            // game and until now passing one produced no event at all: the number changed,
-            // the camera nudged, and that was it.
-            float weight = CameraFeel.ForGate(op, before, run.ForceCount).Trauma;
+            float weightFelt = CameraFeel.ForGate(op, before, run.ForceCount).Trauma;
             Color tint = crit ? CritTint : GateTint(op);
-            // Scaled by the same weight the ring and the camera use, so a +1 is a tick and a
-            // x2 at a thousand is an event. The cue table throttles the repeats.
             _ctx.Audio.Play(
                 op == GateOp.Multiply ? AudioCue.GateMultiply
                     : op == GateOp.Subtract ? AudioCue.GateSubtract : AudioCue.GateAdd,
-                0.75f + 0.5f * weight);
-            _ctx.Effects.Shock(where, tint, 0.8f, 2.6f + 4.4f * weight, 0.45f + 0.20f * weight);
+                0.75f + 0.5f * weightFelt);
+            _ctx.Effects.Shock(where, tint, 0.8f, 2.6f + 4.4f * weightFelt, 0.45f + 0.20f * weightFelt);
             if (run.ForceCount > before)
-                _ctx.Effects.Burst(where, tint, 4 + Mathf.RoundToInt(10f * weight), 3.4f, 0.45f);
+                _ctx.Effects.Burst(where, tint, 4 + Mathf.RoundToInt(10f * weightFelt), 3.4f, 0.45f);
 
             // A crit that looks like an ordinary gate is a stat the player never learns they
             // have. Second ring, hotter tint, extra kick — the same beat, louder.
@@ -203,16 +238,28 @@ namespace BattleRunner.Gameplay.States
             if (run.ForceCount <= 0) OnForceDepleted();
         }
 
-        private void OnEnemyContact(int forceCost, Vector3 where)
+        private void OnEnemyContact(int weight, int depth, Vector3 where)
         {
-            if (_ctx.Shield.IsActive) return;
+            if (_ctx.Shield.IsActive)
+            {
+                // Blocking used to be SILENT. The pack simply cost nothing and the player was
+                // given no evidence their shield had done anything — which, with the old
+                // absolute pack cost of a few dozen men against an army of hundreds, was a
+                // difference too small to notice even when it was not blocked. Both halves of
+                // "the shield doesn't block against them" were true at once.
+                _ctx.Audio.Play(AudioCue.ShieldBlock, 0.85f);
+                _ctx.Effects.Shock(where, ShatterTint, 0.5f, 6.5f, 0.5f);
+                _ctx.Effects.Burst(where, ShatterTint, 20, 5.8f, 0.6f);
+                return;
+            }
 
             RunState run = _ctx.Run;
             // Resist shrugs off part of the bite; a shattered pack costs nothing at all.
             bool shattered = Talents.Rolls(_ctx.CurrentStats.Get(StatIds.PackShatter), Random.value);
-            long bite = Talents.PackBite(forceCost, _ctx.CurrentStats.Get(StatIds.EnemyResist), shattered);
-            long beforeBite = run.ForceCount;
-            run.ForceCount = System.Math.Max(0L, run.ForceCount - bite);
+            double bite = Talents.PackBite(run.ForceCount, weight, depth,
+                _ctx.CurrentStats.Get(StatIds.EnemyResist), shattered);
+            double beforeBite = run.ForceCount;
+            run.SetForce(System.Math.Max(0.0, run.ForceCount - bite));
             _ctx.Crowd.SetForce(run.ForceCount);
             _ctx.Hud.SetForce(run.ForceCount);
 
@@ -245,12 +292,16 @@ namespace BattleRunner.Gameplay.States
             // per run: a comeback the player earned with points, not a subscription to
             // immortality, and it fires ahead of the rewarded ad so the talent they bought
             // is never quietly replaced by a video.
-            long revived = Talents.SecondWindForce(_ctx.CurrentPar,
+            // Against the army that WALKED IN, not against par. Par is a share of the best
+            // line through the round, and measured against the shipped generator it falls
+            // below 1.0 from about round twenty — a revive sized off it would have handed a
+            // deep-run player fewer men than they started the round with.
+            double revived = Talents.SecondWindForce(_ctx.Run.StartingForce,
                 _ctx.CurrentStats.Get(StatIds.SecondWind));
             if (revived > 0 && !_ctx.Run.SecondWindSpent)
             {
                 _ctx.Run.SecondWindSpent = true;
-                _ctx.Run.ForceCount = revived;
+                _ctx.Run.SetForce(revived);
                 _ctx.Crowd.SetForce(revived);
                 _ctx.Hud.SetForce(revived);
                 _ctx.CameraRig.PunchFov(4.5f);
@@ -290,8 +341,11 @@ namespace BattleRunner.Gameplay.States
             if (!ReferenceEquals(_ctx.Machine.Current, this)) return;
             if (granted)
             {
-                long revived = System.Math.Max(10L, _ctx.CurrentPar / 4);
-                _ctx.Run.ForceCount = revived;
+                // Never below the permanent floor: a player who paid for a revive and came
+                // back with less than the army the game promised they could never lose would
+                // be right to call that a bug.
+                double revived = System.Math.Max(_ctx.ArmyFloor, _ctx.Run.StartingForce * 0.5);
+                _ctx.Run.SetForce(revived);
                 _ctx.Crowd.SetForce(revived);
                 _ctx.Hud.SetForce(revived);
                 _awaitingPrompt = false;
@@ -314,9 +368,10 @@ namespace BattleRunner.Gameplay.States
             _ctx.LastResult = new RunResult
             {
                 FinalForceCount = _ctx.Run.ForceCount,
-                OverflowAccumulated = _ctx.Run.OverflowAccumulated,
+                StartingForceCount = _ctx.Run.StartingForce,
+                PeakForceCount = _ctx.Run.PeakForce,
                 HeroStats = _ctx.CurrentStats,
-                SpellChargesRemaining = _ctx.Spell.Ready ? 1 : 0,
+                SpellChargesRemaining = _ctx.Spell.Charges,
                 Distance = _ctx.Run.Distance,
                 GatesHit = _ctx.Run.GatesHit,
                 ReachedBoss = true

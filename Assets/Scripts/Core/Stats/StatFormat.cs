@@ -56,6 +56,8 @@ namespace BattleRunner.Core.Stats
             if (statId == StatIds.RunSpeed) return "Speed";
             if (statId == StatIds.EnemyResist) return "Resist";
             if (statId == StatIds.ShieldDuration) return "Shield";
+            if (statId == StatIds.SpellCharges) return "Spell Charges";
+            if (statId == StatIds.ShieldCharges) return "Shield Charges";
             if (statId == StatIds.Fortune) return "Fortune";
             if (statId == StatIds.GateCrit) return "Gate Crit";
             if (statId == StatIds.OverflowBank) return "Overflow";
@@ -123,6 +125,70 @@ namespace BattleRunner.Core.Stats
                 ? $"{name} {Snap(value * 100f, 0.05f):0.#}%"
                 : $"{name} {Snap(value, 0.05f):0.#}";
         }
+
+        /// <summary>
+        /// The suffixes an army is counted in once it stops fitting on a phone.
+        ///
+        /// The campaign is continuous now, so the army spans five men to twenty trillion
+        /// over sixteen acts and "20,094,331,776,412" is not a number anybody reads. Three
+        /// significant figures and a suffix is, and it is the same convention every idle
+        /// game on the store uses, so it needs no teaching.
+        ///
+        /// The table runs to Decillion because a player at perfect lane choice reaches
+        /// rank 153 — about 10^46 — over sixty-two rounds, and a label that fell off the
+        /// end of its own table would print a bare number exactly where it is least
+        /// readable. Beyond the table it falls back to scientific notation rather than
+        /// lying about the magnitude.
+        /// </summary>
+        private static readonly string[] Suffixes =
+        {
+            "", "K", "M", "B", "T", "Qa", "Qi", "Sx", "Sp", "Oc", "No", "Dc"
+        };
+
+        /// <summary>
+        /// An army, as a player should read it: 5, 847, 12.4K, 3.91B, 20.1T.
+        ///
+        /// Exact below a thousand, because the opening of the game is played at counts a
+        /// player can see individually and rounding "5" to "5.00" would be absurd. Three
+        /// significant figures above it, which is the most anyone tracks and the least
+        /// that still shows a gate doing something.
+        /// </summary>
+        public static string Army(double force)
+        {
+            if (double.IsNaN(force)) return "0";
+            double v = force < 0.0 ? 0.0 : force;
+            if (v < 1000.0) return ((long)Math.Floor(v)).ToString(Culture);
+
+            int tier = 0;
+            while (v >= 1000.0 && tier < Suffixes.Length - 1)
+            {
+                v /= 1000.0;
+                tier++;
+            }
+            if (v >= 1000.0) return force.ToString("0.00E+0", Culture);
+
+            // Three significant figures: 9.99K, 99.9K, 999K — never "1000K", which would be
+            // a tier the loop has already passed and reads as a bug.
+            string shape = v < 10.0 ? "0.00" : v < 100.0 ? "0.0" : "0";
+            return v.ToString(shape, Culture) + Suffixes[tier];
+        }
+
+        /// <summary>
+        /// A signed headcount for a gate sign: "+340", "-1.3K".
+        ///
+        /// The sign is carried explicitly rather than by the number, because a gate showing
+        /// "0" and a gate showing "+0" mean different things to a player and only one of
+        /// them is ever true here.
+        /// </summary>
+        public static string Headcount(long men)
+        {
+            if (men == 0L) return "0";
+            string magnitude = Army(Math.Abs((double)men));
+            return (men < 0L ? "-" : "+") + magnitude;
+        }
+
+        private static readonly System.Globalization.CultureInfo Culture =
+            System.Globalization.CultureInfo.InvariantCulture;
 
         /// <summary>
         /// Collapse a value that will round to zero onto POSITIVE zero.

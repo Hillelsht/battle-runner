@@ -62,13 +62,20 @@ namespace BattleRunner.Gameplay.States
             // compounding its health on the round counter multiplied it by about 3.0x between
             // consecutive fights against a player who grows 1.2-1.7x — and only 1.06x once the
             // soft cap flattens the army. See BossSim.BossHp.
+            //
+            // The last argument used to be the soft cap, standing in for a MODEL of the army
+            // this act would face. With the army continuous no such model can be fair: over
+            // sixty rounds a careful player and a sloppy one end up eight orders of magnitude
+            // apart, and one number cannot price a boss for both. It is now the army that
+            // actually walked in, which makes every fight a test of the fight rather than of
+            // how the run happened to go.
             BalanceSettings balance = _ctx.Config.Balance;
             _bossHpMax = BossAffixes.BossHp(_boss.BaseHp, _boss.PerLevelGrowth, actIndex,
                 BossSim.StatDamageAtAct(actIndex, balance.BaseDamage,
                     balance.DamagePerPoint, balance.StatPointsPerBossKill),
                 BossSim.StatDamageAtAct(0, balance.BaseDamage,
                     balance.DamagePerPoint, balance.StatPointsPerBossKill),
-                balance.SoftCap, _affix);
+                _openingForce, _affix);
             _bossHp = _bossHpMax;
             _attackTimer = _boss.AttackIntervalSeconds;
 
@@ -151,7 +158,7 @@ namespace BattleRunner.Gameplay.States
         private const float ArenaMetres = 11f;
 
         /// <summary>The army that walked into this fight. See LandOneBlow.</summary>
-        private long _openingForce;
+        private double _openingForce;
 
         /// <summary>Seconds of skirmish, and how many of its beats have been paid out.</summary>
         private float _skirmishSeconds;
@@ -191,18 +198,18 @@ namespace BattleRunner.Gameplay.States
         /// </summary>
         private void ApplyMaul()
         {
-            long before = _ctx.Run.ForceCount;
+            double before = _ctx.Run.ForceCount;
             if (before <= 0) return;
 
             // Per SWING, so the rate is per-second and independent of the beat length. Scaled
             // by Health exactly as a real blow is, so the stat means the same thing here.
             float health = _ctx.LastResult.HeroStats.Get(BattleRunner.Core.Stats.StatIds.Health);
-            long bite = BossSim.MaulBite(before, MaulFractionPerSecond * BossMelee.SwingSeconds,
+            double bite = BossSim.MaulBite(before, MaulFractionPerSecond * BossMelee.SwingSeconds,
                 health);
-            if (bite <= 0L) return;
+            if (bite <= 0.0) return;
 
-            long after = System.Math.Max(0L, before - bite);
-            _ctx.Run.ForceCount = after;
+            double after = System.Math.Max(0.0, before - bite);
+            _ctx.Run.SetForce(after);
             _ctx.LastResult.FinalForceCount = after;
             _ctx.Crowd.SetForce(after);
             _ctx.Hud.SetForce(after);
@@ -210,7 +217,7 @@ namespace BattleRunner.Gameplay.States
             _ctx.BossView.Maul();
             // The men it actually killed go down and stay down. A blow that removes force and
             // nothing else is a number; this is what makes it something that happened.
-            _ctx.TrackController?.Squads?.BossKilled(bite >= 3 ? 2 : 1);
+            _ctx.TrackController?.Squads?.BossKilled(bite >= 3.0 ? 2 : 1);
             _ctx.Effects.Burst(_bossPosition + Vector3.up * 0.6f, DeathTint, 4, 2.2f, 0.26f);
 
             if (after <= 0) OnCrowdWiped();
@@ -244,7 +251,8 @@ namespace BattleRunner.Gameplay.States
 
             _ctx.Spell.Tick(dt);
             _ctx.Shield.Tick(dt);
-            _ctx.Hud.SetCooldowns(_ctx.Spell.CooldownRemaining, _ctx.Shield.CooldownRemaining, _ctx.Shield.IsActive);
+            _ctx.Hud.SetAbilities(_ctx.Spell.Fill, _ctx.Spell.Charges, _ctx.Spell.Capacity,
+                _ctx.Shield.Fill, _ctx.Shield.Charges, _ctx.Shield.Capacity, _ctx.Shield.IsActive);
 
             // THE ARMY'S DAMAGE, ON A BEAT INSTEAD OF PER FRAME.
             //
@@ -258,7 +266,7 @@ namespace BattleRunner.Gameplay.States
             // resets, so the sum over a fight is exactly dps * elapsed to within the beat
             // currently in flight — pinned by a test, because a presentation change that
             // quietly alters the balance is a balance change wearing a disguise.
-            float dps = BossSim.PlayerDps(_ctx.LastResult, _ctx.Config.Balance.SoftCap);
+            float dps = BossSim.PlayerDps(_ctx.LastResult);
             _skirmishSeconds += dt;
             int swings = BossMelee.SwingsBy(_skirmishSeconds);
             if (swings > _swingsDone)
@@ -324,12 +332,12 @@ namespace BattleRunner.Gameplay.States
         /// </summary>
         private void ApplyDrain(float dt)
         {
-            long before = _ctx.Run.ForceCount;
-            long lost = BossSim.DrainTick(_archetype, before, _boss.HitFraction, dt, _ctx.Shield.IsActive);
+            double before = _ctx.Run.ForceCount;
+            double lost = BossSim.DrainTick(_archetype, before, _boss.HitFraction, dt, _ctx.Shield.IsActive);
             if (lost <= 0L) return;
 
-            long after = System.Math.Max(0L, before - lost);
-            _ctx.Run.ForceCount = after;
+            double after = System.Math.Max(0.0, before - lost);
+            _ctx.Run.SetForce(after);
             _ctx.LastResult.FinalForceCount = after;
             _ctx.Crowd.SetForce(after);
             _ctx.Hud.SetForce(after);
@@ -417,7 +425,7 @@ namespace BattleRunner.Gameplay.States
         /// can never drift onto different magnitudes.</summary>
         private float SpellDamage()
         {
-            float dps = BossSim.PlayerDps(_ctx.LastResult, _ctx.Config.Balance.SoftCap);
+            float dps = BossSim.PlayerDps(_ctx.LastResult);
             return dps * _ctx.Config.Spells.BossDamageMultiplier
                    * (1f + _ctx.CurrentStats.Get(StatIds.SpellPower));
         }
@@ -510,12 +518,12 @@ namespace BattleRunner.Gameplay.States
         {
             if (_adds <= 0) return;
 
-            long before = _ctx.Run.ForceCount;
-            long bite = BossSim.AddBite(_adds, before);
-            if (bite <= 0L) return;
+            double before = _ctx.Run.ForceCount;
+            double bite = BossSim.AddBite(_adds, before);
+            if (bite <= 0.0) return;
 
-            long after = System.Math.Max(0L, before - bite);
-            _ctx.Run.ForceCount = after;
+            double after = System.Math.Max(0.0, before - bite);
+            _ctx.Run.SetForce(after);
             _ctx.LastResult.FinalForceCount = after;
             _ctx.Crowd.SetForce(after);
             _ctx.Hud.SetForce(after);
@@ -529,12 +537,12 @@ namespace BattleRunner.Gameplay.States
 
         private void LandOneBlow()
         {
-            long before = _ctx.Run.ForceCount;
+            double before = _ctx.Run.ForceCount;
             // The army that WALKED IN, captured on Enter. A blow is measured partly against
             // it rather than wholly against what is left, or the sequence of blows approaches
             // zero without ever reaching it — twenty-four unblocked blows to a wipe, in a
             // fight that lasts fifteen seconds. See BossSim.ApplyBossHit.
-            long after = BossSim.ApplyBossHit(before,
+            double after = BossSim.ApplyBossHit(before,
                 BossAffixes.BlowFraction(_archetype, _affix, _boss.HitFraction),
                 _ctx.LastResult.HeroStats.Get(BattleRunner.Core.Stats.StatIds.Health),
                 _ctx.Shield.IsActive, _openingForce);
@@ -543,7 +551,7 @@ namespace BattleRunner.Gameplay.States
 
             if (after != before)
             {
-                _ctx.Run.ForceCount = after;
+                _ctx.Run.SetForce(after);
                 _ctx.LastResult.FinalForceCount = after;
                 _ctx.Crowd.SetForce(after);
                 _ctx.Hud.SetForce(after);
@@ -670,8 +678,8 @@ namespace BattleRunner.Gameplay.States
             if (!ReferenceEquals(_ctx.Machine.Current, this)) return;
             if (granted)
             {
-                long revived = System.Math.Max(10L, _ctx.CurrentPar / 3);
-                _ctx.Run.ForceCount = revived;
+                double revived = System.Math.Max(_ctx.ArmyFloor, _ctx.LastResult.StartingForceCount * 0.5);
+                _ctx.Run.SetForce(revived);
                 _ctx.LastResult.FinalForceCount = revived;
                 _ctx.Crowd.SetForce(revived);
                 _ctx.Hud.SetForce(revived);

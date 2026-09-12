@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using BattleRunner.Core.Flow;
 using BattleRunner.Core.Progression;
+using BattleRunner.Core.Run;
 using BattleRunner.Core.Save;
 
 namespace BattleRunner.Gameplay.States
@@ -130,9 +131,34 @@ namespace BattleRunner.Gameplay.States
 
         private void OnContinue()
         {
+            BankTheArmy();
             _ctx.Profile.CurrentLevelIndex++;
             _ctx.SaveProfile();
             _ctx.Machine.TransitionTo(_ctx.MenuState);
+        }
+
+        /// <summary>
+        /// Carry the army into the next round, and record the high-water mark.
+        ///
+        /// THIS IS THE LINE THE WHOLE CHANGE IS ABOUT. The army used to be re-mustered at
+        /// five men at the top of every round, which is what "every round the crowd shrinks
+        /// to minimum" describes. It is banked HERE, at the one point in the flow that runs
+        /// exactly once per round and only after the round is genuinely over — the boss beat,
+        /// the loot and the spend have all happened by the time Continue is pressed.
+        ///
+        /// The peak is recorded separately from what is banked, because they answer different
+        /// questions: what is banked is what the player has, and the peak is what they have
+        /// PROVED they can hold. The permanent floor is built from the second, so a round
+        /// that went well and then went wrong still raises the floor.
+        /// </summary>
+        private void BankTheArmy()
+        {
+            RunResult result = _ctx.LastResult;
+            if (result == null) return;
+            _ctx.Profile.ArmyBanked = System.Math.Max(0.0, result.FinalForceCount);
+            _ctx.Profile.ArmyBestEver = StandingArmy.Record(
+                _ctx.Profile.ArmyBestEver, result.PeakForceCount);
+            _ctx.ArmyFloor = StandingArmy.Floor(_ctx.Profile.ArmyBestEver);
         }
     }
 }

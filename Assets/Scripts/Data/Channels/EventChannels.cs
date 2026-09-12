@@ -32,5 +32,11 @@ namespace BattleRunner.Data.Channels
 
     public sealed class LongEventChannel : EventChannel<long> { }
 
+    /// <summary>
+    /// The army, which became a double when it became continuous — it spans five men to
+    /// twenty trillion over a campaign and a long overflows inside the authored content.
+    /// </summary>
+    public sealed class DoubleEventChannel : EventChannel<double> { }
+
     public sealed class RunResultEventChannel : EventChannel<RunResult> { }
 }

@@ -17,7 +17,7 @@ points → save → next level.
 | Game loop | Complete end to end |
 | Content | 8 worlds, 6 levels, 6 bosses (6 archetypes) x 5 champion affixes = 30 fights, 15 gear items, 4 rarities, ~60 talents + endless paragon |
 | Art | Procedural meshes and code-built uGUI, 119 CC0 Kenney models in one 563 KB pack, and 8 generated ground surfaces with normal maps |
-| Tests | 374, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 411, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
@@ -33,6 +33,51 @@ army stands on the road instead of hovering over it — and a procedural cobbled
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
 corner notches, a gradient backdrop and readable disabled states, across every screen.
+**The army is continuous now, and that is the largest single change the game has had.** The
+report was *"every round the crowd shrinks to minimum... once you achieved a certain level or
+crowd size you never lose it"*, and carrying it over turned out to be one line that could not
+be shipped alone. Simulated against the real generator with the old absolute gates, an army
+carried between rounds is pinned at the 100,000 soft cap by **round five** and every round
+after it is a flat **1.00×** — every gate in the game doing nothing measurable. Below the cap
+it is no better: a round entered with 2,461 men is worth **1.9×** against the 45× the same
+round pays at five.
+
+So a gate is a SHARE now — a recruit is ×1.026, an ambush ×0.875 at the top of a round and
+×0.409 at the bottom of a deep one — the soft cap is gone, and force is a `double` because a
+`long` overflows around round 52 at the measured growth of a competent player, which is inside
+the sixteen authored acts. The `×2` arch did not survive and that was measured too: with
+literal doubling, every lane-choice quality from 0.70 to 1.00 lands within one order of
+magnitude of the same colossal number, because rally gates dominate everything else the player
+does. It is ×1.30.
+
+`StandingArmy` holds both halves of the promise: **Banked** carries unbroken between rounds,
+**BestEver** is a high-water mark that only rises, and the floor is 55% of it. A disastrous
+round costs up to 45% of a career; no sequence of them can put the player back at the
+beginning. Measured across all 62 rounds of the campaign from the shipped code, break-even
+sits at lane quality **0.72** — below it the army does not grow and the floor is what stops
+that being a spiral; at 0.85 it reaches **574M by round 30 and 20.1T by round 62**.
+
+**The boss is re-priced against the army that actually walks in**, through the same
+`CrowdFactor` its damage is multiplied by, so the two cancel exactly: the fight lasts about as
+long whether the player arrives with four hundred men or four hundred trillion. `BossSim.ExpectedForceAtAct`
+is deleted — with a continuous army no modelled ladder can be fair to a player at 0.80 and one
+at 0.90, who end eight orders of magnitude apart. Bases ×0.60 and pressures eased to
+0.036–0.051; measured, the campaign runs 17s → 51s across sixteen acts with the affixes folded in.
+
+**Two bugs behind "the spell doesn't destroy enemy packs and shield doesn't block against
+them".** The spell swept 15 m from the crowd's CENTRE, and the crowd's front line already
+stands up to 7 m ahead of that — so it reached about eight metres past the men, under a second
+of road, hitting only what was already unavoidable. And it iterated enemy packs only, while
+most of the red on the road is a subtract GATE. Both now act on ambushes of either kind, from
+the army's front, at 34 m; a raised shield nullifies either and says so with a ring instead of
+silently costing nothing.
+
+**Both abilities are magazines.** `Core/Run/Magazine` refills whenever it is short rather than
+only when empty, which is what makes a second charge worth a talent point. New `SpellCharges`
+and `ShieldCharges` stats, bought by Full Quiver / Arsenal and Doubleguard / Triguard, with the
+keystone payoff folded into the existing keystones rather than added as a fourth — three
+mutually exclusive keystones per branch is a design rule with a test on it.
+
 **And the affixes broke the window the moment they were tested.** The campaign window test was
 written against the plain boss, which made it nearly worthless: `Colossal` multiplies health by
 1.40 and the rotation lands one on act 15. Folding `BossAffixes.For(act)` in failed it at
@@ -1135,7 +1180,7 @@ The v0.4.0 screenshots confirmed the art pass landed — sky, stars, shadows, ro
 gates and UI frames all correct on device — and surfaced two bugs that were never about
 art: `Focus -0 %` on the menu and `+0.01 Focus` on the loot card. Both were units chosen
 from the ModifierKind rather than from the stat, plus a hard-coded minus sign in front of
-a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 388 tests today).
+a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 411 tests today).
 
 A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
 11 survived adversarial refutation. The headline three: the key light pointed the same way

@@ -53,12 +53,12 @@ namespace BattleRunner.Core.Run
         /// scales the gain by (1 + yield), doubling it is exactly yield' = 2*yield + 1 —
         /// no second code path, and losses stay untouched because a crit is a reward.
         /// </summary>
-        public static long ApplyGate(long force, GateOp op, int value, long softCap,
-            float gateYield, float chainYield, bool critical, out long overflow)
+        public static double ApplyGate(double force, GateOp op, int weight, int depth,
+            float gateYield, float chainYield, bool critical)
         {
             float yield = Math.Max(0f, gateYield) + Math.Max(0f, chainYield);
             if (critical) yield = yield * 2f + 1f;
-            return GateMath.ApplyGateWithYield(force, op, value, softCap, yield, out overflow);
+            return GateMath.ApplyGateWithYield(force, op, weight, depth, yield);
         }
 
         /// <summary>
@@ -74,27 +74,34 @@ namespace BattleRunner.Core.Run
         };
 
         /// <summary>
-        /// What a pack actually costs. Resist is capped so a pack always bites for at least
-        /// one unit; a shattered pack costs nothing at all, which is the whole fantasy.
+        /// What a pack actually costs: a SHARE of the army it meets, on the same curve a
+        /// red gate uses, so a pack is a real threat at every scale instead of a rounding
+        /// error the moment the army passes a few hundred. Resist shaves that share; a
+        /// shattered pack costs nothing at all, which is the whole fantasy.
         /// </summary>
-        public static long PackBite(int forceCost, float resist, bool shattered)
+        public static double PackBite(double force, int weight, int depth, float resist,
+            bool shattered)
         {
-            if (shattered || forceCost <= 0) return 0L;
+            if (shattered || weight <= 0) return 0.0;
+            double gross = Math.Max(0.0, force) * (1.0 - GateMath.Factor(GateOp.Subtract, weight, depth));
             double kept = 1.0 - Math.Min(0.85f, Math.Max(0f, resist));
-            return (long)Math.Ceiling(forceCost * kept);
+            return Math.Max(0.0, gross * kept);
         }
 
         /// <summary>
-        /// Banked overflow. The base curve is unchanged at zero bank, and the talent scales
-        /// how much of the over-cap force comes back as damage rather than changing the
-        /// shape — the log is what keeps a runaway multiply chain from ending the boss on
+        /// The run's surplus, banked. The base curve is unchanged at zero bank and the
+        /// talent scales how much of the round's growth comes back as damage rather than
+        /// changing its shape — the log is what keeps a greedy run from ending the boss on
         /// arrival, and that property should survive every talent.
+        ///
+        /// It was fed by force spilled over a hard cap until the cap was removed; it now
+        /// measures how far the army grew during the round, which is what it was always
+        /// really rewarding.
         /// </summary>
-        public static float OverflowMultiplier(long accumulatedOverflow, long softCap, float bank)
+        public static float SurplusMultiplier(double finalForce, double startingForce, float bank)
         {
-            if (accumulatedOverflow <= 0 || softCap <= 0) return 1f;
-            double ratio = (double)accumulatedOverflow / softCap;
-            float baseBonus = 0.25f * (float)Math.Log(1.0 + ratio, 2.0);
+            float baseBonus = GateMath.SurplusToBonusMultiplier(finalForce, startingForce) - 1f;
+            if (baseBonus <= 0f) return 1f;
             return 1f + baseBonus * (1f + Math.Max(0f, bank));
         }
 
@@ -122,11 +129,11 @@ namespace BattleRunner.Core.Run
         /// player had: reviving proportionally to a crowd that just hit zero is a rounding
         /// error, and the point of the talent is a second chance, not a formality.
         /// </summary>
-        public static long SecondWindForce(long parForceAtFinish, float fraction)
+        public static double SecondWindForce(double armyAtStartOfRound, float fraction)
         {
-            if (fraction <= 0f) return 0L;
-            long revived = (long)Math.Round(Math.Max(0L, parForceAtFinish) * (double)fraction);
-            return Math.Max(10L, revived);
+            if (fraction <= 0f) return 0.0;
+            double revived = Math.Max(0.0, armyAtStartOfRound) * fraction;
+            return Math.Max(StandingArmy.Seed, revived);
         }
 
         /// <summary>

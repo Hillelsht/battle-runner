@@ -51,6 +51,29 @@ namespace BattleRunner.Core.Save
         public List<StatSpend> StatPoints = new List<StatSpend>();
         public int UnspentStatPoints;
         public int CurrentLevelIndex;
+
+        /// <summary>
+        /// The army as it actually stands, carried unbroken from the last round.
+        ///
+        /// This is the field that answers "every round the crowd shrinks to minimum". The
+        /// runner used to set force to LevelDefinition.StartingForce — five men — at the
+        /// top of every round, so a player who finished with two thousand eight hundred
+        /// started the next round with five. Now the round starts here.
+        ///
+        /// Zero on an old save and on a brand new one alike, which is exactly right: the
+        /// migration and the seeding both resolve it through StandingArmy.StartOfRound,
+        /// and a zero there means "muster the seed".
+        /// </summary>
+        public double ArmyBanked;
+
+        /// <summary>
+        /// The largest army ever fielded on this profile. Only ever rises.
+        ///
+        /// The permanent floor is a share of this, so it is the field the promise rests
+        /// on — a run can cost the player ground, and no run can cost them their rank.
+        /// </summary>
+        public double ArmyBestEver;
+
         public long SoftCurrency;
         public int Keys;
         public int PityCounter;

@@ -168,7 +168,7 @@ namespace BattleRunner.Core.Crowd
         }
 
         /// <summary>How many units to actually render for a logical force count, per device tier cap (doc 01, R2).</summary>
-        public static int VisibleUnits(long forceCount, int tierCap)
+        public static int VisibleUnits(double forceCount, int tierCap)
         {
             if (tierCap <= 0) throw new ArgumentOutOfRangeException(nameof(tierCap));
             if (forceCount <= 0) return 0;
@@ -176,7 +176,7 @@ namespace BattleRunner.Core.Crowd
         }
 
         /// <summary>Hero scale bump expressing over-cap growth the bodies can't (1.0 at or below cap).</summary>
-        public static float HeroScaleFor(long forceCount, int tierCap)
+        public static float HeroScaleFor(double forceCount, int tierCap)
         {
             if (forceCount <= tierCap || tierCap <= 0) return 1f;
             double ratio = (double)forceCount / tierCap;

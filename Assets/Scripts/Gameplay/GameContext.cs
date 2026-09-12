@@ -34,7 +34,7 @@ namespace BattleRunner.Gameplay
         public FloatEventChannel LaneTargetChannel;
         public VoidEventChannel FlickUpChannel;
         public VoidEventChannel FlickDownChannel;
-        public LongEventChannel ForceChangedChannel;
+        public DoubleEventChannel ForceChangedChannel;
 
         // Scene systems
         public GameObject ArenaRoot;
@@ -84,7 +84,17 @@ namespace BattleRunner.Gameplay
         /// generated layout. Revive amounts are fractions of it. It used to live on the level
         /// asset, which cannot know which round is being played.
         /// </summary>
-        public long CurrentPar = 150L;
+        public double CurrentPar = 150.0;
+
+        /// <summary>
+        /// The army this profile can never drop below, resolved from the save.
+        ///
+        /// Cached on the context rather than recomputed at each use so the revive, the round
+        /// start and the HUD cannot disagree about it — three call sites all reading
+        /// StandingArmy.Floor from the same profile is exactly how one of them ends up
+        /// reading a stale one.
+        /// </summary>
+        public double ArmyFloor = BattleRunner.Core.Run.StandingArmy.Seed;
         public RunResult LastResult;
         public StatSheet CurrentStats;
 

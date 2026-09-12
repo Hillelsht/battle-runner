@@ -1,3 +1,4 @@
+using System;
 using BattleRunner.Core.Run;
 using UnityEngine;
 
@@ -11,8 +12,27 @@ namespace BattleRunner.Gameplay.Track
     public sealed class GateBehaviour : MonoBehaviour, IPoolable
     {
         public GateOp Op { get; private set; }
-        public int Value { get; private set; }
+
+        /// <summary>
+        /// The gate's WEIGHT, not a headcount. See GateMath: a gate takes a share of the
+        /// army that meets it, and this is how many shares. What the sign shows is that
+        /// share resolved against the army actually approaching — see <see cref="RefreshSign"/>.
+        /// </summary>
+        public int Weight { get; private set; }
+
+        /// <summary>Which chunk of the round this gate stands in. Red gates bite harder deeper in.</summary>
+        public int Depth { get; private set; }
+
         public int Lane { get; private set; }
+
+        /// <summary>
+        /// True once a spell has destroyed this gate.
+        ///
+        /// Only ever set on an ambush gate. A destroyed gate is left in the list so the
+        /// track's despawn logic stays the single owner of pooling, but it no longer draws,
+        /// no longer scores, and no longer counts as a crowd.
+        /// </summary>
+        public bool Destroyed { get; private set; }
         /// <summary>True once this gate scored the crowd.</summary>
         public bool Consumed { get; private set; }
 
@@ -174,13 +194,15 @@ namespace BattleRunner.Gameplay.Track
             return renderer;
         }
 
-        public void Setup(GateOp op, int value, int lane, Vector3 worldPosition)
+        public void Setup(GateOp op, int weight, int lane, int depth, Vector3 worldPosition)
         {
             Op = op;
-            Value = value;
+            Weight = weight;
+            Depth = depth;
             Lane = lane;
             Consumed = false;
             Resolved = false;
+            Destroyed = false;
             SinceConsumed = -1f;
             // A gate that changes the size of the army by a COUNT is people, on both signs.
             // An add gate is a reinforcement that joins you; a subtract gate is men who stand
@@ -218,14 +240,71 @@ namespace BattleRunner.Gameplay.Track
                 if (_renderers[i] != null)
                     _renderers[i].sharedMaterial = i == 3 ? plate : frame;
 
-            string symbol = op switch
+            _labelTint = frame.GetColorSafe("_EmissionColor", Color.white);
+            _label.color = _labelTint;
+            _signedFor = double.NaN;
+            RefreshSign(BattleRunner.Core.Run.StandingArmy.Seed);
+        }
+
+        private Color _labelTint = Color.white;
+        private double _signedFor = double.NaN;
+
+        /// <summary>
+        /// Write this gate's sign for the army currently approaching it.
+        ///
+        /// A gate is a share now, so there is no number to bake in at spawn: the same gate
+        /// is worth eleven men in front of an army of four hundred and eleven million in
+        /// front of four hundred million. The share is the mechanic and the headcount is
+        /// the display, which is what keeps the road reading exactly as it did — "+340",
+        /// "-1.3K" — while the arithmetic underneath it stopped being absolute.
+        ///
+        /// Guarded on the army it was last written for, because this is called whenever the
+        /// force changes and building a string for ten gates on every gate hit is real
+        /// garbage on a phone. The guard is a ratio rather than an equality: below a 2%
+        /// change the three significant figures on the sign cannot move, so the string
+        /// would be identical anyway.
+        /// </summary>
+        public void RefreshSign(double army)
+        {
+            if (_label == null) return;
+            if (!double.IsNaN(_signedFor) && _signedFor > 0.0
+                && Math.Abs(army - _signedFor) < _signedFor * SignRefreshFraction) return;
+            _signedFor = army;
+
+            if (Op == GateOp.Multiply)
             {
-                GateOp.Add => "+",
-                GateOp.Multiply => "x",
-                _ => "-"
-            };
-            _label.text = $"{symbol}{value}";
-            _label.color = frame.GetColorSafe("_EmissionColor", Color.white);
+                // The arch keeps a multiplier on it. A rally is the one gate whose whole
+                // identity is that it scales rather than adds, and showing it as a headcount
+                // would make it indistinguishable from a large recruit gate.
+                _label.text = "x" + GateMath.Factor(Op, Weight, Depth).ToString("0.00",
+                    System.Globalization.CultureInfo.InvariantCulture);
+                return;
+            }
+
+            _label.text = BattleRunner.Core.Stats.StatFormat.Headcount(
+                GateMath.Headcount(army, Op, Weight, Depth));
+        }
+
+        /// <summary>How far the army must move before a sign is worth rewriting.</summary>
+        private const double SignRefreshFraction = 0.02;
+
+        /// <summary>
+        /// A spell has destroyed this gate. Only an ambush gate can be destroyed — a player
+        /// blowing up their own reinforcements would be a trap rather than a tool.
+        ///
+        /// NOT named Destroy(). MonoBehaviour already carries a static Destroy(Object), and
+        /// an instance overload beside it is the kind of name that compiles and then resolves
+        /// to the wrong thing at some later call site.
+        /// </summary>
+        public bool DestroyedBySpell()
+        {
+            if (Destroyed || Resolved || Op != GateOp.Subtract) return false;
+            Destroyed = true;
+            DrawAsCrowd = false;
+            SetLabelVisible(false);
+            for (int i = 0; i < _renderers.Length; i++)
+                if (_renderers[i] != null) _renderers[i].enabled = false;
+            return true;
         }
 
         /// <summary>

@@ -64,7 +64,7 @@ namespace BattleRunner.Gameplay.States
             // Overflow luck and the Fortune talent compound: both push the same roll.
             // Overflow luck and the Fortune talent compound: both push the same roll. A round
             // that only threatened rolls at reduced luck, so the fight stays the payday.
-            float luck = (_ctx.LastResult?.OverflowBonus(_ctx.Config.Balance.SoftCap) ?? 1f)
+            float luck = (_ctx.LastResult?.SurplusBonus() ?? 1f)
                          * (1f + _ctx.CurrentStats.Get(StatIds.Fortune))
                          * RoundRewards.LootLuck(_plan);
             int pity = _ctx.Profile.PityCounter;

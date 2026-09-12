@@ -31,7 +31,20 @@ namespace BattleRunner.Gameplay.Track
         /// </summary>
         public const int DisplayCap = 40;
 
-        public int ForceCost { get; private set; }
+        /// <summary>
+        /// The pack's WEIGHT on GateMath's ambush curve, not a headcount. A pack costs a
+        /// share of the army it meets, like a red gate does, so the same pack is a real
+        /// threat at forty men and at forty billion — where the old absolute cost of
+        /// `3 + 2*difficulty + 2*step` was a rounding error the moment the army passed a
+        /// few hundred, which is most of why packs stopped being felt at all.
+        /// </summary>
+        public int Weight { get; private set; }
+
+        /// <summary>Which chunk of the round this pack stands in; packs bite harder deeper in.</summary>
+        public int Depth { get; private set; }
+
+        /// <summary>How many men this pack is showing itself as, resolved against the army.</summary>
+        public long Headcount { get; private set; }
         public int Lane { get; private set; }
         public bool Defeated { get; private set; }
 
@@ -86,30 +99,54 @@ namespace BattleRunner.Gameplay.Track
             return squad;
         }
 
-        public void Setup(int forceCost, int lane, Vector3 worldPosition)
+        public void Setup(int weight, int lane, int depth, Vector3 worldPosition)
         {
-            ForceCost = Mathf.Max(0, forceCost);
+            Weight = Mathf.Max(0, weight);
+            Depth = Mathf.Max(0, depth);
             Lane = lane;
             Defeated = false;
             Resolved = false;
             Fighting = false;
             FightElapsed = 0f;
             Clash = default;
-            DisplayedCount = Mathf.Min(ForceCost, DisplayCap);
             transform.position = worldPosition;
-            // The count IS the squad size, so the two can never disagree. The old label said
-            // "-26" over five men.
-            _label.text = ForceCost.ToString();
+            _countedFor = double.NaN;
+            RefreshCount(BattleRunner.Core.Run.StandingArmy.Seed);
             SetLabelVisible(true);
+        }
+
+        private double _countedFor = double.NaN;
+
+        /// <summary>
+        /// Resolve this pack's share against the army approaching it, and show that count.
+        ///
+        /// The squad size and the label are written from the same number so they can never
+        /// disagree — the bug this replaced said "-26" over five drawn men. Guarded on the
+        /// army it was last counted for, for the same reason a gate's sign is.
+        /// </summary>
+        public void RefreshCount(double army)
+        {
+            if (!double.IsNaN(_countedFor) && _countedFor > 0.0
+                && Mathf.Abs((float)(army - _countedFor)) < (float)(_countedFor * 0.02)) return;
+            _countedFor = army;
+
+            double bite = -BattleRunner.Core.Run.GateMath.Headcount(
+                army, BattleRunner.Core.Run.GateOp.Subtract, Weight, Depth);
+            Headcount = bite <= 0.0 ? 1L : (bite >= long.MaxValue ? long.MaxValue : (long)bite);
+            DisplayedCount = (int)Mathf.Min(Headcount, DisplayCap);
+            if (_label != null)
+                _label.text = BattleRunner.Core.Stats.StatFormat.Army(Headcount);
         }
 
         /// <summary>
         /// Begin the clash. Called on the frame the crowd's front plane reaches this squad in
         /// its own lane; the outcome is already fixed, only the telling of it takes time.
         /// </summary>
-        public void BeginFight(long armyForce)
+        public void BeginFight(double armyForce)
         {
-            Clash = new Melee(armyForce, ForceCost);
+            long allies = armyForce >= long.MaxValue ? long.MaxValue
+                : armyForce <= 0.0 ? 0L : (long)armyForce;
+            Clash = new Melee(allies, Headcount);
             Fighting = true;
             FightElapsed = 0f;
         }
@@ -121,7 +158,7 @@ namespace BattleRunner.Gameplay.Track
             FightElapsed += dt;
             Clash.At(FightElapsed, out _, out long enemies);
             DisplayedCount = (int)Mathf.Min(enemies, DisplayCap);
-            _label.text = enemies.ToString();
+            _label.text = BattleRunner.Core.Stats.StatFormat.Army(enemies);
             if (FightElapsed < Melee.Duration) return false;
             Fighting = false;
             Defeated = true;

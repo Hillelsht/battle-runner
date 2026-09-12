@@ -23,6 +23,10 @@ namespace BattleRunner.Core.Stats
         public const string EnemyResist = "enemyresist";
         /// <summary>Extra seconds a raised shield holds.</summary>
         public const string ShieldDuration = "shieldduration";
+        /// <summary>Extra casts held in the spell's magazine, beyond the first.</summary>
+        public const string SpellCharges = "spellcharges";
+        /// <summary>Extra raises held in the shield's magazine, beyond the first.</summary>
+        public const string ShieldCharges = "shieldcharges";
         /// <summary>Weights the loot roll toward rarer items.</summary>
         public const string Fortune = "fortune";
 
@@ -55,6 +59,7 @@ namespace BattleRunner.Core.Stats
         {
             Damage, Health, Cooldown, SpellPower,
             GateYield, RunSpeed, EnemyResist, ShieldDuration, Fortune,
+            SpellCharges, ShieldCharges,
             GateCrit, OverflowBank, ChainMultiply, Magnetism, PackShatter,
             SecondWind, Execute, SpellEcho, ShieldReflect
         };

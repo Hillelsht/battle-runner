@@ -3,8 +3,14 @@ namespace BattleRunner.Core.Run
     /// <summary>Transient state of one runner phase. Exists only during RunnerLoop.</summary>
     public sealed class RunState
     {
-        public long ForceCount;
-        public long OverflowAccumulated;
+        /// <summary>The army, carried in from the last round rather than reset to five.</summary>
+        public double ForceCount;
+
+        /// <summary>What walked in, kept so the round's surplus and the boss blow can be priced.</summary>
+        public double StartingForce;
+
+        /// <summary>The largest this round ever got — what the permanent floor is recorded from.</summary>
+        public double PeakForce;
         public float Distance;
         public float SpellCooldownRemaining;
         public float ShieldCooldownRemaining;
@@ -21,6 +27,17 @@ namespace BattleRunner.Core.Run
         /// <summary>Second Wind fires once per run, or it is not a comeback, it is immortality.</summary>
         public bool SecondWindSpent;
 
-        public bool IsDefeated => ForceCount <= 0;
+        /// <summary>
+        /// Records the army after a change, keeping the round's high-water mark honest.
+        /// Every write to ForceCount goes through here so the peak cannot be missed by a
+        /// caller that forgets — and the peak is what the permanent floor is built from.
+        /// </summary>
+        public void SetForce(double force)
+        {
+            ForceCount = force < 0.0 ? 0.0 : force;
+            if (ForceCount > PeakForce) PeakForce = ForceCount;
+        }
+
+        public bool IsDefeated => ForceCount <= 0.0;
     }
 }

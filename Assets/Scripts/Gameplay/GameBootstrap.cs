@@ -85,7 +85,7 @@ namespace BattleRunner.Gameplay
             ctx.LaneTargetChannel = ScriptableObject.CreateInstance<FloatEventChannel>();
             ctx.FlickUpChannel = ScriptableObject.CreateInstance<VoidEventChannel>();
             ctx.FlickDownChannel = ScriptableObject.CreateInstance<VoidEventChannel>();
-            ctx.ForceChangedChannel = ScriptableObject.CreateInstance<LongEventChannel>();
+            ctx.ForceChangedChannel = ScriptableObject.CreateInstance<DoubleEventChannel>();
         }
 
         private static Material LoadCrowdMaterial()

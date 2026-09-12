@@ -34,7 +34,7 @@ namespace BattleRunner.Gameplay.Crowd
         private TextMesh _text;
         private Transform _pivot;
         private Transform _camera;
-        private long _shown = -1;
+        private string _shown;
         private double _eased = -1;
 
         /// <summary>
@@ -58,7 +58,7 @@ namespace BattleRunner.Gameplay.Crowd
         /// Past this, snap. A player dying is not a moment to animate through, and a run that
         /// starts fresh must not count down from whatever the last run ended on.
         /// </summary>
-        private const long SnapGap = 4;
+        private const double SnapGap = 4;
 
         public void Initialize(CrowdController crowd, Font font)
         {
@@ -105,8 +105,13 @@ namespace BattleRunner.Gameplay.Crowd
                     _pivot.rotation = Quaternion.LookRotation(-toCamera, Vector3.up);
             }
 
-            long force = _crowd.ForceCount;
-            if (_eased < 0 || force <= 0 || System.Math.Abs(_eased - force) < SnapGap)
+            double force = _crowd.ForceCount;
+            // Snap when the gap is small ABSOLUTELY or small RELATIVELY. The absolute test
+            // alone was right for an army of forty and useless for one of forty billion,
+            // where four men is not a gap worth easing across and the chase would run for a
+            // frame and then stop anyway.
+            if (_eased < 0 || force <= 0
+                || System.Math.Abs(_eased - force) < System.Math.Max(SnapGap, force * 0.001))
                 _eased = force;
             else
                 _eased += (force - _eased) * (1.0 - System.Math.Exp(-ChaseRate * Time.deltaTime));
@@ -114,10 +119,10 @@ namespace BattleRunner.Gameplay.Crowd
             // Only touch the TextMesh when the DISPLAYED number changes. Assigning .text
             // rebuilds the glyph mesh, and doing that every frame for a value that changes a
             // few times a second is pure waste on the exact device this has to hold 60 on.
-            long shown = (long)System.Math.Round(_eased);
+            string shown = BattleRunner.Core.Stats.StatFormat.Army(_eased);
             if (shown == _shown) return;
             _shown = shown;
-            _text.text = shown.ToString();
+            _text.text = shown;
         }
     }
 }

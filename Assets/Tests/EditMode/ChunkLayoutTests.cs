@@ -257,25 +257,60 @@ namespace BattleRunner.Tests
         // --- par force ---------------------------------------------------------
 
         [Test]
-        public void ParForceRisesWithDepth()
+        public void ParForceDoesNotRunAwayWithDepth()
         {
-            long shallow = Par(2);
-            long mid = Par(20);
-            long deep = Par(60);
-            Assert.Less(shallow, mid);
-            Assert.Less(mid, deep);
+            // DELIBERATELY REWRITTEN, and the direction of the assertion is the change.
+            // It used to be `shallow < mid < deep`, which was true when a gate's value grew
+            // with the round index: a deep round handed out bigger absolute numbers, so par
+            // rose. A gate is a SHARE now, so a deeper round is not more generous — it is
+            // LONGER (more chunks) and more dangerous (the ambush weight and depth ramp both
+            // climb), and those pull in opposite directions on purpose.
+            //
+            // What must still hold is that par stays a sane multiple of the army that walked
+            // in, at every depth, because it sizes the revive.
+            // MEASURED, and the shape is the difficulty arriving where it was aimed: par
+            // from a seed army runs 5.5x at round 0, 2.8x at round 5, 1.5x at round 15, and
+            // is pinned at the floor from about round 21 on. A player steering at par is
+            // below break-even in the back half of the campaign; StandingArmy.Floor is what
+            // stops that from being a spiral, not this number.
+            Assert.Greater(Par(0), Par(15), "the road must get harder, not more generous");
+            for (int round = 0; round < 80; round++)
+            {
+                double par = Par(round);
+                Assert.GreaterOrEqual(par, 1.0, $"round {round} par went to {par}");
+                Assert.Less(par, 5.0 * 40.0, $"round {round} par ran away to {par}");
+            }
         }
 
         [Test]
-        public void ParForceIgnoresLossesAndKeepsSixtyPercent()
+        public void ParBlendsTheBestLaneWithTheWorstOne()
         {
-            // The rule is unchanged from the old ContentFactory: optimistic path, times 0.6.
+            // DELIBERATELY REWRITTEN. The old assertion was "5 + 95 = 100, and 60% of that
+            // is 60" — a statement about absolute gate values, which no longer exist. Par is
+            // now the geometric blend of the best and worst lane through each chunk, which
+            // is both simpler and closer to what a real player does than the log-damped
+            // multiply fudge it replaced.
             var layout = new ChunkLayout(ChunkShape.Ladder);
-            layout.Gates.Add(new PlannedGate(GateOp.Add, 95, 0, 10f));
-            layout.Gates.Add(new PlannedGate(GateOp.Subtract, 1000, 0, 24f));
+            layout.Gates.Add(new PlannedGate(GateOp.Add, 2, 0, 10f));
+            layout.Gates.Add(new PlannedGate(GateOp.Subtract, 2, 1, 10f));
 
-            long par = ChunkLayouts.EstimateParForce(new[] { layout }, 5, 100_000L);
-            Assert.AreEqual(60L, par, "5 + 95 = 100, and 60% of that is 60");
+            double best = GateMath.Factor(GateOp.Add, 2, 0);
+            double worst = GateMath.Factor(GateOp.Subtract, 2, 0);
+            double expected = 100.0 * (worst + (best - worst) * ChunkLayouts.ParKeepFraction);
+
+            Assert.AreEqual(expected, ChunkLayouts.EstimateParForce(new[] { layout }, 100.0), 1e-9);
+        }
+
+        [Test]
+        public void ParScalesWithTheArmyThatWalksIn()
+        {
+            // Par sizes the revive, and the army is continuous now — a par computed from a
+            // fixed five men would hand a player at ten billion a revive of nothing.
+            var layouts = ChunkLayouts.BuildRound(RoundPlan.For(6));
+            double small = ChunkLayouts.EstimateParForce(layouts, 100.0);
+            double large = ChunkLayouts.EstimateParForce(layouts, 100e9);
+            Assert.AreEqual(large / small, 1e9, 1e9 * 1e-6,
+                "par must be proportional to the army, since every gate in it is");
         }
 
         [Test]
@@ -286,12 +321,12 @@ namespace BattleRunner.Tests
             // 297 on round 2 and 12,533 on round 5, with rounds 20 and 30 both pinned at the
             // soft cap. Par sizes the revive a player pays an ad for, so that swing was the
             // difference between coming back with 99 units and coming back with four thousand.
-            long previous = Par(0);
+            double previous = Par(0);
             for (int round = 1; round < 80; round++)
             {
-                long now = Par(round);
-                Assert.Less(now, previous * 3L + 50L, $"round {round} jumped from {previous} to {now}");
-                Assert.Greater(now * 3L + 50L, previous, $"round {round} fell from {previous} to {now}");
+                double now = Par(round);
+                Assert.Less(now, previous * 3.0 + 50.0, $"round {round} jumped from {previous} to {now}");
+                Assert.Greater(now * 3.0 + 50.0, previous, $"round {round} fell from {previous} to {now}");
                 previous = now;
             }
         }
@@ -300,15 +335,14 @@ namespace BattleRunner.Tests
         public void ParForceIsNeverZero()
         {
             // It divides revive amounts. A zero par would resurrect a player with nothing.
-            Assert.GreaterOrEqual(ChunkLayouts.EstimateParForce(null, 5, 100_000L), 1L);
-            Assert.GreaterOrEqual(
-                ChunkLayouts.EstimateParForce(new ChunkLayout[0], 1, 100_000L), 1L);
+            Assert.GreaterOrEqual(ChunkLayouts.EstimateParForce(null, 5.0), 1.0);
+            Assert.GreaterOrEqual(ChunkLayouts.EstimateParForce(new ChunkLayout[0], 1.0), 1.0);
         }
 
-        private static long Par(int round)
+        private static double Par(int round)
         {
             RoundPlan plan = RoundPlan.For(round);
-            return ChunkLayouts.EstimateParForce(ChunkLayouts.BuildRound(plan), 5, 100_000L);
+            return ChunkLayouts.EstimateParForce(ChunkLayouts.BuildRound(plan), 5.0);
         }
     }
 }

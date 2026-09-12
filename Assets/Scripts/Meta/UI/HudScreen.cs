@@ -15,7 +15,7 @@ namespace BattleRunner.Meta.UI
         private readonly Image _bossBarFillImage;
         private readonly Text _bossName;
         private readonly Text _roundLabel;
-        private long _lastForce = long.MinValue;
+        private string _lastForce;
 
         public HudScreen(Transform canvas)
         {
@@ -69,22 +69,62 @@ namespace BattleRunner.Meta.UI
         public void Show() => _root.SetActive(true);
         public void Hide() => _root.SetActive(false);
 
-        public void SetForce(long force)
+        public void SetForce(double force)
         {
-            if (force == _lastForce) return;
-            _lastForce = force;
-            _forceLabel.text = force.ToString("N0");
+            string shown = BattleRunner.Core.Stats.StatFormat.Army(force);
+            if (shown == _lastForce) return;
+            _lastForce = shown;
+            _forceLabel.text = shown;
         }
 
-        public void SetCooldowns(float spellRemaining, float shieldRemaining, bool shieldActive)
+        /// <summary>
+        /// The two ability readouts, now that both are magazines rather than single casts.
+        ///
+        /// A player with three charges needs to see THREE, and a bare "SPELL 2.1s" cannot
+        /// say that — it was the right readout for an ability that was either available or
+        /// not, and it is the wrong one for an ability you can hold a stock of. Pips carry
+        /// the count and the tail carries the refill, so a full magazine reads as a clean
+        /// verb and a partial one shows both what is in hand and what is coming.
+        /// </summary>
+        public void SetAbilities(float spellFill, int spellCharges, int spellCapacity,
+            float shieldFill, int shieldCharges, int shieldCapacity, bool shieldActive)
         {
-            _spellLabel.text = spellRemaining <= 0f ? "SPELL ^" : $"SPELL {spellRemaining:0.0}s";
-            _spellLabel.color = spellRemaining <= 0f ? UiFactory.Arcane : UiFactory.InkSoft * 2f;
+            _spellLabel.text = spellCharges > 0
+                ? "SPELL ^ " + Pips(spellCharges, spellCapacity)
+                : $"SPELL {Pips(0, spellCapacity)} {RefillTail(spellFill)}";
+            _spellLabel.color = spellCharges > 0 ? UiFactory.Arcane : UiFactory.InkSoft * 2f;
 
-            _shieldLabel.text = shieldActive ? "SHIELDED" :
-                shieldRemaining <= 0f ? "SHIELD v" : $"SHIELD {shieldRemaining:0.0}s";
+            _shieldLabel.text = shieldActive ? "SHIELDED " + Pips(shieldCharges, shieldCapacity)
+                : shieldCharges > 0 ? "SHIELD v " + Pips(shieldCharges, shieldCapacity)
+                : $"SHIELD {Pips(0, shieldCapacity)} {RefillTail(shieldFill)}";
             _shieldLabel.color = shieldActive ? UiFactory.Gold :
-                shieldRemaining <= 0f ? UiFactory.Parchment : UiFactory.InkSoft * 2f;
+                shieldCharges > 0 ? UiFactory.Parchment : UiFactory.InkSoft * 2f;
+        }
+
+        /// <summary>
+        /// Charges in hand, as a plain count over the capacity.
+        ///
+        /// Pips (filled and hollow diamonds) read better at a glance and were the first
+        /// version of this, but U+25C6 and U+25C7 are Geometric Shapes and the HUD draws in
+        /// Unity's built-in font — a glyph that is missing there renders as a box on device
+        /// and there is no way to find that out from here. A count always renders. If a
+        /// device screenshot shows the count reading poorly mid-run, pips with a bundled
+        /// font are the fix, not a guess at what Arial happens to carry.
+        ///
+        /// Empty at capacity 1, so a player who has bought no charge talents sees exactly
+        /// the readout that shipped before magazines existed.
+        /// </summary>
+        private static string Pips(int charges, int capacity)
+        {
+            if (capacity <= 1) return string.Empty;
+            return charges.ToString() + "/" + capacity.ToString();
+        }
+
+        /// <summary>How close the next charge is, as a short bar rather than a countdown.</summary>
+        private static string RefillTail(float fill)
+        {
+            int lit = Mathf.Clamp(Mathf.RoundToInt(fill * 3f), 0, 3);
+            return new string('\u00B7', lit + 1);
         }
 
         /// <param name="withHealth">

@@ -96,13 +96,41 @@ namespace BattleRunner.Core.Run
         /// <summary>Nothing is placed in the last few metres, so a decision never straddles a seam.</summary>
         public const float TailMargin = 5f;
 
-        /// <summary>The value of a plain add gate at this depth, as the original generator sized it.</summary>
-        public static int AddValue(int difficulty, int step) =>
-            4 + 2 * Math.Max(0, difficulty) + Math.Max(0, step);
+        /// <summary>
+        /// The WEIGHT of a plain recruit gate. See GateMath: a gate is a share of the army
+        /// that meets it, and the number the generator authors is how many shares.
+        ///
+        /// It used to be `4 + 2*difficulty + step`, an absolute headcount, and the reason it
+        /// is now a flat 1 is the whole point of the change: a share is worth the same at
+        /// fifty men and at fifty billion, so there is nothing for the round index to
+        /// correct for. Depth still matters, but it matters on the RED side, which is where
+        /// the difficulty was asked to go.
+        /// </summary>
+        public static int RecruitWeight(int difficulty, int step) => 1;
 
-        /// <summary>What a pack costs at this depth.</summary>
-        public static int PackCost(int difficulty, int step) =>
-            3 + 2 * Math.Max(0, difficulty) + 2 * Math.Max(0, step);
+        /// <summary>
+        /// The weight of an ambush gate or an enemy pack.
+        ///
+        /// THE ONE THING THAT SCALES WITH DEPTH, and deliberately: the green side is flat,
+        /// so every act that passes makes the road more dangerous without making it more
+        /// rewarding. That asymmetry is the entire difficulty curve of the run, and it is
+        /// what makes a continuous army something a player can actually lose ground on.
+        /// Capped at 3 because GateMath.AmbushShareMax already refuses to take more than
+        /// 62% in one gate, and a weight that outran the cap would be a difficulty knob
+        /// that silently stopped turning.
+        /// </summary>
+        public static int AmbushWeight(int difficulty, int step) =>
+            Math.Min(AmbushWeightMax, 1 + Math.Max(0, difficulty) / AmbushActsPerWeight
+                                        + Math.Max(0, step) / AmbushStepsPerWeight);
+
+        /// <summary>Rounds of depth per extra point of ambush weight.</summary>
+        public const int AmbushActsPerWeight = 14;
+
+        /// <summary>Chunks into a round per extra point of ambush weight.</summary>
+        public const int AmbushStepsPerWeight = 8;
+
+        /// <summary>Heaviest a single ambush may be authored.</summary>
+        public const int AmbushWeightMax = 3;
 
         /// <summary>
         /// Build one chunk. <paramref name="step"/> is its index within the round, which is
@@ -111,8 +139,8 @@ namespace BattleRunner.Core.Run
         public static ChunkLayout Build(ChunkShape shape, int difficulty, int step, ref uint rng)
         {
             var layout = new ChunkLayout(shape);
-            int add = AddValue(difficulty, step);
-            int cost = PackCost(difficulty, step);
+            int add = RecruitWeight(difficulty, step);
+            int cost = AmbushWeight(difficulty, step);
             int lane = PickLane(ref rng);
 
             switch (shape)
@@ -121,8 +149,8 @@ namespace BattleRunner.Core.Run
                     // Three gates, each one lane over from the last, so the player is steering
                     // continuously rather than picking once and holding.
                     layout.Gates.Add(new PlannedGate(GateOp.Add, add, lane, 10f));
-                    layout.Gates.Add(new PlannedGate(GateOp.Add, add + 2, Shift(lane, 1), 24f));
-                    layout.Gates.Add(new PlannedGate(GateOp.Add, add + 4, Shift(lane, 2), 38f));
+                    layout.Gates.Add(new PlannedGate(GateOp.Add, add + 1, Shift(lane, 1), 24f));
+                    layout.Gates.Add(new PlannedGate(GateOp.Add, add + 2, Shift(lane, 2), 38f));
                     break;
 
                 case ChunkShape.Fork:
@@ -130,8 +158,8 @@ namespace BattleRunner.Core.Run
                     // The multiply and its price share a Z: the choice has to be made before
                     // either is close enough to read, which is what makes it a commitment.
                     layout.Gates.Add(new PlannedGate(GateOp.Multiply, 2, lane, 32f));
-                    layout.Gates.Add(new PlannedGate(GateOp.Subtract, add * 2, Shift(lane, 1), 32f));
-                    layout.Gates.Add(new PlannedGate(GateOp.Subtract, add * 2, Shift(lane, 2), 32f));
+                    layout.Gates.Add(new PlannedGate(GateOp.Subtract, cost, Shift(lane, 1), 32f));
+                    layout.Gates.Add(new PlannedGate(GateOp.Subtract, cost, Shift(lane, 2), 32f));
                     break;
 
                 case ChunkShape.Gauntlet:
@@ -143,24 +171,24 @@ namespace BattleRunner.Core.Run
                 case ChunkShape.Minefield:
                     // One safe lane, and it is not announced. The add is the reward for
                     // finding it rather than for surviving.
-                    layout.Gates.Add(new PlannedGate(GateOp.Subtract, add * 2, Shift(lane, 1), 26f));
-                    layout.Gates.Add(new PlannedGate(GateOp.Subtract, add * 2, Shift(lane, 2), 26f));
-                    layout.Gates.Add(new PlannedGate(GateOp.Add, add + 3, lane, 26f));
+                    layout.Gates.Add(new PlannedGate(GateOp.Subtract, cost, Shift(lane, 1), 26f));
+                    layout.Gates.Add(new PlannedGate(GateOp.Subtract, cost, Shift(lane, 2), 26f));
+                    layout.Gates.Add(new PlannedGate(GateOp.Add, add + 1, lane, 26f));
                     break;
 
                 case ChunkShape.Toll:
                     // Every lane costs. The only decision left is which loss to accept, which
                     // is a decision the game never asked before.
-                    layout.Gates.Add(new PlannedGate(GateOp.Add, add + 4, lane, 10f));
-                    layout.Gates.Add(new PlannedGate(GateOp.Subtract, Math.Max(1, add / 2), lane, 30f));
-                    layout.Gates.Add(new PlannedGate(GateOp.Subtract, add, Shift(lane, 1), 30f));
-                    layout.Gates.Add(new PlannedGate(GateOp.Subtract, add * 2, Shift(lane, 2), 30f));
+                    layout.Gates.Add(new PlannedGate(GateOp.Add, add + 2, lane, 10f));
+                    layout.Gates.Add(new PlannedGate(GateOp.Subtract, Math.Max(1, cost - 1), lane, 30f));
+                    layout.Gates.Add(new PlannedGate(GateOp.Subtract, cost, Shift(lane, 1), 30f));
+                    layout.Gates.Add(new PlannedGate(GateOp.Subtract, cost + 1, Shift(lane, 2), 30f));
                     break;
 
                 case ChunkShape.Vault:
                     // The pack and the multiply are in the SAME lane. Taking the prize means
                     // paying for it, and dodging the pack means dodging the prize.
-                    layout.Packs.Add(new PlannedPack(cost * 2, lane, 18f));
+                    layout.Packs.Add(new PlannedPack(cost + 1, lane, 18f));
                     layout.Gates.Add(new PlannedGate(GateOp.Multiply, 3, lane, 34f));
                     layout.Gates.Add(new PlannedGate(GateOp.Add, add, Shift(lane, 1), 34f));
                     break;
@@ -171,7 +199,7 @@ namespace BattleRunner.Core.Run
 
                 default: // Crossfire
                     layout.Packs.Add(new PlannedPack(cost, Shift(lane, 1), 12f));
-                    layout.Gates.Add(new PlannedGate(GateOp.Add, add + 2, lane, 26f));
+                    layout.Gates.Add(new PlannedGate(GateOp.Add, add + 1, lane, 26f));
                     layout.Packs.Add(new PlannedPack(cost, Shift(lane, 2), 40f));
                     break;
             }
@@ -202,57 +230,71 @@ namespace BattleRunner.Core.Run
             return layouts;
         }
 
-        /// <summary>Share of the optimistic line a par player is assumed to actually hold.</summary>
+        /// <summary>
+        /// How close to the best lane a "par" player is assumed to steer, chunk by chunk.
+        ///
+        /// MEASURED, AND WORTH STATING PLAINLY: at 0.6 a par player is BELOW break-even from
+        /// about round ten onward — par falls from 5.5x the army that walked in at round 0 to
+        /// 1.5x at round 15 and bottoms out after that. That is not a bug in this estimate,
+        /// it is the difficulty that was asked for arriving where it was aimed: the ambush
+        /// weight and the depth ramp both climb while the recruit share does not, so an
+        /// average line stops being enough. Simulated over sixty rounds, break-even sits at
+        /// about 0.72 and a player at 0.85 grows steadily.
+        ///
+        /// What stops that from being punishing is StandingArmy.Floor, not this number — a
+        /// player who keeps missing holds their rank rather than losing it.
+        /// </summary>
         public const double ParKeepFraction = 0.6;
 
-        /// <summary>How much a round's multiply gates lift par, per doubling of their count.</summary>
-        public const double MultiplyWeight = 0.9;
-
         /// <summary>
-        /// Force a par player is expected to hold at the finish.
+        /// The army a par player is expected to hold at the finish.
         ///
         /// THE OLD ESTIMATE COMPOUNDED EVERY MULTIPLY, and that stopped working the moment
-        /// layouts became varied. Measured across the new generator it swung by two orders of
+        /// layouts became varied. Measured across the generator it swung by two orders of
         /// magnitude on nothing but how many multiply gates a round happened to roll — round 2
         /// estimated 297 and round 5 estimated 12,533, with round 20 and round 30 both pinned
         /// at the soft cap. Par sizes the revive a player is handed after paying for one, so
         /// that is not a cosmetic error: it is the difference between coming back with 99 units
         /// and coming back with four thousand.
         ///
-        /// The adds are the stable backbone — their count and value track depth smoothly — so
-        /// they are banked in full. The multiplies then lift the result LOGARITHMICALLY in
-        /// their count rather than multiplicatively in their values, which is both far steadier
-        /// and closer to the truth: three lanes cannot all be taken, so the tenth multiply in a
-        /// round is worth much less than the first. The same log-shaped damping GateMath already
-        /// uses for overflow.
+        /// With gates proportional, par is far simpler and far more honest than the log-damped
+        /// fudge that used to live here. Every chunk has a BEST lane and a WORST one, both of
+        /// which are exact products of the shares in them, and par is the geometric blend of
+        /// the two — a player who takes most of the good lanes and eats some of the bad ones.
+        /// No estimate of what a multiply is "really" worth is needed, because a multiply is
+        /// now the same kind of thing as everything else in the round.
         /// </summary>
-        public static long EstimateParForce(IReadOnlyList<ChunkLayout> layouts, int startingForce,
-            long softCap)
+        public static double EstimateParForce(IReadOnlyList<ChunkLayout> layouts, double startingForce)
         {
-            long banked = Math.Max(1, startingForce);
-            int multiplies = 0;
+            double force = Math.Max(1.0, startingForce);
+            if (layouts == null) return force;
 
-            if (layouts != null)
+            for (int i = 0; i < layouts.Count; i++)
             {
-                foreach (ChunkLayout layout in layouts)
+                ChunkLayout layout = layouts[i];
+                if (layout == null) continue;
+
+                double best = double.MinValue, worst = double.MaxValue;
+                for (int lane = 0; lane < LaneCount; lane++)
                 {
-                    if (layout == null) continue;
+                    double factor = 1.0;
                     foreach (PlannedGate gate in layout.Gates)
-                    {
-                        if (gate.Op == GateOp.Add) banked = SaturatingAdd(banked, gate.Value);
-                        else if (gate.Op == GateOp.Multiply && gate.Value > 1) multiplies++;
-                    }
+                        if (gate.Lane == lane) factor *= GateMath.Factor(gate.Op, gate.Value, i);
+                    foreach (PlannedPack pack in layout.Packs)
+                        if (pack.Lane == lane) factor *= GateMath.Factor(GateOp.Subtract, pack.ForceCost, i);
+                    if (factor > best) best = factor;
+                    if (factor < worst) worst = factor;
                 }
+
+                if (best <= double.MinValue) continue;
+                force *= worst + (best - worst) * ParKeepFraction;
             }
 
-            double bonus = 1.0 + MultiplyWeight * Math.Log(1.0 + multiplies, 2.0);
-            double par = banked * bonus * ParKeepFraction;
-
-            // Real force is soft-capped in play, so par cannot meaningfully exceed the same
-            // share of that cap.
-            double ceiling = Math.Max(1.0, softCap * ParKeepFraction);
-            return Math.Max(1L, (long)Math.Min(par, ceiling));
+            return Math.Max(1.0, force);
         }
+
+        /// <summary>Lanes on the road. Named because par has to walk all of them.</summary>
+        public const int LaneCount = 3;
 
         private static long SaturatingAdd(long a, int b)
         {

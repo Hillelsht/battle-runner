@@ -283,3 +283,257 @@ point: a later chunk should pay better.
 So no change was made. This is the third time in this increment that a measurement contradicted
 the plan it was meant to implement — the per-stone tone, the single power law, and this — which
 is an argument for the measuring, not against the planning.
+
+---
+
+# The standing army
+
+> *"Now every round the crowd shrinks to minimum. I want the crowd to never shrink
+> throughout the full game. And at the same time I want it to become more difficult. Like
+> in an RPG game — once you achieved a certain level or crowd size, you never lose it."*
+
+## What the game did, and why it read as losing
+
+Every round called `CrowdController.ResetRun(level.StartingForce, 0f)` with
+`StartingForce = 5`. A player who fought the act-one boss with 2,884 men began the next
+round with five. Nothing was saved between rounds except the round number, the gear and the
+tree — the army itself, which is the number on screen for the entire forty seconds of play
+and the thing every decision in the run is about, was thrown away and re-mustered each time.
+
+That is the genre's normal shape and it is not a bug. It is also, read as an RPG, a game
+that takes your level away at the end of every quest.
+
+## The measurement that decided the design
+
+Carrying the army over is one line. The reason it is not a one-line change is what happens
+next, and it was worth simulating before committing to anything. Walking the real generator
+with the real gate arithmetic, an army carried unbroken between rounds against the *old*
+absolute gates:
+
+| round | start | peak | round ratio |
+|---|---|---|---|
+| 0 | 5 | 229 | 45.8× |
+| 5 | 91,736 | 99,917 | 1.09× |
+| 10 | 99,999 | 99,999 | **1.00×** |
+| 20 | 99,999 | 99,999 | **1.00×** |
+
+The soft cap of 100,000 is reached by **round five**, and every round after it is flat:
+every gate on the road stops doing anything measurable. And the cap is not even the whole
+problem. Because an add gate paid an absolute headcount, a round entered with 2,461 men was
+worth **1.9×** against the 45× the same round pays at five men. Long before the ceiling, the
+gate stops being an event.
+
+So a continuous army needs proportional gates, and proportional gates need no cap. The two
+changes are one change.
+
+## A gate is a share
+
+`GateMath` is now:
+
+| gate | factor | at 47 men | at 63 billion |
+|---|---|---|---|
+| recruit `+` | ×1.026 per weight | +1 | +1.64B |
+| rally `×` | ×1.30 at weight 2 | +14 | +18.9B |
+| ambush `−`, top of a round | ×0.875 | −6 | −7.88B |
+| ambush `−`, deep in a long round | ×0.409 | −16 | −21.8B |
+
+The player still sees headcounts. A share is the mechanism; `GateMath.Headcount` resolves it
+against the army actually approaching, so the sign on a gate reads `+340` and `−1.3K`
+exactly as it did when those numbers were authored. What used to be the authored value is
+now a small **weight**.
+
+**The `×2` arch did not survive, and that was measured too.** Keeping literal doubling and
+simulating sixty rounds, every lane-choice quality from 0.70 to 1.00 lands within one order
+of magnitude of the same colossal number: rally gates dominate so completely that nothing
+else the player does is detectable. Skill expression and the `×2` arch are the same trade,
+and the arch lost. It is a ×1.30 now — still worth nearly seven recruit gates, still the
+gate you steer for, still an arch rather than a crowd.
+
+## Two numbers, and the difference between them is the design
+
+`StandingArmy` holds the whole promise:
+
+- **Banked** — the army as it stands, carried unbroken from the last round.
+- **BestEver** — the largest army ever fielded, a high-water mark that only rises.
+  `Floor` is 55% of it, and a round can never start below that floor.
+
+So a disastrous round costs real ground — up to 45% of a career — and no sequence of
+disastrous rounds can put the player back at the beginning. Neither number alone does this:
+Banked without BestEver is a game that can ruin you permanently, and BestEver without Banked
+is a game where the last round did not matter.
+
+A floor of 100% was considered and rejected. It would make every loss notional, the army
+restored in full at the next round's start, nothing in the run able to cost anything — which
+is not an RPG level, it is an invulnerability, and the difficulty asked for alongside would
+have had nowhere to land.
+
+## The campaign, measured from the shipped code
+
+Sixty-two rounds — the whole of the sixteen authored acts — walked with the real generator,
+steering at a fixed quality between the worst lane and the best at every decision:
+
+| lane quality | round 30 | round 62 | permanent floor | rank |
+|---|---|---|---|---|
+| 1.00 | 1.2×10²¹ | 3.6×10⁵⁸ | 2.0×10⁵⁸ | 153 |
+| 0.90 | 8.27T | 6.5×10²⁰ | 3.6×10²⁰ | 77 |
+| **0.85** | **574M** | **20.1T** | 11.1T | 42 |
+| 0.80 | 134K | 662K | 396K | 18 |
+| 0.72 | 25 | 38 | 78 | 3 |
+| 0.65 | 0.9 | 1.3 | 6.9 | 1 |
+
+**Break-even sits at about 0.72.** Below it the army does not grow, and the floor is what
+stops that from being a spiral — a player at 0.65 holds rank 1 rather than being ruined, and
+one at 0.80 holds rank 18 for twenty rounds until they play better or buy stats. That is the
+difficulty, arriving where it was aimed: the ambush weight and the depth ramp both climb
+while the recruit share does not, so an average line stops being enough.
+
+It is also why par collapses. `EstimateParForce` at `ParKeepFraction = 0.6` falls from 5.5×
+the incoming army at round 0 to 1.5× at round 15 and bottoms out after that. That is not an
+error in the estimate; it is the same fact seen from the other end. Revives are consequently
+sized against the army that walked in, not against par — a revive sized off par would have
+handed a deep-run player fewer men than they started the round with.
+
+## Force is a double
+
+At the measured growth of a competent player a `long` (9.2×10¹⁸) overflows around **round 52**
+— inside the authored content, so this is not a theoretical ceiling. A `double` holds the
+same campaign with two hundred rounds to spare, is exact below 2⁵³ (nine quadrillion, far
+past any headcount a player reads individually), and needs no saturation reasoning at all.
+An army of ten billion men does not need to be exact to the man.
+
+The HUD reads it through `StatFormat.Army`: exact below a thousand, three significant figures
+and a suffix above, out to Decillion, with scientific notation past the end of the table
+rather than a lie about the magnitude.
+
+## The boss, re-priced again
+
+`ExpectedForceAtAct` — `60 × 2.2^act`, capped — was a closed-form guess at what a competent
+player carries. It was reasonable while the army reset every round and the cap put a ceiling
+over the whole game. With the army continuous it cannot be fair to anyone: a player at 0.80
+and one at 0.90 end eight orders of magnitude apart, and a boss priced for a ladder between
+them is a formality for one and a wall for the other.
+
+So the boss is priced against **the army that actually walks into it**, through the same
+`CrowdFactor` the player's damage is multiplied by. The two cancel exactly, and the result is
+a much stronger property than the one it replaces:
+
+> The fight lasts about as long whether the player arrives with four hundred men or four
+> hundred trillion. The run decides whether you *arrive*; the shield, the spell and the affix
+> decide whether you *win*.
+
+Gear and talents stay outside the model, so they still show up as a shorter fight — that is
+the player's edge and the whole incentive of the loop.
+
+The roster was re-based for the new anchor (bases ×0.60, pressures eased to 0.036–0.051),
+because with `CrowdFactor` cancelling on both sides the old bases landed the first fight at
+29 s and the act-8 Colossal at 76 s. Measured from the shipped code, for a player with
+nothing but stat points:
+
+```
+17s 21 24* 22* 25 29* 21* 26 43* 29* 33* 39 26* 33* 40 51*      (* = affix)
+```
+
+## Migration
+
+Schema v6 adds `ArmyBanked` and `ArmyBestEver` and **deliberately leaves them at zero**,
+which `StandingArmy` already reads as "muster the seed". Seeding the army from
+`CurrentLevelIndex` was the obvious alternative and is wrong: under v5 a round's force was a
+function of that round alone, so a save at round twenty says nothing whatsoever about how
+large that player's army got. Inventing a number from it would hand some players a rank they
+never earned and take one from others. Gear, tree and round are all kept; only the army
+starts from the seed, and one round of good play is worth a great deal at the bottom of a
+proportional curve.
+
+---
+
+# The abilities: magazines, and what they act on
+
+> *"Now the spell doesn't destroy enemy packs and shield doesn't block against them, only
+> against bosses I think. I want shield and spell to work against all, including gates can be
+> eliminated by the spell. And a magazine of spells instead of one at a time with skill nodes
+> to add charges and the skills to add the shield counts and the shield active time."*
+
+## The spell could not be aimed
+
+`ClearEnemiesAhead(crowd.CenterZ, 15f)` looked correct and was not. The crowd's leading
+plane stands up to `CrowdMath.FrontDepthMax` — **seven metres** — ahead of its centroid, so
+seven of the spell's fifteen metres were spent on road the army was already standing on.
+What reached ahead was about eight metres: at ten metres a second, **under one second of
+travel**, which is less time than it takes to see an ambush and flick at it.
+
+It was not a short-ranged spell. It was a spell that could only ever hit things already too
+close to avoid, which is indistinguishable from a spell that does nothing.
+
+It now sweeps from the army's **front**, and the range is 34 m.
+
+## It only ever touched packs
+
+The second half is simpler: `ClearEnemiesAhead` iterated `_activeEnemies` and nothing else.
+Since v0.20 a subtract gate is drawn as a crowd of men in the road — so most of the red a
+player sees is a *gate*, and gates walked straight through a spell aimed at them. Same for
+the shield: `OnEnemyContact` returned early when the shield was up, and `OnGateApplied` had
+no such check at all.
+
+From the player's seat those two are the same object, the same colour, doing the same thing.
+A shield that stops one and not the other does not read as a rule; it reads as a shield that
+does not work.
+
+Both now act on **ambushes** — packs and red gates alike. `ClearAmbushesAhead` destroys
+either; a raised shield nullifies either.
+
+And blocking is no longer silent. It used to cost nothing and show nothing, which — with the
+old absolute pack cost of a few dozen men against an army of hundreds — was a difference too
+small to notice even when it was *not* blocked. Both halves of "the shield doesn't block
+against them" were true at once. A block now throws a ring and a burst in the Warden's
+colour, and a pack costs a real share of the army.
+
+## A magazine, not a boolean
+
+Both abilities were a single flag on a cooldown: you had it or you did not, and the only stat
+that touched it made the wait shorter. That is a fine mobile verb and a poor RPG one, because
+there is nothing to spend a point on that changes *how* the ability is used.
+
+`Core/Run/Magazine` gives both a pool of charges with one rule that matters:
+
+> **The refill timer runs whenever the magazine is short, not only when it is empty.**
+
+That is what makes a second charge worth a talent point rather than merely convenient — with
+three charges a player can spend two on a dangerous chunk and still have the third when the
+next arrives, because the refill did not wait for them to run dry. A magazine that only
+started refilling once spent would make the second and third charge strictly worse than the
+first.
+
+Widening the magazine does **not** hand out the new charges. Otherwise equipping a charge
+talent mid-run would be a free cast, and a stat that pays out on the frame it is applied is
+one players learn to toggle rather than to build around.
+
+## What buys it
+
+Two new stats, `SpellCharges` and `ShieldCharges`, both counts of *extra* charges — so a
+player who has bought none gets exactly the ability that shipped before.
+
+| branch | tier 2 | tier 4 | keystone |
+|---|---|---|---|
+| Warlord | **Full Quiver** — hold a second spell | **Arsenal** — hold a third | **Tempest** — two more, 45% echo, +25% Focus |
+| Warden | **Doubleguard** — hold a second raise | **Triguard** — hold a third | **Mirror of Thorns** — two more, blocked blows return 90% |
+
+Three points across a whole branch, because a charge is worth far more than a tenth of a
+second of uptime and pricing them the same would make duration dead. Shield duration and
+cooldown keep their existing lines (Brace, Warded, Bulwark, Aegis; At the Ready is new).
+
+The charge payoff on the keystones is **folded into existing keystones** rather than added as
+a fourth. Three mutually exclusive keystones per branch is a design rule with a test on it,
+and quietly making it four to fit a new stat in would change the shape of every build in the
+game to avoid an edit.
+
+## The HUD
+
+`SetCooldowns` became `SetAbilities`, because "SPELL 2.1s" is the right readout for something
+you either have or do not and the wrong one for something you hold a stock of. It reads
+`SPELL ^ 2/3` with a dot tail for the refill, and stays exactly `SPELL ^` at capacity 1.
+
+Filled and hollow diamond pips were the first version and were reverted: U+25C6 and U+25C7 are
+Geometric Shapes, the HUD draws in Unity's built-in font, and a glyph missing there renders as
+a box on device with no way to find that out from here. A count always renders. If a device
+screenshot shows it reading poorly mid-run, pips with a bundled font are the fix — not a guess
+at what Arial happens to carry.

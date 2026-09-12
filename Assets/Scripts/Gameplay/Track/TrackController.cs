@@ -19,8 +19,8 @@ namespace BattleRunner.Gameplay.Track
         // to put a shockwave where the gate was rather than where the crowd is: at 10 m/s
         // the two are metres apart by the time the event is handled, and an effect that
         // does not land on its cause reads as an unrelated flash.
-        public event Action<GateOp, int, Vector3> GateApplied;
-        public event Action<int, Vector3> EnemyContact;
+        public event Action<GateOp, int, int, Vector3> GateApplied;
+        public event Action<int, int, Vector3> EnemyContact;
         public event Action FinishReached;
 
         private ObjectPool<GateBehaviour> _gatePool;
@@ -392,10 +392,11 @@ namespace BattleRunner.Gameplay.Track
             float z = 12f; // breathing room before the first chunk
             if (layouts != null)
             {
-                foreach (ChunkLayout layout in layouts)
+                for (int chunk = 0; chunk < layouts.Count; chunk++)
                 {
-                    if (layout == null) continue;
-                    SpawnLayout(layout, z);
+                    ChunkLayout layout = layouts[chunk];
+                    if (layout == null) { z += ChunkLayouts.ChunkMeters; continue; }
+                    SpawnLayout(layout, z, chunk);
                     z += ChunkLayouts.ChunkMeters;
                 }
             }
@@ -420,12 +421,12 @@ namespace BattleRunner.Gameplay.Track
         /// gates. Layouts now come from ChunkLayouts per round, so a round's shape is part of
         /// its identity rather than an index into a fixed list.
         /// </summary>
-        private void SpawnLayout(ChunkLayout layout, float startZ)
+        private void SpawnLayout(ChunkLayout layout, float startZ, int chunkIndex)
         {
             foreach (PlannedGate spec in layout.Gates)
             {
                 GateBehaviour gate = _gatePool.Get(_trackRoot);
-                gate.Setup(spec.Op, spec.Value, spec.Lane,
+                gate.Setup(spec.Op, spec.Value, spec.Lane, chunkIndex,
                     new Vector3(spec.Lane * _laneWidth, 0f, startZ + spec.Position));
                 _activeGates.Add(gate);
             }
@@ -433,7 +434,7 @@ namespace BattleRunner.Gameplay.Track
             foreach (PlannedPack spec in layout.Packs)
             {
                 EnemyPackBehaviour pack = _enemyPool.Get(_trackRoot);
-                pack.Setup(spec.ForceCost, spec.Lane,
+                pack.Setup(spec.ForceCost, spec.Lane, chunkIndex,
                     new Vector3(spec.Lane * _laneWidth, 0f, startZ + spec.Position));
                 _activeEnemies.Add(pack);
             }
@@ -583,6 +584,18 @@ namespace BattleRunner.Gameplay.Track
                 GateBehaviour gate = _activeGates[i];
                 float z = gate.transform.position.z;
 
+                // A gate a spell has destroyed keeps its slot until the despawn plane so the
+                // pooling stays in one place, but it must never resolve, score or draw.
+                if (gate.Destroyed)
+                {
+                    if (z < despawnZ)
+                    {
+                        _activeGates.RemoveAt(i);
+                        _gatePool.Release(gate);
+                    }
+                    continue;
+                }
+
                 // Resolved is a latch, and it has to be: FrontZ is derived from the crowd's
                 // envelope, which SHRINKS when force drops, so a big subtract gate can pull
                 // the leading plane backwards up to 1.8 m in one frame against an anchor that
@@ -594,6 +607,10 @@ namespace BattleRunner.Gameplay.Track
                     // draws through all geometry, so without this the far ones stack into
                     // an unreadable pile on the horizon.
                     gate.SetLabelVisible(z - frontZ <= LabelVisibleMeters);
+                    // The sign says what this gate is worth to the army CURRENTLY walking at
+                    // it, so it has to be rewritten as that army changes. Only gates near
+                    // enough to read are refreshed; the rest are re-signed as they approach.
+                    if (z - frontZ <= LabelVisibleMeters) gate.RefreshSign(crowd.ForceCount);
                     continue;
                 }
 
@@ -604,12 +621,12 @@ namespace BattleRunner.Gameplay.Track
                     // paint its number over the crowd on the way by.
                     gate.SetLabelVisible(false);
                     bool reaches = gate.Lane == crowdLane
-                        || (Talents.IsBeneficial(gate.Op, gate.Value)
+                        || (Talents.IsBeneficial(gate.Op, gate.Weight)
                             && CrowdMath.LaneReaches(crowd.CenterX, gate.Lane, _laneWidth, magnetism));
                     if (reaches)
                     {
                         gate.Consume();
-                        GateApplied?.Invoke(gate.Op, gate.Value, gate.transform.position);
+                        GateApplied?.Invoke(gate.Op, gate.Weight, gate.Depth, gate.transform.position);
                     }
                 }
 
@@ -634,6 +651,7 @@ namespace BattleRunner.Gameplay.Track
                 if (!pack.Resolved && z > frontZ)
                 {
                     pack.SetLabelVisible(z - frontZ <= LabelVisibleMeters);
+                    if (z - frontZ <= LabelVisibleMeters) pack.RefreshCount(crowd.ForceCount);
                     pack.FaceCamera(camera);
                     continue;
                 }
@@ -648,8 +666,9 @@ namespace BattleRunner.Gameplay.Track
                         // the game depends on that — but the squad now stands and fights while
                         // its count drains, instead of being deleted on the frame it is
                         // touched. See Core/Run/Melee and SquadRenderer.
+                        pack.RefreshCount(crowd.ForceCount);
                         pack.BeginFight(crowd.ForceCount);
-                        EnemyContact?.Invoke(pack.ForceCost, pack.transform.position);
+                        EnemyContact?.Invoke(pack.Weight, pack.Depth, pack.transform.position);
                     }
                     else
                     {
@@ -719,9 +738,27 @@ namespace BattleRunner.Gameplay.Track
         }
 
         /// <summary>Spell effect in the runner phase: destroys enemy packs within range ahead.</summary>
-        public int ClearEnemiesAhead(float fromZ, float rangeMeters)
+        /// <summary>
+        /// Destroy every ambush in a stretch of road ahead — enemy packs AND red gates — and
+        /// return how many things were cleared.
+        ///
+        /// TWO THINGS WERE WRONG WITH THIS, AND THEY ARE THE REPORT. The first is that it
+        /// only ever touched enemy PACKS, so the red gates — which is what most of the red
+        /// on the road actually is, since a subtract gate became a crowd of men — walked
+        /// straight through a spell that was aimed at them. The second is arithmetic: the
+        /// sweep started at the crowd's CENTRE and ran fifteen metres, while the crowd's own
+        /// front line already stands up to seven metres ahead of that centre. The spell was
+        /// clearing about eight metres of road, which at ten metres a second is under one
+        /// second of travel — less than the time it takes to see a pack and flick at it. It
+        /// was not a short-ranged spell; it was a spell that could not be aimed.
+        ///
+        /// It now starts at <paramref name="fromZ"/>, which the caller passes as the army's
+        /// FRONT, and the range in the definition went up to match.
+        /// </summary>
+        public int ClearAmbushesAhead(float fromZ, float rangeMeters)
         {
             int cleared = 0;
+
             for (int i = _activeEnemies.Count - 1; i >= 0; i--)
             {
                 EnemyPackBehaviour pack = _activeEnemies[i];
@@ -734,7 +771,35 @@ namespace BattleRunner.Gameplay.Track
                 _enemyPool.Release(pack);
                 cleared++;
             }
+
+            foreach (GateBehaviour gate in _activeGates)
+            {
+                if (gate.Resolved || gate.Destroyed || gate.Op != GateOp.Subtract) continue;
+                float z = gate.transform.position.z;
+                if (z < fromZ || z > fromZ + rangeMeters) continue;
+                if (gate.DestroyedBySpell()) cleared++;
+            }
+
             return cleared;
         }
+
+        /// <summary>Positions of everything a sweep would clear, so the effect can be drawn on each.</summary>
+        public void CollectAmbushesAhead(float fromZ, float rangeMeters, List<Vector3> into)
+        {
+            if (into == null) return;
+            foreach (EnemyPackBehaviour pack in _activeEnemies)
+            {
+                if (pack.Resolved) continue;
+                float z = pack.transform.position.z;
+                if (z >= fromZ && z <= fromZ + rangeMeters) into.Add(pack.transform.position);
+            }
+            foreach (GateBehaviour gate in _activeGates)
+            {
+                if (gate.Resolved || gate.Destroyed || gate.Op != GateOp.Subtract) continue;
+                float z = gate.transform.position.z;
+                if (z >= fromZ && z <= fromZ + rangeMeters) into.Add(gate.transform.position);
+            }
+        }
+
     }
 }

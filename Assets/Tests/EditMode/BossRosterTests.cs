@@ -96,23 +96,29 @@ namespace BattleRunner.Tests
         [Test]
         public void TheDrainScalesWithTheCrowdAndWithTime()
         {
-            long oneSecond = BossSim.DrainTick(BossArchetype.Drain, 1000L, 0.3f, 1f, false);
-            long half = BossSim.DrainTick(BossArchetype.Drain, 1000L, 0.3f, 0.5f, false);
-            long small = BossSim.DrainTick(BossArchetype.Drain, 100L, 0.3f, 1f, false);
+            double oneSecond = BossSim.DrainTick(BossArchetype.Drain, 1000.0, 0.3f, 1f, false);
+            double half = BossSim.DrainTick(BossArchetype.Drain, 1000.0, 0.3f, 0.5f, false);
+            double small = BossSim.DrainTick(BossArchetype.Drain, 100.0, 0.3f, 1f, false);
 
-            Assert.AreEqual(60L, oneSecond, "20% of the printed hit, per second, of current force");
-            Assert.AreEqual(30L, half);
-            Assert.AreEqual(6L, small);
-            Assert.AreEqual(0L, BossSim.DrainTick(BossArchetype.Drain, 0L, 0.3f, 1f, false));
+            // Tolerances are relative, not absolute: hitFraction is a float, so 0.3f is
+            // 0.300000011920929 and the exact answer is 60.0000023. Demanding 1e-6 of a
+            // number derived from a float is demanding more precision than the input has.
+            Assert.AreEqual(60.0, oneSecond, 1e-4, "20% of the printed hit, per second, of current force");
+            Assert.AreEqual(30.0, half, 1e-4);
+            Assert.AreEqual(6.0, small, 1e-5);
+            Assert.AreEqual(0.0, BossSim.DrainTick(BossArchetype.Drain, 0.0, 0.3f, 1f, false));
         }
 
         [Test]
-        public void ASingleFrameOfDrainStillCostsSomething()
+        public void ASingleFrameOfDrainCostsExactlyItsShare()
         {
-            // At 60 fps a 20-unit crowd loses 0.02 of a unit per frame. Rounding that to
-            // zero means the drain shows as nothing at all for a small army, which reads
-            // as a broken boss rather than as a gentle one.
-            Assert.AreEqual(1L, BossSim.DrainTick(BossArchetype.Drain, 20L, 0.3f, 1f / 60f, false));
+            // At 60 fps a 20-man crowd loses 0.02 of a man per frame. That used to be
+            // rounded UP to a whole unit, because an integer army showed a drain of zero as
+            // nothing happening at all — a boss that reads as broken rather than as gentle.
+            // A continuous army needs no such lie: the frame costs exactly what it costs,
+            // and sixty of them still come to 1.2.
+            Assert.AreEqual(0.02, BossSim.DrainTick(BossArchetype.Drain, 20.0, 0.3f, 1f / 60f, false), 1e-6);
+            Assert.Greater(BossSim.DrainTick(BossArchetype.Drain, 20.0, 0.3f, 1f / 60f, false), 0.0);
         }
 
         [Test]
@@ -182,11 +188,17 @@ namespace BattleRunner.Tests
         }
 
         [Test]
-        public void AddsScaleWithTheCrowdButAlwaysCostAtLeastOneEach()
+        public void AddsCostAFixedShareOfTheCrowdAtEveryScale()
         {
-            Assert.AreEqual(60L, BossSim.AddBite(2, 500L), "6% of the crowd per add");
-            Assert.AreEqual(2L, BossSim.AddBite(2, 5L), "and never rounds away to nothing");
-            Assert.AreEqual(4L, BossSim.AddBite(4, 4L), "capped at wiping the crowd, never past it");
+            // The "at least one each" floor is GONE, deliberately: it existed because an
+            // integer army rounded a 6% share of five men down to zero, and a continuous
+            // army has nothing to round. The proportionality it was protecting is the real
+            // property and is now exact at every scale.
+            Assert.AreEqual(60.0, BossSim.AddBite(2, 500.0), 1e-9, "6% of the crowd per add");
+            Assert.AreEqual(0.6, BossSim.AddBite(2, 5.0), 1e-9, "still exactly 6% each at five men");
+            Assert.AreEqual(0.96, BossSim.AddBite(4, 4.0), 1e-9, "four adds at 6% each");
+            Assert.AreEqual(20.0, BossSim.AddBite(40, 20.0), 1e-9,
+                "capped at wiping the crowd, never past it");
         }
 
         [Test]

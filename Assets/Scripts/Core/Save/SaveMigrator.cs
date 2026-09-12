@@ -10,7 +10,7 @@ namespace BattleRunner.Core.Save
     /// </summary>
     public static class SaveMigrator
     {
-        public const int CurrentVersion = 5;
+        public const int CurrentVersion = 6;
 
         private static readonly Dictionary<int, Action<PlayerProfile>> Steps = new Dictionary<int, Action<PlayerProfile>>
         {
@@ -79,6 +79,24 @@ namespace BattleRunner.Core.Save
                     if (!merged) profile.SkillRanks.Add(new RankEntry { Id = id, Rank = 1 });
                 }
                 profile.SkillNodes.Clear();
+            },
+
+            // v5 -> v6: the army became continuous. A v5 profile has no army fields at all,
+            // and they arrive as 0.0, which StandingArmy already reads as "muster the seed" —
+            // so the honest migration is to leave them alone and let an existing player start
+            // their next round the way a new one does.
+            //
+            // Seeding the army from CurrentLevelIndex was the obvious alternative and it is
+            // wrong: under v5 a round's force was a function of that round alone, so a save
+            // at round twenty says nothing whatsoever about how large that player's army got.
+            // Inventing a number from it would hand some players a rank they never earned and
+            // take one from others. The gear, the tree and the round are all kept; only the
+            // army starts from the seed, and one round of good play is worth a great deal at
+            // the bottom of a proportional curve.
+            [5] = profile =>
+            {
+                if (double.IsNaN(profile.ArmyBanked) || profile.ArmyBanked < 0.0) profile.ArmyBanked = 0.0;
+                if (double.IsNaN(profile.ArmyBestEver) || profile.ArmyBestEver < 0.0) profile.ArmyBestEver = 0.0;
             }
         };
 
