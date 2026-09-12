@@ -299,9 +299,9 @@ zone is dragged its own distance toward the world's `PropStone` at runtime:
 
 | | verge | field | landmark |
 |---|---:|---:|---:|
-| The Ashen Road | 0.74 | 0.30 | 0.12 |
-| The Frozen Reach | 0.60 | 0.18 | 0.05 |
-| Gallows Mire | 0.78 | 0.34 | 0.14 |
+| The Ashen Road | 0.32 | 0.20 | 0.12 |
+| The Frozen Reach | 0.26 | 0.13 | 0.05 |
+| Gallows Mire | 0.34 | 0.22 | 0.14 |
 
 A test pins the ordering — verge grimmer than field grimmer than landmark, in every world —
 so this cannot quietly invert. It is a *lerp* in albedo, not a multiply: multiplying toward
@@ -310,6 +310,55 @@ making it grim.
 
 Because the tint is a runtime uniform, **changing the mood of the whole game is a number, not
 a re-bake**.
+
+### Those numbers were 0.60–0.78, and that was the bug
+
+The direction was right and the amount was wrong by a factor of two and a half. At 0.74,
+three quarters of every roadside piece's albedo is replaced by **one colour per world**.
+Worlds 1-1 and 2-1 share *zero* verge pieces — different gravestones, different stumps,
+different rocks — and still arrived on device as two flat greys, because whatever different
+thing was placed there was then lerped to within a quarter of the same paint. The player's
+report was *"visuals per level have a tiny change"*, which is a precise description of what
+0.74 does.
+
+So the test's **floor became a ceiling**: at most 0.40 of a piece may be painted over, and
+the authored values sit at 0.26–0.34. A stump still looks like wood and a gravestone still
+looks like stone; the ordering that makes the skyline the colourful thing is untouched.
+
+The other half of the same problem was the **ten procedural props**, which are painted the
+world's `VergeStone` outright with nothing varying them per instance — ten silhouettes
+arriving as one flat mass, at roughly 37% of the verge population. Their density is halved
+and the imported verge raised by the same amount, so the roadside is as full as it was and
+more of it is art that carries its own colour. It costs no draw calls: the pieces were
+already in the palette, so the instances land in buckets that already existed.
+
+### Nine landmarks for eight worlds
+
+`Ruin` stood in five worlds and `Mausoleum` in five, so two worlds a whole act apart shared
+both their low walls and their only house — while **sixteen baked modules had never been
+referenced by anything**: the entire roof, corner and tower vocabulary (`fa_roof-gable`,
+`fa_roof-point`, `fa_wall-half`, `ca_tower-square`, `ca_wall-corner` and the rest).
+
+Because a landmark is a **part list** and not a mesh, eight more cost zero fetch, zero bake
+and **zero additional draw calls** — a chapel's walls land in the same instancing bucket as a
+cottage's. Every world now has one nothing else uses:
+
+| world | its own landmark | built from |
+|---|---|---|
+| The Ashen Road | `chapel` | gabled nave, bell tower, churchyard wall |
+| Gallows Mire | `stilthouse` | plank platform, wood walls, flat roof, smoke pipe |
+| The Sunken Crypt | `columnhall` | four columns and a slab, stairs, a crypt |
+| Ember Fields | `smithy` | three walls open at the front, chimney, barrels |
+| The Bone Wastes | `boneshrine` | a head on a plinth among broken rock |
+| The Frozen Reach | `watchtower` | four-course flagged tower on a broken curtain |
+| The Blood Marsh | `gatehouse` | a gate between two square towers |
+| The Throne of Dust | `manor` | two wings, corner roof, fenced yard |
+
+`EveryWorldHasOneLandmarkNoOtherWorldUses` pins it, and nothing may stand in more than four
+of the eight. Two existing tests did real work while these were being written:
+`LandmarkPartsAreStackedOnEachOtherRatherThanFloating` refused a course placed at a guessed
+height rather than a measured one, and `ScaleTurnsKenneyModulesIntoBuildings` caught the
+chapel at 5.3 m — a nave alone is a building, not a landmark, which is why it has a tower.
 
 ## The shader, and one coupling deleted rather than worked around
 

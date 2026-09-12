@@ -224,8 +224,17 @@ namespace BattleRunner.Gameplay.Track
 
             for (int side = -1; side <= 1; side += 2)
             {
-                // The procedural ten always run, at their original density, so the verge
-                // never becomes purely imported.
+                // The procedural ten still always run, so the verge never becomes purely
+                // imported — but at roughly HALF the density they had, with the imported
+                // verge raised by the same amount to keep the roadside as full as it was.
+                //
+                // They are all painted one colour: `_propMaterial._BaseColor` is the world's
+                // VergeStone and nothing varies it per instance, so ten procedural kinds
+                // arrive as one flat mass whatever their silhouettes do. At ~37% of the verge
+                // population that mass was a large part of why two worlds sharing zero verge
+                // pieces still looked alike. The imported pieces carry their own albedo, and
+                // now that VergeTint no longer paints two thirds of it over, they are the
+                // half of the verge worth having more of.
                 float propDensity = Mathf.Clamp(theme.PropDensity * variant.PropDensity, 2f, 40f);
                 ScatterProps(theme, ref rng, side, fromZ, toZ, 100f / propDensity);
 

@@ -33,6 +33,37 @@ army stands on the road instead of hovering over it — and a procedural cobbled
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
 corner notches, a gradient backdrop and readable disabled states, across every screen.
+**Eight worlds were painted three-quarters over with one colour each.** `VergeTint` sat at
+0.60–0.78, meaning up to 78% of every roadside piece's albedo was replaced by a single
+per-world stone. Worlds 1-1 and 2-1 share **zero** verge pieces and still arrived on device as
+two flat greys, because whatever different thing was placed there was then lerped to within a
+quarter of the same paint. *"Visuals per level have a tiny change"* is a precise description of
+what 0.74 does.
+
+The tint is now 0.26–0.34, and `TheVergeIsAlwaysGrimmerThanTheHorizon` is **deliberately
+rewritten**: its `VergeTint > 0.5` floor — the assertion that made this the shipped state —
+becomes a ceiling at 0.40. The ordering it also pinned was right and survives untouched, so
+"bright landmarks, dark verge" still holds; a stump now just looks like wood while it holds.
+
+The ten procedural props were the other half: painted the world's `VergeStone` outright with
+nothing varying them per instance, ten silhouettes arriving as one flat mass at ~37% of the
+verge population. Halved, with the imported verge raised by the same amount — as full a
+roadside, more of it art that carries its own colour, and no extra draw calls because those
+pieces were already in the palette.
+
+**Nine landmarks served eight worlds; sixteen baked modules served none.** `Ruin` stood in five
+worlds and `Mausoleum` in five, so worlds a whole act apart shared both their walls and their
+only house — while the entire roof, corner and tower vocabulary had never been referenced by
+anything. A landmark is a part list rather than a mesh, so eight more cost zero fetch, zero bake
+and zero additional draw calls: a chapel's walls land in the same instancing bucket as a
+cottage's. Chapel, stilt house, column hall, smithy, bone shrine, watchtower, gatehouse and
+manor — one per world that nothing else uses, pinned by a new test, with nothing permitted to
+stand in more than four of the eight.
+
+Two existing tests did real work here: the stacking test refused a course placed at a guessed
+height instead of a measured one, and the scale test caught the chapel at 5.3 m, which is why
+it has a bell tower.
+
 **The road was measured as a file and shipped as a slab, twice.** The generated cobble carries
 a luminance range of 178 in the PNG and arrived on screen as 21 — flatter, with the grid
 excluded, than the 19–42 the road had before any of the surface work began. Every number
@@ -904,7 +935,7 @@ The v0.4.0 screenshots confirmed the art pass landed — sky, stars, shadows, ro
 gates and UI frames all correct on device — and surfaced two bugs that were never about
 art: `Focus -0 %` on the menu and `+0.01 Focus` on the loot card. Both were units chosen
 from the ModifierKind rather than from the stat, plus a hard-coded minus sign in front of
-a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 374 tests today).
+a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 375 tests today).
 
 A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
 11 survived adversarial refutation. The headline three: the key light pointed the same way

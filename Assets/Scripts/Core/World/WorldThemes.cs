@@ -82,14 +82,14 @@ namespace BattleRunner.Core.World
                     {
                         Landmarks.Ruin,
                         Landmarks.Cottage,
-                        Landmarks.Mausoleum,
+                        Landmarks.Chapel,
                     },
-                    VergeDensity = 15f, FieldDensity = 9f,
+                    VergeDensity = 20f, FieldDensity = 9f,
                     LandmarkSpacing = 105f,
-                    VergeTint = 0.74f, FieldTint = 0.3f, LandmarkTint = 0.12f
+                    VergeTint = 0.32f, FieldTint = 0.2f, LandmarkTint = 0.12f
                 },
                 Props = new[] { PropKind.Gravestone, PropKind.DeadTree, PropKind.BrokenColumn },
-                PropDensity = 9f,
+                PropDensity = 4f,
                 PropStone = new Rgb(0.280f, 0.268f, 0.255f),
                 Accent = new Rgb(0.85f, 0.55f, 0.30f)
             },
@@ -143,15 +143,15 @@ namespace BattleRunner.Core.World
                     Landmarks = new[]
                     {
                         Landmarks.Watermill,
-                        Landmarks.Cottage,
+                        Landmarks.StiltHouse,
                         Landmarks.Ruin,
                     },
-                    VergeDensity = 22f, FieldDensity = 13f,
+                    VergeDensity = 28f, FieldDensity = 13f,
                     LandmarkSpacing = 95f,
-                    VergeTint = 0.78f, FieldTint = 0.34f, LandmarkTint = 0.14f
+                    VergeTint = 0.34f, FieldTint = 0.22f, LandmarkTint = 0.14f
                 },
                 Props = new[] { PropKind.DeadTree, PropKind.HangingCage, PropKind.Stump, PropKind.Gravestone },
-                PropDensity = 13f,
+                PropDensity = 6f,
                 PropStone = new Rgb(0.200f, 0.215f, 0.170f),
                 Accent = new Rgb(0.45f, 0.95f, 0.40f)
             },
@@ -205,15 +205,15 @@ namespace BattleRunner.Core.World
                     Landmarks = new[]
                     {
                         Landmarks.Mausoleum,
-                        Landmarks.Ruin,
+                        Landmarks.ColumnHall,
                         Landmarks.Outcrop,
                     },
-                    VergeDensity = 17f, FieldDensity = 12f,
+                    VergeDensity = 22f, FieldDensity = 12f,
                     LandmarkSpacing = 88f,
-                    VergeTint = 0.7f, FieldTint = 0.24f, LandmarkTint = 0.08f
+                    VergeTint = 0.3f, FieldTint = 0.17f, LandmarkTint = 0.08f
                 },
                 Props = new[] { PropKind.BrokenColumn, PropKind.Obelisk, PropKind.BoneArch },
-                PropDensity = 10f,
+                PropDensity = 5f,
                 PropStone = new Rgb(0.205f, 0.220f, 0.250f),
                 Accent = new Rgb(0.35f, 0.85f, 1.00f)
             },
@@ -266,15 +266,15 @@ namespace BattleRunner.Core.World
                     Landmarks = new[]
                     {
                         Landmarks.SiegeCamp,
-                        Landmarks.Ruin,
+                        Landmarks.Smithy,
                         Landmarks.Windmill,
                     },
-                    VergeDensity = 12f, FieldDensity = 8f,
+                    VergeDensity = 16f, FieldDensity = 8f,
                     LandmarkSpacing = 100f,
-                    VergeTint = 0.66f, FieldTint = 0.22f, LandmarkTint = 0.06f
+                    VergeTint = 0.28f, FieldTint = 0.15f, LandmarkTint = 0.06f
                 },
                 Props = new[] { PropKind.RockSpire, PropKind.Brazier, PropKind.RuinedWall },
-                PropDensity = 8f,
+                PropDensity = 4f,
                 PropStone = new Rgb(0.175f, 0.150f, 0.145f),
                 Accent = new Rgb(1.50f, 0.55f, 0.18f)
             },
@@ -327,15 +327,15 @@ namespace BattleRunner.Core.World
                     Landmarks = new[]
                     {
                         Landmarks.Outcrop,
-                        Landmarks.Mausoleum,
+                        Landmarks.BoneShrine,
                         Landmarks.Keep,
                     },
-                    VergeDensity = 10f, FieldDensity = 7f,
+                    VergeDensity = 13f, FieldDensity = 7f,
                     LandmarkSpacing = 120f,
-                    VergeTint = 0.62f, FieldTint = 0.2f, LandmarkTint = 0.05f
+                    VergeTint = 0.27f, FieldTint = 0.14f, LandmarkTint = 0.05f
                 },
                 Props = new[] { PropKind.Gravestone, PropKind.BoneArch, PropKind.RockSpire },
-                PropDensity = 7f,
+                PropDensity = 3f,
                 PropStone = new Rgb(0.455f, 0.435f, 0.385f),
                 Accent = new Rgb(0.95f, 0.88f, 0.62f)
             },
@@ -387,15 +387,15 @@ namespace BattleRunner.Core.World
                     Landmarks = new[]
                     {
                         Landmarks.PineStand,
-                        Landmarks.Keep,
+                        Landmarks.Watchtower,
                         Landmarks.Cottage,
                     },
-                    VergeDensity = 13f, FieldDensity = 15f,
+                    VergeDensity = 17f, FieldDensity = 15f,
                     LandmarkSpacing = 98f,
-                    VergeTint = 0.6f, FieldTint = 0.18f, LandmarkTint = 0.05f
+                    VergeTint = 0.26f, FieldTint = 0.13f, LandmarkTint = 0.05f
                 },
                 Props = new[] { PropKind.RockSpire, PropKind.Obelisk, PropKind.DeadTree },
-                PropDensity = 8f,
+                PropDensity = 4f,
                 PropStone = new Rgb(0.390f, 0.450f, 0.510f),
                 Accent = new Rgb(0.55f, 0.90f, 1.00f)
             },
@@ -453,16 +453,16 @@ namespace BattleRunner.Core.World
                     },
                     Landmarks = new[]
                     {
-                        Landmarks.Watermill,
+                        Landmarks.Gatehouse,
                         Landmarks.SiegeCamp,
                         Landmarks.Mausoleum,
                     },
-                    VergeDensity = 20f, FieldDensity = 12f,
+                    VergeDensity = 26f, FieldDensity = 12f,
                     LandmarkSpacing = 92f,
-                    VergeTint = 0.76f, FieldTint = 0.32f, LandmarkTint = 0.13f
+                    VergeTint = 0.33f, FieldTint = 0.21f, LandmarkTint = 0.13f
                 },
                 Props = new[] { PropKind.Stump, PropKind.HangingCage, PropKind.Gravestone, PropKind.DeadTree },
-                PropDensity = 12f,
+                PropDensity = 5f,
                 PropStone = new Rgb(0.225f, 0.150f, 0.150f),
                 Accent = new Rgb(1.30f, 0.22f, 0.28f)
             },
@@ -517,15 +517,15 @@ namespace BattleRunner.Core.World
                     Landmarks = new[]
                     {
                         Landmarks.Keep,
-                        Landmarks.Mausoleum,
+                        Landmarks.Manor,
                         Landmarks.Ruin,
                     },
-                    VergeDensity = 16f, FieldDensity = 11f,
+                    VergeDensity = 21f, FieldDensity = 11f,
                     LandmarkSpacing = 82f,
-                    VergeTint = 0.68f, FieldTint = 0.26f, LandmarkTint = 0.04f
+                    VergeTint = 0.29f, FieldTint = 0.16f, LandmarkTint = 0.04f
                 },
                 Props = new[] { PropKind.Obelisk, PropKind.Brazier, PropKind.RuinedWall, PropKind.BoneArch },
-                PropDensity = 9f,
+                PropDensity = 4f,
                 PropStone = new Rgb(0.150f, 0.140f, 0.170f),
                 Accent = new Rgb(0.95f, 0.55f, 1.40f)
             }

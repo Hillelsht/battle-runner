@@ -178,19 +178,63 @@ namespace BattleRunner.Tests
         }
 
         [Test]
-        public void TheVergeIsAlwaysGrimmerThanTheHorizon()
+        public void TheVergeIsGrimmerThanTheHorizonButStillHasAColour()
         {
-            // "Bright landmarks, dark verge", as a checked invariant rather than a hope. The
-            // road you actually look down stays dark fantasy; the thing on the skyline is the
-            // colour in the frame.
+            // DELIBERATELY REWRITTEN, and the old assertion is worth keeping in the record:
+            // this test used to demand VergeTint > 0.5, and every world sat at 0.60-0.78.
+            //
+            // The ordering was right. The FLOOR was the bug. Dragging a piece 74% of the way
+            // to one per-world stone colour does not make it grim, it makes it that colour:
+            // worlds 1-1 and 2-1 share ZERO verge pieces and still arrived on device as two
+            // flat greys, because whatever different thing was placed there was then lerped
+            // to within a quarter of the same paint. The player reported it as "visuals per
+            // level have a tiny change", which is exactly what the number describes.
+            //
+            // So the floor becomes a CEILING. "Bright landmarks, dark verge" survives as the
+            // ordering — the roadside is still the grimmest band and the skyline still
+            // carries the colour — but at most a third of a piece's own albedo may be
+            // replaced, so a stump still looks like wood and a gravestone still looks like
+            // stone.
             foreach (WorldTheme t in WorldThemes.All)
             {
                 SceneryPalette s = t.Scenery;
                 Assert.Greater(s.VergeTint, s.FieldTint, $"{t.DisplayName} verge is not grimmer than its field");
                 Assert.Greater(s.FieldTint, s.LandmarkTint, $"{t.DisplayName} field is not grimmer than its landmarks");
-                Assert.Greater(s.VergeTint, 0.5f, $"{t.DisplayName} roadside keeps too much Kenney colour");
+                Assert.LessOrEqual(s.VergeTint, 0.40f,
+                    $"{t.DisplayName} paints {s.VergeTint:P0} of its roadside over with one colour, "
+                    + "which is how eight dressings became one grey");
+                Assert.Greater(s.VergeTint, 0.15f,
+                    $"{t.DisplayName} roadside keeps too much Kenney colour to read as dark fantasy");
                 Assert.Less(s.LandmarkTint, 0.25f, $"{t.DisplayName} drains its own landmarks");
             }
+        }
+
+        [Test]
+        public void EveryWorldHasOneLandmarkNoOtherWorldUses()
+        {
+            // Nine landmarks served eight worlds and two carried most of it: Ruin appeared in
+            // five and Mausoleum in five, so worlds a whole act apart shared both their walls
+            // and their only house. Sharing SOME landmarks is correct — a cottage belongs in
+            // more than one world — but a world with nothing of its own has no silhouette.
+            var counts = new Dictionary<string, int>();
+            foreach (WorldTheme t in WorldThemes.All)
+                foreach (string name in t.Scenery.Landmarks)
+                    counts[name] = counts.TryGetValue(name, out int c) ? c + 1 : 1;
+
+            foreach (WorldTheme t in WorldThemes.All)
+            {
+                bool unique = false;
+                foreach (string name in t.Scenery.Landmarks)
+                    if (counts[name] == 1) { unique = true; break; }
+                Assert.IsTrue(unique,
+                    $"{t.DisplayName} has no landmark of its own — every one of "
+                    + $"[{string.Join(", ", t.Scenery.Landmarks)}] also stands in another world");
+            }
+
+            // And nothing may be the house in more than half the game.
+            foreach (var kv in counts)
+                Assert.LessOrEqual(kv.Value, 4,
+                    $"'{kv.Key}' stands in {kv.Value} of {WorldThemes.Count} worlds");
         }
 
         [Test]
