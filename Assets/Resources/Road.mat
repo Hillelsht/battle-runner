@@ -37,7 +37,8 @@ Material:
     - _NormalStrength: 1
     - _Cavity: 0.45
     - _MortarWidth: 0.075
-    - _StoneVariation: 0.45
+    - _StoneVariation: 0.72
+    - _GrimeContrast: 0.44
     - _Wetness: 0.55
     - _Gloss: 8
     m_Colors:

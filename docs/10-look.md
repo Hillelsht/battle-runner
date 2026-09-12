@@ -52,7 +52,7 @@ ambient and rim survive it, so a shadowed face darkens instead of becoming a bla
 which in a game this dark would read as a missing polygon rather than as shade.
 
 What casts: the crowd, the hero, the boss, enemy packs, the rails. What does not: lane
-lines and speed rungs, which are 2 cm tall road decals whose shadows would be noise on
+lines, which are 2 cm tall road decals whose shadows would be noise on
 the surface they are painted on.
 
 ## The one reversed decision
@@ -366,6 +366,71 @@ aimed at the wrong thing. The actual lavender is two other surfaces:
 Both are now neutral in hue with tight lobes. Same treatment the rails got once already —
 the mistake was cutting their flat term and leaving the rim strength at 0.7.
 
+### And then the markings were still the brightest thing on the road
+
+Neutralising the hue was right and the LEVEL was still wrong. Two passes later the road
+measured, on device, a luminance range of **21–24** with the markings excluded — flatter
+than the 19–42 it had before any of the surface work started. The grid was the cause and
+it had two halves:
+
+- **101–176 speed rungs.** A 6.6 × 0.35 m decal every 6 m, the full width of the road, on
+  the same emissive marking material, measuring **1.6–2.2× the road's own luminance**.
+  Whatever a surface does, it cannot compete with a brighter thing drawn over it every
+  6 m. They are deleted. The speed cue they carried belongs to the scenery and to the
+  surface's own detail, not to a lattice bright enough to erase the surface.
+- **`_RimUpMask` was never set on the marking material.** The mask exists precisely to
+  kill the rim term on up-facing normals, and it was applied to the crowd only — with a
+  comment saying the road decals *keep* the wide lobe "because their top face is their
+  only lit surface". That is backwards. The rim is strongest at **grazing** angles, which
+  is the only angle a 2 cm ground decal is ever seen at: ~80° off the view axis, where
+  even the power-4 lobe reads 0.64. The markings ran at near-full rim down the entire
+  length of the road. The mask is now set on the marking, rail and finish materials, and
+  the view-independent `_EmissionFlat` carries the lane read on its own.
+
+Lane lines stay — this is a three-lane game — narrowed from 0.10 m to 0.07 m.
+
+## Measuring the frame instead of the file
+
+The deeper failure behind two road passes was measuring the wrong artefact. The generated
+cobble carries a luminance range of **178 as a file** and arrives on screen as **21**.
+Every number reported about it was true of the input and irrelevant to the output.
+
+`tooling/predict_road.py` is the correction: an offline model of `Road.shader` plus the
+key light, the fog, the grade and the tonemapper, evaluated through the actual camera —
+one ray per pixel onto the ground plane, so perspective minification is in the model
+rather than assumed away. Its honest limits are written at the top of the file: one fitted
+parameter, a known systematic error in level, and therefore it reports **ratios against
+the configuration whose true device numbers are known**, never raw absolutes.
+
+What it found, and two of the three contradicted the plan it was written to verify:
+
+| lever | effect on the road's on-screen luminance range |
+|---|---|
+| `RoadStoneVariation` 0.53 → 1.00 (the shader maximum) | **+2.5%** |
+| `RoadMortarWidth` doubled | −0.2% |
+| `RoadGrimeContrast` back to the old fixed clamp | **−34%** |
+| `RoadTiling` halved (features twice as big) | **+16% range, +28% edge** |
+| `RoadTiling` quartered | +23% range, +43% edge |
+
+A feature on the ground is exactly `1 / RoadTiling` metres across, and one screen pixel
+covers about **15 cm of road at 25 m**. Three worlds were authored at 5.0, 7.0 and 9.0 —
+20 cm, 14 cm and 11 cm features, at or *below* one pixel in the middle distance, where
+nothing can survive. Their surfaces measured beautifully as files and could never have
+reached the eye. `SurfaceTests.EveryRoadFeatureIsBigEnoughToSurviveTheTripToTheEye` now
+holds every world to a two-pixel floor.
+
+The per-stone tone, meanwhile, is nearly worthless at distance for the same reason, and
+the plan had it as a headline lever. It is raised anyway because it reads in the first few
+metres and costs nothing — but it fixes nothing.
+
+The Blood Marsh needed a palette change on top: at 0.189 luma it was the darkest road of
+the eight and no amount of structure could lift it, so its stone is up 45% and its key
+light 0.90 → 1.05. It is still the darkest road in the game.
+
+Predicted, against the v0.19.0 frames: stone-only range **21–24 → 30–34**, edge
+**0.30–0.61 → 0.41–0.82**. A prediction is not a measurement, and the next round of device
+screenshots is the arbiter — if they disagree, the model is wrong and gets fixed.
+
 ## The end of the world, and why fog could not hide it
 
 The road visibly terminated in mid-air about 62 m in front of the camera by the end of a
@@ -381,7 +446,8 @@ level. Three independent causes, and no two of them are sufficient alone:
 2. **The ground stopped 40 m past the finish.** One `SpawnGroundStrip(-6, _finishZ + 40)`
    builds the ground, four lane lines and both rails as single stretched boxes, so
    extending it to +180 m costs nothing — no extra draw calls at any length. Only the
-   speed rungs are per-metre, and they get their own bound.
+   the speed rungs were per-metre and had their own bound — they are gone now, for
+   reasons above, and the strip is entirely stretched boxes.
 3. **Fog was the wrong mode and the wrong colour.** Exponential at 0.014 needs ~280 m to
    reach 98% — past the 220 m far clip — and the density that would reach it by 170 m
    washes half the contrast out of the road at 30 m where the game is played. And the fog

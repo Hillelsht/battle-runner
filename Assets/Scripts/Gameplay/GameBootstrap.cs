@@ -151,8 +151,9 @@ namespace BattleRunner.Gameplay
             // the one thing the wide default rim ruins: at power 2.5 two of the three
             // visible faces glow over half strength and the flat term floods the third,
             // leaving units as self-lit blocks. A tighter lobe plus an up-face mask puts
-            // the light back on the silhouette. The road markings keep the wide default
-            // because their top face IS their only lit surface.
+            // the light back on the silhouette. The road decals now set the same mask for
+            // the opposite reason: their top face is the only face they have, and the rim is
+            // strongest at grazing angles, which is all a ground decal is ever seen at.
             crowdMaterial.SetFloatSafe("_RimPower", 4.5f);
             crowdMaterial.SetFloatSafe("_RimStrength", 0.6f);
             crowdMaterial.SetFloatSafe("_RimUpMask", 1f);

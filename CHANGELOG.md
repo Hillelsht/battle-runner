@@ -17,7 +17,7 @@ points → save → next level.
 | Game loop | Complete end to end |
 | Content | 8 worlds, 6 levels, 6 bosses (6 archetypes) x 5 champion affixes = 30 fights, 15 gear items, 4 rarities, ~60 talents + endless paragon |
 | Art | Procedural meshes and code-built uGUI, 119 CC0 Kenney models in one 563 KB pack, and 8 generated ground surfaces with normal maps |
-| Tests | 372, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 374, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
@@ -33,6 +33,55 @@ army stands on the road instead of hovering over it — and a procedural cobbled
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
 corner notches, a gradient backdrop and readable disabled states, across every screen.
+**The road was measured as a file and shipped as a slab, twice.** The generated cobble carries
+a luminance range of 178 in the PNG and arrived on screen as 21 — flatter, with the grid
+excluded, than the 19–42 the road had before any of the surface work began. Every number
+previously reported about it was true of the input and irrelevant to the output.
+
+Two things on top of the stone were doing the damage. **101–176 speed rungs**, a full-width
+decal every 6 m on an emissive material measuring 1.6–2.2× the road's own luminance: that grid
+*is* what the road kept reading as, and no surface can compete with a brighter thing drawn over
+it every 6 m. They are deleted, along with the largest remaining draw-call item in the ground
+strip. And **`_RimUpMask` was never set on the marking material** — the mask that exists to kill
+the rim on up-facing normals was applied to the crowd only, with a comment claiming road decals
+should keep the wide lobe "because their top face is their only lit surface". Backwards: the rim
+peaks at *grazing* angles, which is the only angle a 2 cm ground decal is ever seen at. It is now
+set on the marking, rail and finish materials. Lane lines stay — three-lane game — narrowed to
+0.07 m.
+
+**`tooling/predict_road.py` is the instrument that should have existed first.** An offline model
+of `Road.shader` plus the key light, fog, grade and tonemapper, evaluated through the real camera
+one ray per pixel onto the ground plane, so perspective minification is modelled rather than
+assumed away. Its limits are written at the top of the file rather than buried: one fitted
+parameter, a known systematic error in level, and therefore it reports **ratios against the
+configuration whose true device numbers are known** instead of raw absolutes.
+
+It contradicted the plan it was written to verify, which is the point of building it:
+
+| lever | effect on the road's on-screen luminance range |
+|---|---|
+| `RoadStoneVariation` 0.53 → 1.00 (shader maximum) | **+2.5%** |
+| `RoadMortarWidth` doubled | −0.2% |
+| `RoadGrimeContrast` back to the old fixed clamp | **−34%** |
+| `RoadTiling` halved (features twice as big) | **+16% range, +28% edge** |
+
+A feature on the ground is exactly `1 / RoadTiling` metres across and one screen pixel covers
+about 15 cm of road at 25 m. Three worlds were authored at 5.0, 7.0 and 9.0 — 20 cm, 14 cm and
+11 cm features, at or below one pixel in the middle distance, where they can only average to
+flat. `EveryRoadFeatureIsBigEnoughToSurviveTheTripToTheEye` now holds every world to a two-pixel
+floor. The grime clamp, which was hard-coded in the shader and identical in all eight worlds,
+becomes the per-world `RoadGrimeContrast`. The per-stone tone — the plan's headline lever — is
+raised anyway because it reads in the first few metres, but it is recorded in the code as not
+fixing anything.
+
+The Blood Marsh needed a palette change none of that could substitute for: at 0.189 luma it was
+the darkest road of the eight and every structural term landed inside a few per cent of black.
+Its stone is up 45% and its key light 0.90 → 1.05. It is still the darkest road in the game.
+
+Predicted against the v0.19.0 frames: stone-only range **21–24 → 30–34**, edge
+**0.30–0.61 → 0.41–0.82**. A prediction is not a measurement and the next device screenshots
+decide it — if they disagree, the model is wrong and gets fixed, not the other way round.
+
 **The boss fight was a tableau, and now it is a fight.** The audit is blunt about what was
 there: the boss was pinned at a fixed point, its rotation was written once at construction and
 **never written again**, the army never moved, and the only thing that ever crossed the eleven
@@ -855,7 +904,7 @@ The v0.4.0 screenshots confirmed the art pass landed — sky, stars, shadows, ro
 gates and UI frames all correct on device — and surfaced two bugs that were never about
 art: `Focus -0 %` on the menu and `+0.01 Focus` on the loot card. Both were units chosen
 from the ModifierKind rather than from the stat, plus a hard-coded minus sign in front of
-a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 372 tests today).
+a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 374 tests today).
 
 A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
 11 survived adversarial refutation. The headline three: the key light pointed the same way

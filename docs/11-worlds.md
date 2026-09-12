@@ -22,7 +22,7 @@ The causes were all structural, not artistic:
   `GameBootstrap.Awake` **before a level exists**. Nothing downstream could vary it.
 - `TrackController.Initialize` builds the road, rail, marking and finish materials once from
   constants. `BuildLevel` never touches them.
-- `SpawnGroundStrip` emits a ground box, four lane lines, two rails and rung decals. Nothing
+- `SpawnGroundStrip` emits a ground box, four lane lines and two rails. Nothing
   is placed beyond `x = ±4.16 m`.
 - `ContentFactory.BuildChunksForLevel` is a formula with **three** outcomes: an add gate at
   12 m, another at 28 m, and on every third chunk a `×2` opposite a `−N` at 40 m. Every chunk

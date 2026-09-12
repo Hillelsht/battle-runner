@@ -54,6 +54,7 @@ Shader "BattleRunner/Road"
         _Cavity ("Cavity Shading", Range(0, 1)) = 0.45
         _MortarWidth ("Mortar Width", Range(0.01, 0.3)) = 0.075
         _StoneVariation ("Stone Tone Variation", Range(0, 1)) = 0.45
+        _GrimeContrast ("Grime Contrast", Range(0, 0.6)) = 0.42
         _Wetness ("Wetness", Range(0, 1)) = 0.55
         _Gloss ("Sheen Tightness", Float) = 8
     }
@@ -101,6 +102,7 @@ Shader "BattleRunner/Road"
                 half _Cavity;
                 half _MortarWidth;
                 half _StoneVariation;
+            half _GrimeContrast;
                 half _Wetness;
                 half _Gloss;
             CBUFFER_END
@@ -172,7 +174,14 @@ Shader "BattleRunner/Road"
                 // the eye from locking onto the repeat.
                 half grime = ValueNoise(input.positionWS.xz * 0.33) * 0.6h
                            + ValueNoise(input.positionWS.xz * 0.10) * 0.4h;
-                albedo *= lerp(0.72h, 1.12h, grime);
+                // The clamp was FIXED at lerp(0.72, 1.12) — a 1.56x ratio between the
+                // dirtiest and cleanest patch of a road that is the largest surface in the
+                // frame. Every other source of road contrast (the stone tone, the joint, the
+                // cavity) is sub-tile and averages away at distance; this large-scale term is
+                // the only one that survives to the far end of the runway, and it was the
+                // most compressed of the four. Per-world now, so a flooded mire can be
+                // blotchy where a marble floor stays even.
+                albedo *= lerp(1.0h - _GrimeContrast, 1.0h + _GrimeContrast * 0.62h, grime);
 
                 // Cavity from the height channel: recesses get less ambient than faces do.
                 // A contact shadow for one multiply, and the cheapest depth cue available.

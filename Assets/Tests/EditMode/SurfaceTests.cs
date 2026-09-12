@@ -179,6 +179,58 @@ namespace BattleRunner.Tests
         }
 
         [Test]
+        public void EveryRoadFeatureIsBigEnoughToSurviveTheTripToTheEye()
+        {
+            // THE TEST THAT WOULD HAVE CAUGHT THE LAST TWO ROAD PASSES.
+            //
+            // A feature on the ground is 1 / RoadTiling metres across. One screen pixel
+            // covers about 15 cm of road at 25 m, on a 60-degree portrait camera 5.5 m up —
+            // so a world authored at RoadTiling 9 has 11 cm gravel, which is SMALLER than a
+            // pixel in the middle distance and can only average to flat no matter what the
+            // texture contains. Three worlds shipped that way, and their generated surfaces
+            // measured beautifully as files while arriving on screen as grey slabs.
+            //
+            // Two pixels is the floor: below that there is nothing for the eye to lock onto,
+            // and the whole per-stone half of the surface is wasted instructions.
+            const float PixelMetresAt25M = 0.15f;
+            foreach (WorldTheme t in WorldThemes.All)
+            {
+                float feature = 1f / t.RoadTiling;
+                Assert.GreaterOrEqual(feature, PixelMetresAt25M * 2f,
+                    $"{t.DisplayName}: RoadTiling {t.RoadTiling} puts a feature at "
+                    + $"{feature * 100f:F0} cm, under two pixels of road at 25 m");
+                // And the other end: a 3 m "cobble" is a slab with a crack in it.
+                Assert.LessOrEqual(feature, 1.5f,
+                    $"{t.DisplayName}: RoadTiling {t.RoadTiling} puts a feature at "
+                    + $"{feature:F2} m, which is not a paving unit");
+            }
+        }
+
+        [Test]
+        public void TheGrimeContrastIsInsideTheShaderRangeAndActuallyVaries()
+        {
+            // The largest single term in the road's on-screen contrast: modelled through the
+            // camera, restoring the old hard-coded lerp(0.72, 1.12) costs 34% of the
+            // luminance range. It was fixed in the shader, so all eight worlds had the same
+            // one, and it is the term that SURVIVES minification — the per-stone tone does
+            // not. Range(0, 0.6) in Road.shader, and Unity clamps silently rather than
+            // complaining, which is how three surfaces once shipped with a normal strength
+            // of 1.15.
+            var seen = new HashSet<float>();
+            foreach (WorldTheme t in WorldThemes.All)
+            {
+                Assert.GreaterOrEqual(t.RoadGrimeContrast, 0f, t.DisplayName);
+                Assert.LessOrEqual(t.RoadGrimeContrast, 0.6f,
+                    $"{t.DisplayName}: {t.RoadGrimeContrast} is past Road.shader's "
+                    + "Range(0, 0.6) and would be clamped with nothing said");
+                seen.Add(t.RoadGrimeContrast);
+            }
+            Assert.GreaterOrEqual(seen.Count, 6,
+                "the grime reads the same in nearly every world, which is what it did when "
+                + "it was a constant in the shader");
+        }
+
+        [Test]
         public void ASurfaceCannotBeBuiltWithNoFeaturesInIt()
         {
             // FeaturesPerTile is a divisor. Zero is not a look, it is a crash or an infinity.

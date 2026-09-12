@@ -179,6 +179,7 @@ namespace BattleRunner.Gameplay.Track
             _finishMaterial.SetFloatSafe("_RimPower", 4f);
             _finishMaterial.SetFloatSafe("_RimStrength", 0.30f);
             _finishMaterial.SetFloatSafe("_EmissionFlat", 0.12f);
+            _finishMaterial.SetFloatSafe("_RimUpMask", 1f);
             _finishMaterial.SetFloatSafe("_BobAmount", 0f);
 
             // Lane lines and speed rungs are 2 cm decals whose only visible face points
@@ -198,6 +199,15 @@ namespace BattleRunner.Gameplay.Track
             _markingMaterial.SetFloatSafe("_RimPower", 4f);
             _markingMaterial.SetFloatSafe("_RimStrength", 0.35f);
             _markingMaterial.SetFloatSafe("_EmissionFlat", 0.10f);
+            // _RimUpMask. The comment on the crowd material in GameBootstrap says the road
+            // markings "keep the wide default because their top face IS their only lit
+            // surface" — and that is exactly backwards. The rim term is strongest at GRAZING
+            // angles, and a 2 cm decal on the ground is seen at nothing but grazing angles:
+            // its up-facing normal sits ~80 degrees off the view axis, where even the tight
+            // power-4 lobe reads ~0.64. So the markings ran at near-full rim down the entire
+            // length of the road. The mask kills exactly that term on up-facing normals and
+            // leaves _EmissionFlat, which is view-independent, to carry the lane read.
+            _markingMaterial.SetFloatSafe("_RimUpMask", 1f);
             _markingMaterial.SetFloatSafe("_BobAmount", 0f);
 
             // The rails were reading as lit blue plastic rather than as stone kerbs.
@@ -221,6 +231,10 @@ namespace BattleRunner.Gameplay.Track
             _railMaterial.SetFloatSafe("_RimPower", 5f);
             _railMaterial.SetFloatSafe("_RimStrength", 0.25f);
             _railMaterial.SetFloatSafe("_EmissionFlat", 0.02f);
+            // A rail is read by its INNER side, whose normal is horizontal, so the mask (which
+            // only touches normals pointing at the sky) leaves the silhouette cue untouched and
+            // costs the rail only its top strip.
+            _railMaterial.SetFloatSafe("_RimUpMask", 1f);
             _railMaterial.SetFloatSafe("_BobAmount", 0f);
         }
 
@@ -316,6 +330,8 @@ namespace BattleRunner.Gameplay.Track
                     theme.Surface.TileRepeatsPerMetre(theme.RoadTiling));
                 _groundMaterial.SetFloatSafe("_MortarWidth", theme.RoadMortarWidth);
                 _groundMaterial.SetFloatSafe("_StoneVariation", theme.RoadStoneVariation);
+                _groundMaterial.SetFloatSafe("_GrimeContrast",
+                    Mathf.Clamp(theme.RoadGrimeContrast, 0f, 0.6f));
                 // Wetness is the cheapest thing on the road that reads as weather, so the
                 // per-round variation spends here as well as on the fog.
                 _groundMaterial.SetFloatSafe("_Wetness",
@@ -462,25 +478,28 @@ namespace BattleRunner.Gameplay.Track
             for (int edge = -1; edge <= 1; edge += 2)
             {
                 SpawnStatic("LaneLineInner", new Vector3(edge * _laneWidth * 0.5f, 0.005f, midZ),
-                    new Vector3(0.10f, 0.02f, length), _markingMaterial);
+                    new Vector3(0.07f, 0.02f, length), _markingMaterial);
                 SpawnStatic("LaneLineOuter", new Vector3(edge * roadHalf, 0.005f, midZ),
-                    new Vector3(0.10f, 0.02f, length), _markingMaterial);
+                    new Vector3(0.07f, 0.02f, length), _markingMaterial);
 
                 SpawnStatic("Rail", new Vector3(edge * railCentre, 0.45f, midZ),
                     new Vector3(railHalfThickness * 2f, 0.9f, length), _railMaterial,
                     castsShadow: true);
             }
 
-            // Speed rungs span the road itself, not the verge. They are the ONE thing here
-            // that is per-metre rather than one stretched box, so they get their own bound:
-            // letting them inherit the strip's 180 m of runway would add 30 GameObjects
-            // that are sub-pixel past ~60 m and inside solid fog past 170.
-            float rungEnd = Mathf.Min(toZ, _finishZ + 40f);
-            for (float z = fromZ; z < rungEnd; z += 6f)
-            {
-                SpawnStatic("Rung", new Vector3(0f, 0.006f, z),
-                    new Vector3(roadHalf * 2f, 0.02f, 0.35f), _markingMaterial);
-            }
+            // THE SPEED RUNGS ARE GONE. There were 101-176 of them, one every 6 m across the
+            // full 6.6 m road, on the same emissive marking material — which measured at
+            // 1.6-2.2x the road's own luminance on device. Together with the four lane lines
+            // that IS the grid the road kept reading as: a bright regular lattice laid over
+            // whatever stone the world had chosen, flattening its range from the 178 the
+            // texture actually carries down to a measured 21 on screen. Whatever a surface
+            // does, it cannot compete with a brighter thing drawn on top of it every 6 m.
+            //
+            // They were also the largest remaining draw-call item in SpawnGroundStrip by an
+            // order of magnitude (everything else here is one stretched box).
+            //
+            // Their job was a speed cue. That belongs to the scenery streaming past and to
+            // the surface's own detail, not to a lattice bright enough to erase the surface.
         }
 
         /// <summary>

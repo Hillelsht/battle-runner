@@ -39,7 +39,7 @@ namespace BattleRunner.Core.World
                 RoadStone = new Rgb(0.310f, 0.295f, 0.285f),
                 RoadMortar = new Rgb(0.145f, 0.138f, 0.135f),
                 RoadDamp = new Rgb(0.300f, 0.330f, 0.440f),
-                RoadTiling = 1.60f, RoadWetness = 0.55f, RoadGloss = 8f, RoadStoneVariation = 0.45f,
+                RoadTiling = 1.60f, RoadWetness = 0.55f, RoadGloss = 8f, RoadStoneVariation = 0.72f, RoadGrimeContrast = 0.52f,
                 RoadMortarWidth = 0.075f, Surface = RoadSurfaces.Cobble,
                 SkyZenith = new Rgb(0.022f, 0.020f, 0.055f),
                 SkyHorizon = new Rgb(0.085f, 0.070f, 0.125f),
@@ -101,7 +101,7 @@ namespace BattleRunner.Core.World
                 RoadStone = new Rgb(0.240f, 0.260f, 0.200f),
                 RoadMortar = new Rgb(0.110f, 0.120f, 0.100f),
                 RoadDamp = new Rgb(0.260f, 0.360f, 0.280f),
-                RoadTiling = 1.35f, RoadWetness = 0.80f, RoadGloss = 10f, RoadStoneVariation = 0.52f,
+                RoadTiling = 1.20f, RoadWetness = 0.80f, RoadGloss = 10f, RoadStoneVariation = 0.80f, RoadGrimeContrast = 0.58f,
                 RoadMortarWidth = 0.190f, Surface = RoadSurfaces.Planks,
                 SkyZenith = new Rgb(0.020f, 0.028f, 0.030f),
                 SkyHorizon = new Rgb(0.070f, 0.095f, 0.070f),
@@ -163,7 +163,7 @@ namespace BattleRunner.Core.World
                 RoadStone = new Rgb(0.220f, 0.240f, 0.280f),
                 RoadMortar = new Rgb(0.100f, 0.110f, 0.130f),
                 RoadDamp = new Rgb(0.340f, 0.480f, 0.620f),
-                RoadTiling = 1.40f, RoadWetness = 0.90f, RoadGloss = 14f, RoadStoneVariation = 0.52f,
+                RoadTiling = 1.90f, RoadWetness = 0.90f, RoadGloss = 14f, RoadStoneVariation = 0.76f, RoadGrimeContrast = 0.50f,
                 RoadMortarWidth = 0.040f, Surface = RoadSurfaces.Flagstone,
                 SkyZenith = new Rgb(0.014f, 0.020f, 0.038f),
                 SkyHorizon = new Rgb(0.050f, 0.080f, 0.115f),
@@ -225,7 +225,7 @@ namespace BattleRunner.Core.World
                 RoadStone = new Rgb(0.200f, 0.170f, 0.160f),
                 RoadMortar = new Rgb(0.220f, 0.090f, 0.050f),   // cracks, not mortar
                 RoadDamp = new Rgb(0.550f, 0.250f, 0.120f),
-                RoadTiling = 1.50f, RoadWetness = 0.20f, RoadGloss = 6f, RoadStoneVariation = 0.60f,
+                RoadTiling = 1.30f, RoadWetness = 0.20f, RoadGloss = 6f, RoadStoneVariation = 0.85f, RoadGrimeContrast = 0.56f,
                 RoadMortarWidth = 0.130f, Surface = RoadSurfaces.Dirt,
                 SkyZenith = new Rgb(0.045f, 0.022f, 0.020f),
                 SkyHorizon = new Rgb(0.140f, 0.070f, 0.048f),
@@ -286,7 +286,7 @@ namespace BattleRunner.Core.World
                 RoadStone = new Rgb(0.420f, 0.400f, 0.350f),
                 RoadMortar = new Rgb(0.200f, 0.190f, 0.160f),
                 RoadDamp = new Rgb(0.350f, 0.330f, 0.300f),
-                RoadTiling = 7.00f, RoadWetness = 0.15f, RoadGloss = 5f, RoadStoneVariation = 0.62f,
+                RoadTiling = 3.20f, RoadWetness = 0.15f, RoadGloss = 5f, RoadStoneVariation = 0.82f, RoadGrimeContrast = 0.50f,
                 RoadMortarWidth = 0.020f, Surface = RoadSurfaces.Sand,
                 SkyZenith = new Rgb(0.028f, 0.026f, 0.048f),
                 SkyHorizon = new Rgb(0.115f, 0.100f, 0.095f),
@@ -347,7 +347,7 @@ namespace BattleRunner.Core.World
                 RoadStone = new Rgb(0.360f, 0.420f, 0.480f),
                 RoadMortar = new Rgb(0.200f, 0.240f, 0.300f),
                 RoadDamp = new Rgb(0.550f, 0.700f, 0.880f),
-                RoadTiling = 1.05f, RoadWetness = 0.95f, RoadGloss = 18f, RoadStoneVariation = 0.48f,
+                RoadTiling = 1.35f, RoadWetness = 0.95f, RoadGloss = 18f, RoadStoneVariation = 0.62f, RoadGrimeContrast = 0.38f,
                 RoadMortarWidth = 0.055f, Surface = RoadSurfaces.Snow,
                 SkyZenith = new Rgb(0.020f, 0.030f, 0.058f),
                 SkyHorizon = new Rgb(0.095f, 0.125f, 0.165f),
@@ -404,10 +404,16 @@ namespace BattleRunner.Core.World
             new WorldTheme
             {
                 DisplayName = "The Blood Marsh",
-                RoadStone = new Rgb(0.260f, 0.170f, 0.170f),
-                RoadMortar = new Rgb(0.130f, 0.080f, 0.080f),
+                // Raised 45%. This was the darkest road of the eight at 0.189 luma, and it
+                // is the one world whose contrast no amount of structure could fix: with the
+                // stone that dark the grime, the joint and the tone all land inside a few
+                // per cent of black and the predicted range came out at 17 against a mean of
+                // 55. Same argument as MinVergeLuma, applied to the road: a surface that dark
+                // in a fogged night scene is a hole, not an object. Still the darkest road.
+                RoadStone = new Rgb(0.377f, 0.247f, 0.247f),
+                RoadMortar = new Rgb(0.176f, 0.108f, 0.108f),
                 RoadDamp = new Rgb(0.450f, 0.160f, 0.180f),
-                RoadTiling = 9.00f, RoadWetness = 0.85f, RoadGloss = 9f, RoadStoneVariation = 0.50f,
+                RoadTiling = 3.30f, RoadWetness = 0.85f, RoadGloss = 9f, RoadStoneVariation = 0.78f, RoadGrimeContrast = 0.60f,
                 RoadMortarWidth = 0.060f, Surface = RoadSurfaces.Gravel,
                 SkyZenith = new Rgb(0.038f, 0.014f, 0.020f),
                 SkyHorizon = new Rgb(0.125f, 0.048f, 0.060f),
@@ -415,7 +421,7 @@ namespace BattleRunner.Core.World
                 SkyStars = 0.20f, SkyGlowPower = 9f, SkyGlowYaw = -12.0f,
                 Fog = new Rgb(0.629f, 0.160f, 0.160f), FogStart = 40f, FogEnd = 115f,
                 LightColor = new Rgb(0.950f, 0.680f, 0.680f),
-                LightIntensity = 0.90f, LightPitch = 22f, LightYaw = 230f,
+                LightIntensity = 1.05f, LightPitch = 22f, LightYaw = 230f,
                 // Ground: red silt under standing water.
                 Ground = new Rgb(0.235f, 0.122f, 0.118f),
                 GroundAlt = new Rgb(0.320f, 0.145f, 0.136f),
@@ -470,7 +476,7 @@ namespace BattleRunner.Core.World
                 // enough to be gold: at 0.26/0.20/0.09 the gilding landed within 2%
                 // of the tesserae's own luminance and the pattern read as nothing.
                 RoadDamp = new Rgb(0.400f, 0.300f, 0.550f),
-                RoadTiling = 5.00f, RoadWetness = 0.45f, RoadGloss = 12f, RoadStoneVariation = 0.55f,
+                RoadTiling = 2.60f, RoadWetness = 0.45f, RoadGloss = 12f, RoadStoneVariation = 0.70f, RoadGrimeContrast = 0.42f,
                 RoadMortarWidth = 0.160f, Surface = RoadSurfaces.Mosaic,
                 SkyZenith = new Rgb(0.018f, 0.014f, 0.036f),
                 SkyHorizon = new Rgb(0.070f, 0.055f, 0.115f),

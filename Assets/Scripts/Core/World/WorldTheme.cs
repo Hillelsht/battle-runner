@@ -48,6 +48,14 @@ namespace BattleRunner.Core.World
         /// procedural cobble grid and had to be re-tuned when the surfaces arrived, since
         /// 1.2 wind ripples per metre makes each ripple most of a metre across.
         /// </summary>
+        /// MEASURED, AND THIS IS THE SECOND-LARGEST TERM. A feature on the ground is exactly
+        /// 1 / RoadTiling metres across (RoadSurface.FeaturesPerTile normalises the texture
+        /// out), and one screen pixel covers about 15 cm of road at 25 m. Three worlds were
+        /// authored at 5.0, 7.0 and 9.0 — 20 cm, 14 cm and 11 cm features, i.e. at or BELOW
+        /// one pixel in the middle distance, where they can only average to flat. Halving a
+        /// tiling is worth +16% range and +28% edge; quartering it, +23% and +43%. The fine
+        /// surfaces (gravel, sand, mosaic) are now coarse enough to survive the trip to the
+        /// eye while still reading as gravel, sand and mosaic rather than as cobbles.
         public float RoadTiling = 1.6f;
         /// <summary>
         /// How far into the texture's face mask the joint is cut. Higher is a wider, deeper
@@ -61,7 +69,33 @@ namespace BattleRunner.Core.World
         /// a different shader variant — see RoadSurface for why that distinction is load-bearing.
         /// </summary>
         public RoadSurface Surface = RoadSurfaces.Cobble;
+        /// <summary>
+        /// How far the texture's tone channel pushes a single stone off the world's base
+        /// colour.
+        ///
+        /// MEASURED, AND IT IS NOT THE LEVER IT LOOKS LIKE. Modelled through the camera,
+        /// pushing this from the authored 0.53 mean all the way to the shader's maximum of
+        /// 1.0 moves the road's on-screen luminance range by 2.5%. It is a PER-STONE term,
+        /// and one pixel covers 15 cm of road at 25 m, so by the time a cobble is in the
+        /// middle distance the whole channel has already averaged to its own mean. It is
+        /// raised here because it does read in the first few metres and costs nothing, not
+        /// because it fixes anything. The terms that survive minification are the grime
+        /// contrast and the feature SIZE — see RoadGrimeContrast and RoadTiling.
+        /// </summary>
         public float RoadStoneVariation = 0.45f;
+        /// <summary>
+        /// The amplitude of the metres-wide grime noise, which was a hard-coded
+        /// lerp(0.72, 1.12) in the shader — a 1.56x ratio between the dirtiest and cleanest
+        /// patch. It is the ONLY road-contrast term whose feature size survives to the far
+        /// end of the runway (tone, joint and cavity are all sub-tile and average to flat
+        /// past ~30 m), so it was both the most important and the most compressed. Per-world
+        /// now: a flooded mire is blotchy, an ice sheet is not.
+        ///
+        /// MEASURED: restoring the old fixed clamp costs 34% of the road's on-screen
+        /// luminance range. This is the single largest term in the whole road, and the one
+        /// the previous pass never touched.
+        /// </summary>
+        public float RoadGrimeContrast = 0.42f;
         public float RoadWetness = 0.55f;
         public float RoadGloss = 8f;
 
