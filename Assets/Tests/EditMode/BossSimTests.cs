@@ -124,5 +124,76 @@ namespace BattleRunner.Tests
             Assert.AreEqual(0, BossSim.ApplyBossHit(1, 1f, 0f, false));
             Assert.AreEqual(0, BossSim.ApplyBossHit(0, 0.5f, 0f, false));
         }
+
+        [Test]
+        public void TheMaulNeverTakesTheLastManHoweverLongTheFightRuns()
+        {
+            // THE PROPERTY THAT MATTERS. The boss now swats at the army on every volley beat,
+            // roughly twice a second, for the whole fight. If that attrition could reach zero
+            // then a player who answers every telegraph correctly still loses by standing
+            // there — a fight with no answer, which is exactly what the shield exists to
+            // prevent. The maul colours a fight; the blows decide it.
+            long force = 500;
+            for (int beat = 0; beat < 4000; beat++)
+            {
+                long bite = BossSim.MaulBite(force, 0.0026f * 0.55f, 0f);
+                force -= bite;
+                Assert.Greater(force, 0L, $"attrition alone wiped the army on beat {beat}");
+            }
+            Assert.AreEqual(1L, force, "it should converge to the last man and stop");
+        }
+
+        [Test]
+        public void TheMaulRoundsDownWhereARealBlowRoundsUp()
+        {
+            // ApplyBossHit ceilings, because a telegraphed blow that lands must always cost
+            // something. The maul floors, because it fires ~80 times in a fight: ceiling a
+            // 0.14% bite would cost an army of five exactly what it costs an army of five
+            // thousand and would quietly wipe every small crowd in the game.
+            Assert.AreEqual(0L, BossSim.MaulBite(0, 0.5f, 0f));
+            Assert.AreEqual(0L, BossSim.MaulBite(100, 0f, 0f));
+            Assert.AreEqual(0L, BossSim.MaulBite(1, 0.9f, 0f), "the last man is never taken");
+            // A floor of one, so a big army still visibly bleeds rather than rounding to zero.
+            Assert.AreEqual(1L, BossSim.MaulBite(1000, 0.0014f, 0f));
+            Assert.AreEqual(14L, BossSim.MaulBite(10000, 0.0014f, 0f));
+        }
+
+        [Test]
+        public void HealthMitigatesTheMaulExactlyAsItMitigatesABlow()
+        {
+            // One stat, one meaning. If Health worked differently against the constant melee
+            // than against a telegraphed blow, the talent tree's most-taken node would mean
+            // two different things depending on which half of the fight was looked at.
+            const long force = 100000;
+            const float fraction = 0.02f;
+            foreach (float health in new[] { 0f, 25f, 100f, 400f })
+            {
+                long mauled = BossSim.MaulBite(force, fraction, health);
+                long blown = force - BossSim.ApplyBossHit(force, fraction, health, false);
+                // Same maths, differing only by the rounding rule above.
+                Assert.LessOrEqual(System.Math.Abs(mauled - blown), 1L,
+                    $"at Health {health} the maul took {mauled} where a blow took {blown}");
+            }
+            Assert.Greater(BossSim.MaulBite(force, fraction, 0f),
+                BossSim.MaulBite(force, fraction, 200f), "Health did not mitigate the maul");
+        }
+
+        [Test]
+        public void TheMaulIsSmallEnoughToColourAFightAndNotDecideOne()
+        {
+            // The tuning claim, written down so it cannot drift silently: over a twenty-second
+            // fight the maul should cost single-digit percent of an unarmoured army. If it
+            // ever grows past that it has stopped being attrition and become a second attack
+            // the player cannot answer.
+            const float perSecond = 0.0026f;
+            long force = 1000;
+            int beats = (int)(20f / 0.55f);
+            for (int i = 0; i < beats; i++)
+                force -= BossSim.MaulBite(force, perSecond * 0.55f, 0f);
+            float lost = 1f - force / 1000f;
+            Assert.Greater(lost, 0.02f, "the maul is invisible and might as well not exist");
+            Assert.Less(lost, 0.12f, "the maul is deciding fights the player cannot answer");
+        }
+
     }
 }

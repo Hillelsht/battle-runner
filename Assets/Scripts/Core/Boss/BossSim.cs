@@ -182,5 +182,44 @@ namespace BattleRunner.Core.Boss
             long losses = (long)Math.Ceiling(raw - Math.Abs(raw) * 1e-6);
             return Math.Max(0L, force - losses);
         }
+
+        /// <summary>
+        /// How many men the boss takes off the army in one swat of the constant melee.
+        ///
+        /// NOT `ApplyBossHit`. That models the telegraphed blow: it is answerable by a shield,
+        /// it is the thing the whole timing game is built around, and it is tuned to take a
+        /// large fraction at once. This is the attrition of standing next to something that
+        /// large, delivered on the same beat as the army's own swings, and it differs on every
+        /// axis that matters:
+        ///
+        ///   - UNBLOCKABLE, by design. A shield that answered this too would make the shield's
+        ///     real job — the telegraphed blow — unreadable, because the player could no
+        ///     longer tell which of the two things their shield just did.
+        ///   - Tiny per beat, so it can colour a fight without ever deciding one.
+        ///   - Scaled by Health identically, so the stat means the same thing in both places.
+        ///
+        /// Rounds DOWN, with a floor of one whenever the army is large enough to lose one.
+        /// Rounding up, as a real blow does, would make a 0.14% bite cost an army of five the
+        /// same as an army of five thousand and quietly wipe small crowds.
+        /// </summary>
+        public static long MaulBite(long force, float fraction, float heroHealth)
+        {
+            if (force <= 0L || fraction <= 0f) return 0L;
+            if (fraction > 1f) fraction = 1f;
+
+            double mitigation = 1.0 / (1.0 + Math.Max(0f, heroHealth) / 100.0);
+            double raw = force * (double)fraction * mitigation;
+
+            // A relative epsilon UPWARD, the mirror of the nudge ApplyBossHit applies
+            // downward and for the same reason: a float fraction puts an exact result a hair
+            // BELOW itself, so a naive floor turns a clean 0.14% of 10 000 into 13 rather
+            // than 14. Genuine fractions still round down, which is the rule this wants.
+            long bite = (long)(raw + Math.Abs(raw) * 1e-6);
+            // At least one, but never the last man: the maul is attrition, and a fight lost to
+            // attrition alone is a fight the player was given no way to answer.
+            if (bite < 1L && raw > 0.0 && force > 1L) bite = 1L;
+            if (bite >= force) bite = force - 1L;
+            return bite < 0L ? 0L : bite;
+        }
     }
 }

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using BattleRunner.Core.Boss;
 using BattleRunner.Core.Run;
 using BattleRunner.Gameplay;
 using BattleRunner.Gameplay.Track;
@@ -86,6 +87,78 @@ namespace BattleRunner.Gameplay.Crowd
         private List<GateBehaviour> _gates;
         private readonly Matrix4x4[] _allies = new Matrix4x4[MaxInstances];
         private bool _instancing;
+
+        // --- the boss skirmish ------------------------------------------------
+        //
+        // During a boss round there are no enemy squads on the level, so _fighters is an
+        // array of 512 matrices sitting idle for the entire encounter. The skirmish fills
+        // exactly that array, which is why a line of thirty men fighting a boss costs ZERO
+        // additional draw calls — doc 04's ceiling is 120 and this is the increment that
+        // could most easily have blown through it.
+        private bool _bossSkirmish;
+        private Vector3 _bossFoot;
+        private float _bossFightSeconds;
+        private int _bossFighters;
+        /// <summary>When the boss killed fighter i, or -1. Indexed by skirmish slot.</summary>
+        private readonly float[] _bossDownAt = new float[BossMelee.MaxFighters];
+
+        /// <summary>
+        /// Draw a line of the army's soldiers fighting the boss.
+        ///
+        /// Called every frame of an encounter by BossEncounterState, which owns the clock —
+        /// this component owns no fight state of its own beyond who is down, so a fight that
+        /// ends mid-frame cannot leave a body standing in an empty arena.
+        /// </summary>
+        public void SetBossSkirmish(Vector3 bossFoot, float fightSeconds, long force)
+        {
+            if (!_bossSkirmish)
+            {
+                for (int i = 0; i < _bossDownAt.Length; i++) _bossDownAt[i] = -1f;
+                _bossSkirmish = true;
+            }
+            _bossFoot = bossFoot;
+            _bossFightSeconds = fightSeconds;
+            _bossFighters = Mathf.Min(BossMelee.Fighters(force), BossMelee.MaxFighters);
+        }
+
+        /// <summary>
+        /// The boss's blow just landed. Take some of the line off its feet.
+        ///
+        /// A blow that removes force and nothing else is a number. This is what makes it a
+        /// thing that happened to somebody: the men nearest the boss go down, and stay down.
+        /// </summary>
+        public void BossKilled(int howMany)
+        {
+            if (!_bossSkirmish || howMany <= 0) return;
+            int killed = 0;
+            // Walk from a rotating start so it is not always the same slots that die, which
+            // would leave a permanent gap at one end of the line.
+            int start = (int)(_bossFightSeconds * 3.7f) % Mathf.Max(1, _bossFighters);
+            for (int n = 0; n < _bossFighters && killed < howMany; n++)
+            {
+                int i = (start + n) % _bossFighters;
+                if (_bossDownAt[i] >= 0f) continue;
+                _bossDownAt[i] = _bossFightSeconds;
+                killed++;
+            }
+            // Everyone is down and the fight is still going: the line re-forms. The army has
+            // hundreds of men and the detachment is a detachment, not the last of them.
+            if (killed < howMany || AllDown())
+                for (int i = 0; i < _bossDownAt.Length; i++) _bossDownAt[i] = -1f;
+        }
+
+        private bool AllDown()
+        {
+            for (int i = 0; i < _bossFighters; i++)
+                if (_bossDownAt[i] < 0f) return false;
+            return true;
+        }
+
+        public void ClearBossSkirmish()
+        {
+            _bossSkirmish = false;
+            _bossFighters = 0;
+        }
 
         /// <summary>
         /// The most bodies drawn for one gate crowd, on either sign. A +40 is already a wall
@@ -318,6 +391,26 @@ namespace BattleRunner.Gameplay.Crowd
                     if (!hostile) allyCount = already;
                     else if (gate.SinceConsumed >= 0f) brawlCount = already;
                     else enemyCount = already;
+                }
+            }
+
+            // THE BOSS SKIRMISH. Into the same bucket the squad fighters use — during a boss
+            // round there are no squads, so it is empty and this is free.
+            if (_bossSkirmish && _bossFighters > 0)
+            {
+                float armyZ = _crowd.FrontZ;
+                float span = _bossFoot.z - armyZ;
+                for (int i = 0; i < _bossFighters && fighterCount < MaxInstances; i++)
+                {
+                    SkirmishPose sp = BossMelee.Pose(i, _bossFighters, _bossFightSeconds,
+                        _bossDownAt[i]);
+                    if (sp.Standing <= 0f) continue;     // he is dead; stop drawing him
+                    var pos = new Vector3(_bossFoot.x + sp.Across, 0f, armyZ + span * sp.Toward);
+                    // Lean is a body pitch, which is the weapon arc: there is no per-instance
+                    // channel but the matrix, and a rotation is free inside one.
+                    var rot = Quaternion.Euler(sp.Lean, sp.Yaw, 0f);
+                    float scale = PhasedScale(Jitter(31337, i)) * (0.35f + 0.65f * sp.Standing);
+                    _fighters[fighterCount++] = Matrix4x4.TRS(pos, rot, Vector3.one * scale);
                 }
             }
 

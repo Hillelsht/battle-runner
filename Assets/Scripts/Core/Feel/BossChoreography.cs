@@ -58,6 +58,16 @@ namespace BattleRunner.Core.Feel
         public const float LungeMetres = 2.4f;
 
         /// <summary>
+        /// The most the army ever presses forward from its mark, in metres.
+        ///
+        /// Named rather than inline because it is now half of a PAIR: the encounter spawns
+        /// the boss at a fixed offset from the crowd's mark, and the arena that the skirmish
+        /// line has to span is the difference between the two. Changing one without the other
+        /// either puts the army inside the boss or opens a gap nobody can cross.
+        /// </summary>
+        public const float MaxPress = 4.5f;
+
+        /// <summary>
         /// The pose.
         ///
         /// <paramref name="telegraph"/> is the existing 0..1 wind-up the encounter already
@@ -124,7 +134,12 @@ namespace BattleRunner.Core.Feel
         public static float ArmyAdvance(float fightSeconds, float sinceBlow, bool blocked)
         {
             float press = fightSeconds <= 0f ? 0f : fightSeconds / (fightSeconds + 6f);
-            float advance = press * 3.2f;
+            // 4.5, up from 3.2, against a boss that now stands at +11 m rather than +16.
+            // Together that is a gap closing from thirteen metres to about seven over a
+            // fight, which is a distance a line of men can be seen to cross. At the old
+            // numbers the two sides never got within ten metres of one another and there was
+            // physically nowhere for a melee to happen.
+            float advance = press * MaxPress;
             if (sinceBlow >= 0f && sinceBlow < StrikeSeconds)
             {
                 float t = 1f - sinceBlow / StrikeSeconds;

@@ -29,6 +29,15 @@ namespace BattleRunner.Gameplay.Track
         private readonly List<EnemyPackBehaviour> _activeEnemies = new List<EnemyPackBehaviour>();
         private Material _enemyMaterial;
         private SquadRenderer _squadRenderer;
+
+        /// <summary>
+        /// The instanced squad renderer, so the boss encounter can borrow its fighter bucket.
+        ///
+        /// A boss round has no enemy squads on the level, so that array of 512 matrices sits
+        /// idle for the whole encounter — filling it with the skirmish line is what makes a
+        /// line of thirty men fighting a boss cost zero additional draw calls.
+        /// </summary>
+        public SquadRenderer Squads => _squadRenderer;
         private Transform _cameraTransform;
 
         /// <summary>

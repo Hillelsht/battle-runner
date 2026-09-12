@@ -116,7 +116,15 @@ namespace BattleRunner.Tests
             float early = BossChoreography.ArmyAdvance(2f, -1f, false);
             float late = BossChoreography.ArmyAdvance(20f, -1f, false);
             Assert.Greater(late, early, "the army never closes on the boss");
-            Assert.Less(late, 3.3f, "the army walks into the boss");
+            // DELIBERATELY RAISED, 3.3 -> MaxPress + a margin. The old bound was a guard
+            // against the army walking into a boss standing at +16 m; the boss now stands at
+            // +11 and the press is 4.5, so the gap still never closes below about six metres
+            // and this assertion still says exactly what it always said — it just says it
+            // against the arena that exists rather than the one that did.
+            Assert.LessOrEqual(late, BossChoreography.MaxPress,
+                "the army presses further than it is allowed to");
+            Assert.Less(BossChoreography.MaxPress, 11f - 4f,
+                "the army would reach the boss's own body at +11 m");
 
             float blocked = BossChoreography.ArmyAdvance(10f, 0f, true);
             float unblocked = BossChoreography.ArmyAdvance(10f, 0f, false);

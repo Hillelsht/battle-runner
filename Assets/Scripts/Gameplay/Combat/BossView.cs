@@ -214,16 +214,70 @@ namespace BattleRunner.Gameplay.Combat
         /// <summary>Begin the collapse. The mesh used to simply stop being drawn.</summary>
         public void Collapse() => _death = 0f;
 
-        public void FlashHit()
+        public void FlashHit() => FlashHit(1f);
+
+        /// <summary>
+        /// The boss took a hit, at <paramref name="strength"/> 0..1.
+        ///
+        /// THE STRENGTH ARGUMENT IS NOT DECORATION. The army now lands a blow roughly twice a
+        /// second for the whole fight, where before it dealt `dps * dt` silently. At full
+        /// strength every one of those would pin `_EmissionFlat` near its maximum from the
+        /// first second to the last — the boss would simply be bright, the flash would stop
+        /// meaning anything, and the SPELL, which is the one thing that is supposed to read as
+        /// special, would land on a shell already at full glow and produce no change at all.
+        ///
+        /// So a melee blow asks for about a third, and only a spell asks for all of it.
+        /// </summary>
+        public void FlashHit(float strength)
         {
             if (_body == null) return;
+            float k = Mathf.Clamp01(strength);
+            if (k <= 0f) return;
             _sinceHit = 0f;
-            _hitFlash = 1f;
+            // Never DIMMER than it already is: forty small blows must not be able to cut short
+            // the spell's own flash by arriving in the middle of its decay.
+            _hitFlash = Mathf.Max(_hitFlash, k);
             // 0.96 was a 0.23-unit dip on the old 5.7-unit figure, recovered in 2.4
             // frames at the existing rate of 6/s — literally invisible. 0.90 is 0.67
             // units on the 6.7-unit boss mesh, over about 7 frames, which reads as a
-            // flinch.
-            _body.localScale = Vector3.one * (_baseScale * 0.90f);
+            // flinch. Scaled by strength, so a melee blow is a twitch and a spell is a lurch.
+            _body.localScale = Vector3.one * (_baseScale * (1f - 0.10f * k));
+        }
+
+        /// <summary>
+        /// The boss swats at the men at its feet. Its half of the exchange, on the same beat.
+        ///
+        /// Deliberately NOT `Strike`: a Strike is the telegraphed, shield-answerable blow at
+        /// the ARMY, and the camera, the audio and the tutorial all key off it. This is the
+        /// constant, unblockable attrition of standing next to something that large — small
+        /// enough that it never competes with a telegraph for the player's attention, present
+        /// enough that the boss is never just standing there being hit.
+        /// </summary>
+        public void Maul()
+        {
+            _sinceMaul = 0f;
+            _maulSide = -_maulSide;
+        }
+
+        /// <summary>Seconds since the last swat, and which way it went. See Maul.</summary>
+        private float _sinceMaul = -1f;
+        private float _maulSide = 1f;
+
+        /// <summary>How long one swat takes to play out.</summary>
+        private const float MaulSeconds = 0.42f;
+
+        /// <summary>
+        /// The swat's contribution to the body twist, in degrees. Rides ON TOP of the pose
+        /// rather than replacing it, so a maul during a wind-up does not cancel the wind-up —
+        /// the telegraph is the only warning the player gets and nothing may eat it.
+        /// </summary>
+        private float MaulTwist()
+        {
+            if (_sinceMaul < 0f || _sinceMaul >= MaulSeconds) return 0f;
+            float t = _sinceMaul / MaulSeconds;
+            // Fast out, slow back, same shape as the strike and a quarter of the size.
+            float k = t < 0.25f ? t / 0.25f : 1f - (t - 0.25f) / 0.75f;
+            return _maulSide * 11f * k * k * (3f - 2f * k);
         }
 
         private void Update()
@@ -234,6 +288,7 @@ namespace BattleRunner.Gameplay.Combat
             _fightSeconds += dt;
             if (_sinceBlow >= 0f) _sinceBlow += dt;
             if (_sinceHit >= 0f) _sinceHit += dt;
+            if (_sinceMaul >= 0f && _sinceMaul < MaulSeconds) _sinceMaul += dt;
 
             // THE BOSS MOVES. Its rotation was written once at construction and never again,
             // and it never left its spawn point — two objects facing each other, one of them
@@ -254,7 +309,8 @@ namespace BattleRunner.Gameplay.Combat
             float fall = collapse * collapse * collapse;
             transform.position = _anchor
                                  + new Vector3(0f, -3.4f * fall, pose.Surge);
-            transform.rotation = Quaternion.Euler(pose.Lean + 84f * fall, pose.Twist, 0f);
+            transform.rotation = Quaternion.Euler(pose.Lean + 84f * fall,
+                pose.Twist + MaulTwist(), 0f);
 
             float pulse = 1f + _telegraphPulse * 0.12f * Mathf.Sin(Time.time * 22f);
             float target = _baseScale * pulse * pose.Scale * (1f - 0.25f * fall);

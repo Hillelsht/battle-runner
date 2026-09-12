@@ -33,6 +33,55 @@ army stands on the road instead of hovering over it — and a procedural cobbled
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
 corner notches, a gradient backdrop and readable disabled states, across every screen.
+**The boss fight had no fighting in it.** The army's damage to a boss was `dps * dt`, applied
+sixty times a second, writing nothing but the HUD bar. The only fight geometry in the whole
+encounter was the boss's own one or two swings per attack cycle: the player could watch a bar
+move and a boss lean, and could see nothing at all of the thing actually killing it. *"No visual
+fighting with the boss"* and *"I want to see I smack him, he smack me back not only using spells
+but every second"* are exact descriptions.
+
+`Core/Boss/BossMelee` is the army's half, as arithmetic — deliberately **not** `Melee`, which is
+pre-resolved: `Melee` is constructed knowing both sides' totals and the outcome and interpolates
+toward it, and a boss fight has no such outcome at the moment it starts. Reusing it would have
+meant either inventing a fake outcome to animate against or letting the animation contradict the
+real force count.
+
+- **The grind becomes volleys.** Same dps, same total, delivered on a 0.55 s beat with a flash, a
+  sound, a burst and a line of men swinging. `SwingsBy` is stepped rather than a timer that
+  resets, so the sum over a fight is exactly `dps × elapsed` to within the beat in flight —
+  pinned by a test at four frame rates, because a presentation change that quietly alters the
+  balance is a balance change wearing a disguise.
+- **And he smacks back, on the same beat.** `ApplyMaul` is a small unblockable force loss with a
+  body movement and a victim. Unblockable by design: a shield that answered it too would make
+  the shield's real job — the telegraphed blow — unreadable. `BossSim.MaulBite` floors where
+  `ApplyBossHit` ceilings, and a test pins that four thousand beats of attrition converge on the
+  last man and never take him, because a fight lost to attrition alone is a fight the player was
+  given no way to answer.
+- **The line is a volley, not a shimmer.** Phases spread by the golden ratio over 35% of the
+  cycle, so at any instant roughly 30% are closing, 45% trading and 25% falling back. A full
+  spread is the same failure as unison from the other end — statistically busy, visually static —
+  and there is a test for each.
+- **A blow the boss lands takes somebody off the board.** They fall, and stay down; the line
+  re-forms when it is spent.
+- **`FlashHit` takes a strength.** Melee asks 0.30, the spell asks 1.0. At full strength forty
+  volleys would pin `_EmissionFlat` near maximum for the whole fight and the spell would land on
+  a shell already at full glow.
+- **The arena closes from +16 m to +11**, with the army's press up from 3.2 to 4.5. At the old
+  numbers the two sides never came within ten metres and there was physically nowhere for a melee
+  to happen. `TheArmyPressesForwardAndIsDrivenBackByAnUnblockedBlow` is **deliberately rewritten**:
+  its `< 3.3` bound guarded against an army walking into a boss at +16, and it now says the same
+  thing against the arena that exists.
+- **`AudioCue.BossHit` was declared and never played** — there was no event to hang it on. Its
+  jitter goes 0.10 → 0.18 and its gap 0.05 → 0.18, or forty identical clicks a fight would read
+  as a machine. Real variants are the honest next step.
+
+It costs **zero extra draw calls**: a boss round has no enemy squads, so `SquadRenderer`'s
+fighter bucket is idle for the whole encounter and the skirmish fills exactly that array.
+
+One bug found by writing it down rather than by running it: `Tick` returns early once the fight
+resolves, so the line would have frozen mid-swing at a collapsing boss for the whole victory beat
+and the loot screen behind it. It is cleared on both resolution paths, not only in `Exit`.
+
 **Two bugs made every red crowd look wrong, and both were one line.**
 
 `CrowdInstanced.shader` recovers each body's walk phase from its uniform **scale** — there is no
@@ -962,7 +1011,7 @@ The v0.4.0 screenshots confirmed the art pass landed — sky, stars, shadows, ro
 gates and UI frames all correct on device — and surfaced two bugs that were never about
 art: `Focus -0 %` on the menu and `+0.01 Focus` on the loot card. Both were units chosen
 from the ModifierKind rather than from the stat, plus a hard-coded minus sign in front of
-a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 375 tests today).
+a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 386 tests today).
 
 A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
 11 survived adversarial refutation. The headline three: the key light pointed the same way

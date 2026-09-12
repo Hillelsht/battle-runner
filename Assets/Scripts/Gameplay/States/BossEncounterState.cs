@@ -44,6 +44,8 @@ namespace BattleRunner.Gameplay.States
         public void Enter()
         {
             _armyAdvance = 0f;
+            _skirmishSeconds = 0f;
+            _swingsDone = 0;
             // BossFor, not CurrentLevel.Boss. Taking the boss from the level tied the two
             // cycles together, so a player who saw level 3 twice fought its boss twice —
             // and with the old clamping LevelFor, round six onward was one boss forever.
@@ -67,7 +69,12 @@ namespace BattleRunner.Gameplay.States
             // Captured, not recomputed. BossView.Show pins the boss HERE for the whole
             // encounter while the crowd keeps ticking, so deriving the position from
             // Crowd.CenterZ later would walk the effects away from the body they belong to.
-            _bossPosition = new Vector3(0f, 0f, _ctx.Crowd.CenterZ + 16f);
+            // CLOSED FROM 16 TO 11 METRES. The army presses forward about 4.5 m over a
+            // fight, so at 16 the two sides never came within ten metres of each other and
+            // there was physically nowhere for a melee to happen: two objects at opposite
+            // ends of an empty road, one of them changing colour. At 11 the skirmish line
+            // spans a gap the eye reads as contact.
+            _bossPosition = new Vector3(0f, 0f, _ctx.Crowd.CenterZ + ArenaMetres);
             _ctx.BossView.Show(_boss, _bossPosition, _affix);
             _ctx.Audio.SetCombat(true);
             _ctx.Hud.ShowBossBar(BossAffixes.Decorate(_affix, _boss.DisplayName),
@@ -110,10 +117,99 @@ namespace BattleRunner.Gameplay.States
             _ctx.Hud.HideBossBar();
             _ctx.Dome.Clear();
             _ctx.Effects.Clear();
+            // The skirmish line is drawn from state this object owns, so it has to stop being
+            // drawn here — otherwise thirty soldiers keep fighting an empty stretch of road
+            // through the loot screen and into the next round.
+            _ctx.TrackController?.Squads?.ClearBossSkirmish();
         }
 
         /// <summary>Where the army currently stands relative to its mark, in metres.</summary>
         private float _armyAdvance;
+
+        /// <summary>
+        /// Where the boss stands, in metres ahead of the crowd's mark.
+        ///
+        /// PAIRED with BossChoreography.MaxPress, which is why that constant is named. The
+        /// arena the skirmish line has to span is the difference between the two: at 16 and
+        /// 3.2 it was thirteen metres and never closed below ten, so there was physically
+        /// nowhere for a melee to happen and the encounter could only ever be two objects at
+        /// opposite ends of an empty road. At 11 and 4.5 it closes to about six and a half,
+        /// which a line of men can be seen to cross.
+        /// </summary>
+        private const float ArenaMetres = 11f;
+
+        /// <summary>Seconds of skirmish, and how many of its beats have been paid out.</summary>
+        private float _skirmishSeconds;
+        private int _swingsDone;
+
+        /// <summary>
+        /// The army lands a volley on the boss.
+        ///
+        /// Everything here is presentation — the damage is already applied by the caller. The
+        /// strengths are deliberately small: this fires about twice a second for the whole
+        /// fight, and anything loud enough to be satisfying once is intolerable forty times.
+        /// </summary>
+        private void OnArmyVolley()
+        {
+            // A THIRD of a flash, not a whole one. At full strength these would pin the
+            // boss's _EmissionFlat near maximum from the first second to the last, and the
+            // SPELL — the one thing that is supposed to read as special — would land on a
+            // shell already at full glow and produce no visible change at all.
+            _ctx.BossView.FlashHit(0.30f);
+            _ctx.Audio.Play(AudioCue.BossHit);
+            // At the boss's feet, which is where the men are. Small: a burst big enough to
+            // be worth looking at once a fight is a strobe at this rate.
+            _ctx.Effects.Burst(_bossPosition + Vector3.up * 0.5f, SummonTint, 5, 2.6f, 0.30f);
+
+            // AND HE SMACKS BACK, ON THE SAME BEAT. The boss's only attack was the
+            // telegraphed blow every few seconds; between them it stood and was hit. This is
+            // the constant attrition of standing next to something that large — unblockable
+            // by design, because a shield that answered it would make the shield's real job
+            // (the telegraphed blow) unreadable, and small enough that it can never be the
+            // thing that kills you.
+            ApplyMaul();
+        }
+
+        /// <summary>
+        /// The boss swats at the men at its feet: a small, constant force loss with a body
+        /// movement and a victim, on the same beat as the army's volley.
+        /// </summary>
+        private void ApplyMaul()
+        {
+            long before = _ctx.Run.ForceCount;
+            if (before <= 0) return;
+
+            // Per SWING, so the rate is per-second and independent of the beat length. Scaled
+            // by Health exactly as a real blow is, so the stat means the same thing here.
+            float health = _ctx.LastResult.HeroStats.Get(BattleRunner.Core.Stats.StatIds.Health);
+            long bite = BossSim.MaulBite(before, MaulFractionPerSecond * BossMelee.SwingSeconds,
+                health);
+            if (bite <= 0L) return;
+
+            long after = System.Math.Max(0L, before - bite);
+            _ctx.Run.ForceCount = after;
+            _ctx.LastResult.FinalForceCount = after;
+            _ctx.Crowd.SetForce(after);
+            _ctx.Hud.SetForce(after);
+
+            _ctx.BossView.Maul();
+            // The men it actually killed go down and stay down. A blow that removes force and
+            // nothing else is a number; this is what makes it something that happened.
+            _ctx.TrackController?.Squads?.BossKilled(bite >= 3 ? 2 : 1);
+            _ctx.Effects.Burst(_bossPosition + Vector3.up * 0.6f, DeathTint, 4, 2.2f, 0.26f);
+
+            if (after <= 0) OnCrowdWiped();
+        }
+
+        /// <summary>
+        /// How much of the army the boss grinds away per second just by being fought.
+        ///
+        /// Small ON PURPOSE and it is the number most likely to want a device pass. Over a
+        /// twenty-second fight this is about 5% of the army before Health — real enough to
+        /// feel, nowhere near enough to decide the fight, which belongs to the telegraphed
+        /// blows the player can actually answer.
+        /// </summary>
+        private const float MaulFractionPerSecond = 0.0026f;
 
         public void Tick(float dt)
         {
@@ -135,11 +231,33 @@ namespace BattleRunner.Gameplay.States
             _ctx.Shield.Tick(dt);
             _ctx.Hud.SetCooldowns(_ctx.Spell.CooldownRemaining, _ctx.Shield.CooldownRemaining, _ctx.Shield.IsActive);
 
-            // Sustained crowd damage. Ward multiplier 1 — the grind wears a ward down,
-            // it just does not break one, which is what makes the spell the answer.
+            // THE ARMY'S DAMAGE, ON A BEAT INSTEAD OF PER FRAME.
+            //
+            // It was `dps * dt` applied sixty times a second, writing nothing but the HUD
+            // bar. A thing that happens sixty times a second cannot be seen, heard or felt —
+            // the whole of the player's contribution to a boss fight was invisible, which is
+            // what "no visual fighting with the boss" describes.
+            //
+            // Same dps. Same total. Delivered on a beat, with a flash, a sound, a burst and a
+            // line of men swinging. BossMelee.SwingsBy is stepped rather than a timer that
+            // resets, so the sum over a fight is exactly dps * elapsed to within the beat
+            // currently in flight — pinned by a test, because a presentation change that
+            // quietly alters the balance is a balance change wearing a disguise.
             float dps = BossSim.PlayerDps(_ctx.LastResult, _ctx.Config.Balance.SoftCap);
-            ApplyBossDamage(dps * dt, 1f);
+            _skirmishSeconds += dt;
+            int swings = BossMelee.SwingsBy(_skirmishSeconds);
+            if (swings > _swingsDone)
+            {
+                ApplyBossDamage(BossMelee.DamageForSwings(_swingsDone, swings, dps), 1f);
+                _swingsDone = swings;
+                if (!_resolved) OnArmyVolley();
+            }
             if (_resolved) return;
+
+            // The skirmish line itself. Told, not asked: this state owns the clock, so a
+            // fight that ends mid-frame cannot leave a soldier standing in an empty arena.
+            _ctx.TrackController?.Squads?.SetBossSkirmish(
+                _bossPosition, _skirmishSeconds, _ctx.Run.ForceCount);
 
             ApplyDrain(dt);
             if (_resolved || _awaitingPrompt) return;
@@ -257,7 +375,9 @@ namespace BattleRunner.Gameplay.States
             // first hit may already have finished the fight.
             if (echo && !_resolved) ApplyBossDamage(hit, SpellWardMultiplier);
             _ctx.Audio.Play(AudioCue.SpellHit);
-            _ctx.BossView.FlashHit();
+            // FULL strength. The melee volleys ask for 0.30 precisely so this one still
+            // reads as a different event when it arrives forty blows into a fight.
+            _ctx.BossView.FlashHit(1f);
             _ctx.CameraRig.Apply(CameraFeel.Spell);
             _ctx.CameraRig.PunchFov(2.2f);
 
@@ -466,6 +586,11 @@ namespace BattleRunner.Gameplay.States
             _ctx.CameraRig.SetTelegraph(0f);
             _ctx.Ward.Clear();
             _ctx.Dome.Clear();
+            // BEFORE Exit, not in it. Tick returns early once the fight is resolved or a
+            // prompt is up, so the skirmish would simply stop being updated and thirty
+            // soldiers would stand frozen mid-swing at a collapsing boss for the whole of the
+            // victory beat and the loot screen behind it.
+            _ctx.TrackController?.Squads?.ClearBossSkirmish();
 
             // The beat the whole level builds to: three rings leaving the body at different
             // speeds so the wave has depth rather than being one expanding circle, plus a
@@ -497,6 +622,9 @@ namespace BattleRunner.Gameplay.States
             _ctx.Ward.Clear();
             _ctx.Dome.Clear();
             _ctx.Effects.Clear();
+            // Same reason as OnBossDefeated: Tick stops here, so the line has to be told to
+            // stop rather than left to freeze behind the resurrect modal.
+            _ctx.TrackController?.Squads?.ClearBossSkirmish();
             _ctx.CameraRig.SetTelegraph(0f);
 
             _awaitingPrompt = true;

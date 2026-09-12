@@ -104,7 +104,14 @@ namespace BattleRunner.Core.Audio
             new CueMix("sfx_shield_block",    0.85f, 0.05f, 0.070f, 4),
             new CueMix("sfx_boss_telegraph",  0.70f, 0.02f, 0.300f, 4),
             new CueMix("sfx_boss_blow",       0.95f, 0.04f, 0.120f, 5),
-            new CueMix("sfx_boss_hit",        0.55f, 0.10f, 0.050f, 2),
+            // BossHit was DECLARED AND NEVER PLAYED. Nothing in the game called it, because
+            // the army's damage to a boss was `dps * dt` sixty times a second and there was no
+            // event to hang a sound on. It now fires on every volley — roughly twice a second
+            // for a whole fight, forty-odd times — so the jitter is up from 0.10 to 0.18 and
+            // the gap from 0.05 to 0.18, or it would be one identical click repeating. A
+            // proper set of variants is the honest next step; pitch spread is what stops it
+            // reading as a machine until then.
+            new CueMix("sfx_boss_hit",        0.50f, 0.18f, 0.180f, 2),
             new CueMix("sfx_boss_death",      1.00f, 0.00f, 1.000f, 5),
             new CueMix("sfx_loot_reveal",     0.75f, 0.02f, 0.300f, 4),
             new CueMix("sfx_ui_tap",          0.45f, 0.04f, 0.040f, 1),
