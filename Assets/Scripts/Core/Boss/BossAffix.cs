@@ -161,8 +161,17 @@ namespace BattleRunner.Core.Boss
         // --- composition, with the clamps that keep BossSim from throwing -----
 
         /// <summary>Boss health for a round, archetype curve and affix together.</summary>
-        public static float BossHp(float baseHp, float perLevelGrowth, int levelIndex, BossAffix affix) =>
-            BossSim.BossHp(baseHp, perLevelGrowth, levelIndex) * HpScale(affix);
+        /// <summary>
+        /// Boss HP for one ACT, with the affix applied.
+        ///
+        /// The parameter is an ACT index, not a round index. It used to be a round index, and
+        /// that was the difficulty treadmill: a boss is fought once per act but its health
+        /// compounded per round. See BossSim.BossHp for the measurement and the fix.
+        /// </summary>
+        public static float BossHp(float baseHp, float pressurePerAct, int actIndex,
+            float statDamageAtAct, float statDamageAtFirstAct, long softCap, BossAffix affix) =>
+            BossSim.BossHp(baseHp, pressurePerAct, actIndex,
+                statDamageAtAct, statDamageAtFirstAct, softCap) * HpScale(affix);
 
         /// <summary>
         /// One blow's share of the crowd, CLAMPED to [0,1].

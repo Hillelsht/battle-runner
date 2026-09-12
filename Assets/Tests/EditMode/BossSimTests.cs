@@ -57,26 +57,99 @@ namespace BattleRunner.Tests
                 BossSim.TimeToKill(1000f, BossSim.PlayerDps(Result(100, 0f), SoftCap)));
         }
 
+        /// <summary>Stat damage at an act, with the shipped balance numbers.</summary>
+        private static float StatDamage(int act) =>
+            BossSim.StatDamageAtAct(act, baseDamage: 10f, damagePerPoint: 2f, pointsPerBoss: 3);
+
+        private static float Hp(float baseHp, float pressure, int act) =>
+            BossSim.BossHp(baseHp, pressure, act, StatDamage(act), StatDamage(0), SoftCap);
+
         [Test]
-        public void BossHp_GrowsPerLevel()
+        public void BossHp_GrowsPerAct()
         {
-            float l0 = BossSim.BossHp(500f, 0.25f, 0);
-            float l4 = BossSim.BossHp(500f, 0.25f, 4);
-            Assert.AreEqual(500f, l0);
-            Assert.AreEqual(500f * 1.25f * 1.25f * 1.25f * 1.25f, l4, 0.5f);
+            // DELIBERATELY REWRITTEN, and the old test is worth stating: it asserted
+            // `BossHp(500, 0.25, 4) == 500 * 1.25^4` and it passed, which is exactly how the
+            // difficulty treadmill survived. The quantity was right and the INDEX was wrong —
+            // it was a round index, and a boss is fought once per act, so the health
+            // multiplied about 3.0x between consecutive fights while the player grew 1.2-1.7x.
+            // What the test pinned was the bug, faithfully.
+            Assert.AreEqual(500f, Hp(500f, 0.06f, 0), 0.01f, "act 0 is the base");
+
+            float a1 = Hp(500f, 0.06f, 1);
+            float a4 = Hp(500f, 0.06f, 4);
+            Assert.Greater(a1, 500f, "the boss must get harder");
+            Assert.Greater(a4, a1);
+
+            // And it grows in the bounded way the fix is for: four acts on, against a player
+            // whose army and stat points have both grown, not an unbounded exponential.
+            Assert.Less(a4 / 500f, 30f, "four acts must not multiply the health thirtyfold");
+        }
+
+        [Test]
+        public void BossHpTracksTheArmyTheActExpectsRatherThanTheCalendar()
+        {
+            // The load-bearing property of the fix. Health is scaled by the SAME crowd factor
+            // the player's damage is multiplied by, at the force the act expects — so when the
+            // soft cap flattens the army, it flattens the boss too, automatically and for the
+            // same reason. Before, nothing connected the two and the gap compounded forever.
+            long capped = BossSim.ExpectedForceAtAct(10, SoftCap);
+            Assert.AreEqual(SoftCap, capped, "the army is expected to be at the cap by act 10");
+            Assert.AreEqual(capped, BossSim.ExpectedForceAtAct(14, SoftCap),
+                "and to stay there, which is why the late curve must flatten");
+
+            // Past the cap the only growth left is the stat points and the pressure screw.
+            float a9 = Hp(1000f, 0.06f, 9);
+            float a14 = Hp(1000f, 0.06f, 14);
+            Assert.Less(a14 / a9, 3f,
+                "five acts past the force cap must not multiply the health more than a few fold");
         }
 
         [Test]
         public void TimeToKill_SanityWindow_ForParPlayer()
         {
-            // A level-0 par player (base damage 10, modest force) should kill the
-            // level-0 boss in a hybrid-casual window: 5-60 seconds.
+            // A par player at act 0 (base damage 10, modest force) kills the first boss in a
+            // hybrid-casual window. The window is TIGHTENED from the old 5-60 s: the shipped
+            // fight measured 9 s, the player called the game too easy, and 5 s was never a
+            // sane lower bound for the beat a whole level builds to.
             float ttk = BossSim.TimeToKill(
-                BossSim.BossHp(500f, 0.25f, 0),
+                Hp(1150f, 0.05f, 0),
                 BossSim.PlayerDps(Result(150, 10f), SoftCap));
-            Assert.Greater(ttk, 5f);
-            Assert.Less(ttk, 60f);
+            Assert.Greater(ttk, 10f, "the first boss dies before the player has learned it");
+            Assert.Less(ttk, 45f);
         }
+
+        [Test]
+        public void TheWholeCampaignStaysInsideAPlayableWindow()
+        {
+            // THE TEST THAT WOULD HAVE CAUGHT THE TREADMILL. Walk sixteen acts of the shipped
+            // roster against the army and stat points each act expects, and require every
+            // fight to be winnable in a sane time. Under the old per-round curve the act-10
+            // boss needed roughly two and a half HOURS, and nothing in the suite noticed.
+            float[] bases = { 1150f, 1330f, 1450f, 1360f, 1390f, 1510f };
+            float[] pressures = { 0.05f, 0.055f, 0.06f, 0.06f, 0.065f, 0.07f };
+
+            for (int act = 0; act < 16; act++)
+            {
+                long force = BossSim.ExpectedForceAtAct(act, SoftCap);
+                // The stat points the game has handed out, and nothing else: gear and talents
+                // are the player's edge and are deliberately not modelled, so a real player
+                // beats this.
+                float hp = Hp(bases[act % 6], pressures[act % 6], act);
+                float dps = BossSim.PlayerDps(Result(force, StatDamage(act)), SoftCap);
+                float ttk = BossSim.TimeToKill(hp, dps) / SpellShare;
+
+                Assert.Greater(ttk, 5f, $"act {act} boss dies in {ttk:0.0}s");
+                Assert.Less(ttk, 60f,
+                    $"act {act} boss needs {ttk:0.0}s from a player with nothing but stat points");
+            }
+        }
+
+        /// <summary>
+        /// The spell roughly halves a fight's length at par, so the sustained figure is
+        /// divided by this to get a real time-to-kill. Named rather than inline because two
+        /// tests use it and it is an assumption, not a fact.
+        /// </summary>
+        private const float SpellShare = 1.5f;
 
         [Test]
         public void Shield_NegatesBossHit()

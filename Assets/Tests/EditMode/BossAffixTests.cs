@@ -280,8 +280,14 @@ namespace BattleRunner.Tests
         [Test]
         public void ColossalHealthScalesTheArchetypeCurveRatherThanReplacingIt()
         {
-            float plain = BossSim.BossHp(500f, 0.25f, 10);
-            float huge = BossAffixes.BossHp(500f, 0.25f, 10, BossAffix.Colossal);
+            // The signature moved from a ROUND index to an ACT index with the player's own
+            // curve folded in (see BossSim.BossHp); what this test is about — that the affix
+            // SCALES the curve rather than replacing it — is unchanged.
+            const long softCap = 100_000L;
+            float d10 = BossSim.StatDamageAtAct(10, 10f, 2f, 3);
+            float d0 = BossSim.StatDamageAtAct(0, 10f, 2f, 3);
+            float plain = BossSim.BossHp(500f, 0.06f, 10, d10, d0, softCap);
+            float huge = BossAffixes.BossHp(500f, 0.06f, 10, d10, d0, softCap, BossAffix.Colossal);
             Assert.AreEqual(plain * BossAffixes.HpScale(BossAffix.Colossal), huge, 1e-2f);
             Assert.Greater(huge, plain);
         }

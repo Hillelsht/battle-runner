@@ -46,17 +46,29 @@ namespace BattleRunner.Gameplay.States
             _armyAdvance = 0f;
             _skirmishSeconds = 0f;
             _swingsDone = 0;
+            _openingForce = _ctx.Run.ForceCount;
             // BossFor, not CurrentLevel.Boss. Taking the boss from the level tied the two
             // cycles together, so a player who saw level 3 twice fought its boss twice —
             // and with the old clamping LevelFor, round six onward was one boss forever.
             _boss = _ctx.Config.BossFor(_ctx.Profile.CurrentLevelIndex) ?? _ctx.CurrentLevel.Boss;
             _archetype = _boss.Archetype;
-            _affix = BossAffixes.For(RoundPlan.For(_ctx.Profile.CurrentLevelIndex).ActIndex);
+            int actIndex = RoundPlan.For(_ctx.Profile.CurrentLevelIndex).ActIndex;
+            _affix = BossAffixes.For(actIndex);
             _resolved = false;
             _awaitingPrompt = false;
 
-            _bossHpMax = BossAffixes.BossHp(_boss.BaseHp, _boss.PerLevelGrowth,
-                _ctx.Profile.CurrentLevelIndex, _affix);
+            // THE ACT INDEX, NOT THE ROUND INDEX. This one argument was the whole difficulty
+            // treadmill: a boss is fought once per act, and acts are three to five rounds, so
+            // compounding its health on the round counter multiplied it by about 3.0x between
+            // consecutive fights against a player who grows 1.2-1.7x — and only 1.06x once the
+            // soft cap flattens the army. See BossSim.BossHp.
+            BalanceSettings balance = _ctx.Config.Balance;
+            _bossHpMax = BossAffixes.BossHp(_boss.BaseHp, _boss.PerLevelGrowth, actIndex,
+                BossSim.StatDamageAtAct(actIndex, balance.BaseDamage,
+                    balance.DamagePerPoint, balance.StatPointsPerBossKill),
+                BossSim.StatDamageAtAct(0, balance.BaseDamage,
+                    balance.DamagePerPoint, balance.StatPointsPerBossKill),
+                balance.SoftCap, _affix);
             _bossHp = _bossHpMax;
             _attackTimer = _boss.AttackIntervalSeconds;
 
@@ -137,6 +149,9 @@ namespace BattleRunner.Gameplay.States
         /// which a line of men can be seen to cross.
         /// </summary>
         private const float ArenaMetres = 11f;
+
+        /// <summary>The army that walked into this fight. See LandOneBlow.</summary>
+        private long _openingForce;
 
         /// <summary>Seconds of skirmish, and how many of its beats have been paid out.</summary>
         private float _skirmishSeconds;
@@ -515,10 +530,14 @@ namespace BattleRunner.Gameplay.States
         private void LandOneBlow()
         {
             long before = _ctx.Run.ForceCount;
+            // The army that WALKED IN, captured on Enter. A blow is measured partly against
+            // it rather than wholly against what is left, or the sequence of blows approaches
+            // zero without ever reaching it — twenty-four unblocked blows to a wipe, in a
+            // fight that lasts fifteen seconds. See BossSim.ApplyBossHit.
             long after = BossSim.ApplyBossHit(before,
                 BossAffixes.BlowFraction(_archetype, _affix, _boss.HitFraction),
                 _ctx.LastResult.HeroStats.Get(BattleRunner.Core.Stats.StatIds.Health),
-                _ctx.Shield.IsActive);
+                _ctx.Shield.IsActive, _openingForce);
 
             bool blocked = _ctx.Shield.IsActive;
 

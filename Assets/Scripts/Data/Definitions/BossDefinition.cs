@@ -12,7 +12,20 @@ namespace BattleRunner.Data.Definitions
         public BossArchetype Archetype = BossArchetype.Slam;
         [Tooltip("HP at level 0; grows exponentially per level (BossSim.BossHp).")]
         public float BaseHp = 500f;
-        [Range(0f, 1f)] public float PerLevelGrowth = 0.25f;
+        /// <summary>
+        /// How much harder this boss is than the same boss one act earlier, as a fraction.
+        ///
+        /// IT USED TO MEAN SOMETHING ELSE AND THE DIFFERENCE WAS THE GAME'S WORST BUG. It was
+        /// compounded on the ROUND index while a boss is fought once per ACT, so 0.25 meant
+        /// about 3.0x more health between consecutive fights. It now compounds per act, on top
+        /// of a health figure already scaled by the army and the stat points the player
+        /// provably has at that depth, so this number carries ONLY the difficulty screw — a
+        /// few per cent per act, meaning exactly "a little harder than the last one".
+        ///
+        /// Hence 0.25-0.29 becoming 0.05-0.07. It is not the same quantity made smaller; it is
+        /// a different quantity. See BossSim.BossHp.
+        /// </summary>
+        [Range(0f, 1f)] public float PerLevelGrowth = 0.06f;
         [Tooltip("Seconds between boss attacks.")]
         public float AttackIntervalSeconds = 4f;
         [Tooltip("Seconds of telegraph before each attack lands — the shield window.")]

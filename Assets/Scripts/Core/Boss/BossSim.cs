@@ -12,24 +12,144 @@ namespace BattleRunner.Core.Boss
     public static class BossSim
     {
         /// <summary>
-        /// Player damage per second against the boss: the hero's Damage stat scaled by
-        /// crowd size (diminishing, log10) and the overflow bonus from over-cap gates.
+        /// What the army is worth, as a multiplier on the hero's own damage.
+        ///
+        /// THIS WAS `1 + log10(1 + force)`, AND THAT IS A BROKEN CORE LOOP. The entire game is
+        /// about making the crowd bigger, and under a log10 a HUNDREDFOLD army dealt 1.7x the
+        /// damage. Across the whole game — sixty men at the first boss, a hundred thousand at
+        /// the soft cap — the factor moved 2.79 to 6.00, a total of 2.15x, so the thing the
+        /// player spends every second of every run on was worth almost nothing at the only
+        /// moment it was ever cashed in.
+        ///
+        /// TWO SEGMENTS, AND THE SECOND EXPONENT IS WHY. The first attempt at this was a
+        /// single power law, `1 + 0.49 * f^0.32`, and the project's existing
+        /// diminishing-returns test rejected it: the ratio from a thousand men to a hundred
+        /// thousand came out LARGER than the ratio from ten to a thousand. A single power law
+        /// has a constant ratio between decades, and adding the `1 +` damps the small end
+        /// rather than the large one, so the curve accelerates. The comment written alongside
+        /// it claimed the opposite, plausibly and wrongly, and only the test knew.
+        ///
+        /// With the exponent DROPPING at the knee — 0.40 below two thousand men, 0.18 above —
+        /// it diminishes by construction, which is doc 01 R4's requirement that gear stay the
+        /// long-term lever.
+        ///
+        /// The weight is then solved from one anchor: the factor at sixty men, which is what
+        /// the first boss faces, is held at 2.80 against the old curve's 2.79, so no early
+        /// fight is quietly made easier. What changes is the top: a hundredfold army pays
+        /// 3.5x instead of 1.7x, and the factor at the soft cap is 15.8 against the old 6.0.
+        ///
+        /// It is also half of the fix for the difficulty treadmill, because BossHp is scaled
+        /// by this same function at the force the act expects — see there.
+        /// </summary>
+        public static float CrowdFactor(long force)
+        {
+            if (force <= 0L) return 1f;
+            double t = force <= CrowdKnee
+                ? Math.Pow(force, CrowdExponentLow)
+                : Math.Pow(CrowdKnee, CrowdExponentLow)
+                  * Math.Pow(force / CrowdKnee, CrowdExponentHigh);
+            return 1f + (float)(CrowdWeight * t);
+        }
+
+        /// <summary>Where the army stops being small. Below it every man counts for more.</summary>
+        private const double CrowdKnee = 2000.0;
+        private const double CrowdWeight = 0.35;
+        private const double CrowdExponentLow = 0.40;
+        private const double CrowdExponentHigh = 0.18;
+
+        /// <summary>
+        /// Player damage per second against the boss: the hero's Damage stat scaled by crowd
+        /// size and the overflow bonus from over-cap gates.
         /// </summary>
         public static float PlayerDps(RunResult result, long softCap)
         {
             if (result == null) throw new ArgumentNullException(nameof(result));
             float damage = result.HeroStats?.Get(StatIds.Damage) ?? 0f;
             long force = Math.Max(0L, result.FinalForceCount);
-            float crowdFactor = 1f + (float)Math.Log10(1.0 + force);
-            return Math.Max(0f, damage) * crowdFactor * result.OverflowBonus(softCap);
+            return Math.Max(0f, damage) * CrowdFactor(force) * result.OverflowBonus(softCap);
         }
 
-        /// <summary>Boss HP for a level: base HP on a mild exponential curve.</summary>
-        public static float BossHp(float baseHp, float perLevelGrowth, int levelIndex)
+        /// <summary>
+        /// The army a competent player brings to the boss of act <paramref name="actIndex"/>.
+        ///
+        /// Not a guess about skill: it is what the generator hands out. Gate values scale with
+        /// depth and rounds get longer per act, so the force reaching a boss roughly doubles
+        /// each act until the soft cap stops it — after which it is FLAT, and that flatness is
+        /// the single most important fact about this game's late difficulty.
+        /// </summary>
+        public static long ExpectedForceAtAct(int actIndex, long softCap)
+        {
+            if (actIndex < 0) actIndex = 0;
+            if (softCap <= 0L) return 0L;
+            double f = FirstBossForce * Math.Pow(ForcePerAct, Math.Min(actIndex, ExponentGuard));
+            return f >= softCap ? softCap : (long)f;
+        }
+
+        private const double FirstBossForce = 60.0;
+        private const double ForcePerAct = 2.2;
+
+        /// <summary>
+        /// Only an overflow guard, NOT where the army stops growing — the soft cap decides
+        /// that, and at these numbers it bites at act 10. Capping the exponent at 9 instead
+        /// was a first draft, and it quietly meant the model believed the army kept growing
+        /// past a cap it had already hit; a test caught it.
+        /// </summary>
+        private const int ExponentGuard = 40;
+
+        /// <summary>
+        /// Boss HP for the boss of one ACT.
+        ///
+        /// THE OLD SIGNATURE TOOK A ROUND INDEX AND THAT WAS THE WHOLE BUG. A boss is fought
+        /// once per act, but its HP compounded on the ROUND counter — and acts are three to
+        /// five rounds long. At the authored 0.25-0.29 that is about 3.0x more health between
+        /// one fight and the next, against a player who grows 1.2-1.7x and, once force hits
+        /// the soft cap, 1.06x. Modelled out: the first boss died in 9 seconds and the act-10
+        /// boss needed two and a half HOURS. The game was simultaneously too easy and
+        /// unfinishable, and no amount of tuning the growth number could fix both.
+        ///
+        /// So the boss is priced against WHAT THE PLAYER PROVABLY HAS at that depth:
+        ///
+        ///   * the army it will face, through the same CrowdFactor its damage is multiplied
+        ///     by, at the force the act expects. When the soft cap flattens the army, it
+        ///     flattens the boss too, automatically and for the same reason.
+        ///   * the stat points the game has handed out by then, which is arithmetic the
+        ///     balance settings already fix.
+        ///
+        /// GEAR AND TALENTS ARE DELIBERATELY NOT IN THE MODEL. They are the player's edge: a
+        /// player who invests in them beats the curve, which is the incentive the entire loop
+        /// is built on. Modelling them would price that reward away.
+        ///
+        /// What is left for the authored number is `pressure` — a few per cent per act, which
+        /// means exactly "each fight is a little harder than the one before" and nothing else.
+        /// At 0.06 the modelled time-to-kill runs 10-18 seconds across sixteen acts, against
+        /// 9 seconds rising to two hours.
+        /// </summary>
+        public static float BossHp(float baseHp, float pressurePerAct, int actIndex,
+            float statDamageAtAct, float statDamageAtFirstAct, long softCap)
         {
             if (baseHp <= 0f) throw new ArgumentOutOfRangeException(nameof(baseHp));
-            if (levelIndex < 0) throw new ArgumentOutOfRangeException(nameof(levelIndex));
-            return baseHp * (float)Math.Pow(1.0 + Math.Max(0f, perLevelGrowth), levelIndex);
+            if (actIndex < 0) throw new ArgumentOutOfRangeException(nameof(actIndex));
+            if (statDamageAtFirstAct <= 0f)
+                throw new ArgumentOutOfRangeException(nameof(statDamageAtFirstAct));
+
+            float army = CrowdFactor(ExpectedForceAtAct(actIndex, softCap))
+                         / CrowdFactor(ExpectedForceAtAct(0, softCap));
+            float stats = Math.Max(0f, statDamageAtAct) / statDamageAtFirstAct;
+            float screw = (float)Math.Pow(1.0 + Math.Max(0f, pressurePerAct), actIndex);
+            return baseHp * army * stats * screw;
+        }
+
+        /// <summary>
+        /// The hero's damage from STAT POINTS alone at act <paramref name="actIndex"/> — base
+        /// plus what the game has handed out for clearing every boss up to and including this
+        /// one. Gear and talents are excluded on purpose; see BossHp.
+        /// </summary>
+        public static float StatDamageAtAct(int actIndex, float baseDamage,
+            float damagePerPoint, int pointsPerBoss)
+        {
+            if (actIndex < 0) actIndex = 0;
+            return Math.Max(0f, baseDamage)
+                   + Math.Max(0f, damagePerPoint) * Math.Max(0, pointsPerBoss) * (actIndex + 1);
         }
 
         /// <summary>Seconds to defeat the boss at the given dps; infinity when dps is zero.</summary>
@@ -164,16 +284,46 @@ namespace BattleRunner.Core.Boss
         /// otherwise the attack removes a fraction of current force, cushioned by the
         /// hero's Health stat (100 Health halves losses).
         /// </summary>
-        public static long ApplyBossHit(long force, float hitFraction, float heroHealth, bool shieldActive)
+        public static long ApplyBossHit(long force, float hitFraction, float heroHealth, bool shieldActive) =>
+            ApplyBossHit(force, hitFraction, heroHealth, shieldActive, force);
+
+        /// <summary>
+        /// One telegraphed blow, with <paramref name="referenceForce"/> being the army that
+        /// WALKED INTO the fight.
+        ///
+        /// WHY THE OLD RULE COULD NOT KILL ANYONE. A blow took a fixed fraction of whatever is
+        /// LEFT, so every blow is smaller than the last and the sequence approaches zero
+        /// without reaching it. Measured: 24 unblocked blows to wipe an army of ten thousand,
+        /// 30 for a hundred thousand. At a four-second attack interval that is a hundred
+        /// seconds of ignoring every single telegraph — in a fight that lasts fifteen. The
+        /// shield, the timing game, the whole reason the boss telegraphs at all, could be
+        /// ignored completely and the player would still win.
+        ///
+        /// It was also backwards in shape: a BIGGER army survived more blows, so the reward
+        /// for playing the run well was passive safety in the fight as well as damage.
+        ///
+        /// Blending a tenth of the starting army into the basis costs eight blows instead of
+        /// twenty-four, and makes the count nearly independent of army size — the army buys
+        /// DAMAGE, and Health and the shield buy SURVIVAL. Health still mitigates exactly as
+        /// before, so at 150 Health it is eighteen blows rather than seven.
+        ///
+        /// With `referenceForce == force` this is algebraically the old formula, which is why
+        /// the four-argument overload above delegates here and every existing test is
+        /// untouched rather than rewritten.
+        /// </summary>
+        public static long ApplyBossHit(long force, float hitFraction, float heroHealth,
+            bool shieldActive, long referenceForce)
         {
             if (hitFraction < 0f || hitFraction > 1f) throw new ArgumentOutOfRangeException(nameof(hitFraction));
             if (shieldActive || force <= 0) return Math.Max(0L, force);
+            if (referenceForce < force) referenceForce = force;
 
             // Everything in double: float intermediates round differently across
             // runtimes (.NET collapses 1000 * 0.4f to exactly 400f, Mono keeps
             // 400.0000059), which silently changed how much force a hit removed.
             double mitigation = 1.0 / (1.0 + Math.Max(0f, heroHealth) / 100.0);
-            double raw = force * (double)hitFraction * mitigation;
+            double basis = (1.0 - OpeningForceWeight) * force + OpeningForceWeight * referenceForce;
+            double raw = basis * (double)hitFraction * mitigation;
 
             // A float fraction puts an exact result a hair ABOVE itself, so a naive
             // Ceiling turns a clean 40% of 1000 into 401. Nudge down by a relative
@@ -182,6 +332,13 @@ namespace BattleRunner.Core.Boss
             long losses = (long)Math.Ceiling(raw - Math.Abs(raw) * 1e-6);
             return Math.Max(0L, force - losses);
         }
+
+        /// <summary>
+        /// How much of a blow is measured against the army that STARTED the fight rather than
+        /// the one still standing. See ApplyBossHit; a tenth turns twenty-four unblockable
+        /// blows into eight and makes the count independent of army size.
+        /// </summary>
+        private const double OpeningForceWeight = 0.10;
 
         /// <summary>
         /// How many men the boss takes off the army in one swat of the constant melee.

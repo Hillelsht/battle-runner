@@ -33,6 +33,54 @@ army stands on the road instead of hovering over it — and a procedural cobbled
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
 corner notches, a gradient backdrop and readable disabled states, across every screen.
+**The game was too easy AND unfinishable, and both had one cause.** `BossSim.BossHp` compounded
+its growth on the **round** index while a boss is fought once per **act** — and acts are three to
+five rounds. At the authored 0.25–0.29 that is about **3.0× more health between consecutive
+fights**, against a player who grows 1.2–1.7× and, once force hits the soft cap, **1.06×**.
+Modelled with the shipped numbers: the first boss dies in **9 seconds**, and the act-10 boss
+needs **two and a half hours**. No value of that growth number fixes both ends.
+
+The player's curve changes shape, which is why no fixed exponent could ever track it: gear does
+not scale with level (fifteen fixed items), talents are a finite tree, paragon is linear, and the
+force reaching a boss doubles per act until `SoftCap` stops it dead. Growth per act runs 1.68,
+1.50, 1.40, 1.33, 1.28, 1.25, 1.22, 1.20, then 1.06 forever.
+
+So `BossHp` takes an **act** index and is priced against what the player provably has: the army
+it will face, through the **same `CrowdFactor` its damage is multiplied by** at
+`ExpectedForceAtAct` — so when the soft cap flattens the army it flattens the boss, automatically
+and for the same reason — and the stat points the game has handed out, which the balance settings
+already fix. **Gear and talents are deliberately excluded**: they are the player's edge, and
+modelling them would price that reward away. `PerLevelGrowth` 0.25–0.29 becomes 0.05–0.07, which
+is not the same quantity made smaller but a different quantity — a pressure of a few per cent per
+act meaning "a little harder than the last one".
+
+Measured from the shipped code for a player with **nothing but stat points**: 17.1 s at act 0
+rising steadily to 48.5 s at act 15, against 9 s rising to 9,272 s.
+`TheWholeCampaignStaysInsideAPlayableWindow` walks all sixteen acts and fails outside 5–60 s.
+
+**The army was worth almost nothing.** `1 + log10(1 + force)` moves 2.79 → 6.00 across the entire
+game, so the thing the player spends every second on paid 2.15× in total and a hundredfold army
+paid 1.7×. The first replacement was a single power law and **the project's own
+diminishing-returns test rejected it** — a single power law has a constant ratio between decades
+and the `1 +` damps the small end, so the curve *accelerates*. The comment written beside it
+claimed the opposite, plausibly and wrongly, and only the test knew. Two segments with the
+exponent dropping at a two-thousand-man knee (0.40 below, 0.18 above) diminish by construction.
+The weight is solved so the factor at sixty men is held at 2.80 against the old 2.79 — no early
+fight quietly made easier — while the cap goes 6.00 → 15.80 and a hundredfold army pays **3.5×**.
+
+**Blows can kill you now.** A blow took a fixed fraction of what is *left*, so the sequence
+approaches zero without reaching it: **24 unblocked blows** to wipe ten thousand men, 30 for a
+hundred thousand — a hundred seconds of ignoring every telegraph, in a fight lasting seventeen.
+It was backwards in shape too, since a bigger army passively survived more. Blending a tenth of
+the army that *walked in* into the basis costs **eight** blows and makes the count nearly
+independent of army size: the army buys damage, Health and the shield buy survival. With
+`referenceForce == force` the new overload is algebraically the old formula, so all five existing
+`BossHit_*` tests are untouched rather than rewritten.
+
+`BossHp_GrowsPerLevel` is **deliberately rewritten** and the old assertion is worth stating: it
+pinned `BossHp(500, 0.25, 4) == 500 × 1.25⁴` and it passed. The quantity was right and the index
+was wrong. What the test pinned was the bug, faithfully.
+
 **A second gate for a second five-minute mistake.** `dotnet test` compiles `BattleRunner.Core`
 and nothing else — the Gameplay, Meta, Data and Editor assemblies reference UnityEngine, so the
 first compiler that ever sees them is the headless editor in CI. Two commits went out with a
@@ -1030,7 +1078,7 @@ The v0.4.0 screenshots confirmed the art pass landed — sky, stars, shadows, ro
 gates and UI frames all correct on device — and surfaced two bugs that were never about
 art: `Focus -0 %` on the menu and `+0.01 Focus` on the loot card. Both were units chosen
 from the ModifierKind rather than from the stat, plus a hard-coded minus sign in front of
-a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 386 tests today).
+a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 388 tests today).
 
 A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
 11 survived adversarial refutation. The headline three: the key light pointed the same way

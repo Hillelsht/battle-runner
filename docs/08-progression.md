@@ -132,3 +132,109 @@ A note on the recommendation: this genre's convention is one cloud-synced profil
 device, and slots are a console-RPG idea. They were built because the project asked for
 them; cloud save is still the right answer to "don't lose my game" and is needed for
 monetization regardless.
+
+
+# The difficulty curve, and the bug that made it two bugs
+
+The player's report was *"the game is too easy"*. It was, and it was also unfinishable, and
+both had one cause.
+
+## The treadmill
+
+`BossSim.BossHp` compounded a per-level growth on the **round** index. A boss is fought once
+per **act**, and acts are three to five rounds. At the authored 0.25–0.29 that is about **3.0×
+more health between one fight and the next** — against a player who grows 1.2–1.7× and, once
+force hits the soft cap, **1.06×**.
+
+Modelled across sixteen acts with the shipped numbers:
+
+| act | boss HP | player dps | time to kill |
+|---:|---:|---:|---:|
+| 0 | 625 | 45 | **9 s** |
+| 5 | 159,595 | 434 | 245 s |
+| 8 | 2,397,537 | 975 | 27 min |
+| 10 | 17,095,486 | 1,229 | **2 h 35 min** |
+
+The first boss dies in nine seconds. The act-10 boss cannot be killed at all. No value of the
+growth number fixes both, because the two ends need it to point in opposite directions.
+
+## Why the player's curve changes shape
+
+There is no gear that scales with level: the pool is fifteen fixed items. Talents are a finite
+tree. The only endless source of power is paragon, which is **linear**. And the force reaching a
+boss roughly doubles per act until `SoftCap` stops it — after which it is flat.
+
+So the player's growth per act runs 1.68, 1.50, 1.40, 1.33, 1.28, 1.25, 1.22, 1.20, and then
+**1.06 forever**. No fixed exponent can track a curve that changes shape like that.
+
+## Pricing the boss against what the player provably has
+
+`BossHp` now takes an **act** index and is scaled by two things the game already knows:
+
+- the **army it will face**, through the same `CrowdFactor` the player's damage is multiplied
+  by, evaluated at `ExpectedForceAtAct`. When the soft cap flattens the army it flattens the
+  boss too, automatically and for the same reason;
+- the **stat points handed out** by that act, which is arithmetic `BalanceSettings` already
+  fixes.
+
+**Gear and talents are deliberately excluded.** They are the player's edge: a player who invests
+in them beats the curve, which is the incentive the whole loop is built on. Modelling them would
+price that reward away.
+
+What is left for the authored number is a **pressure** of a few per cent per act, meaning exactly
+"a little harder than the last one" and nothing else. Hence `PerLevelGrowth` 0.25–0.29 becoming
+0.05–0.07: not the same quantity made smaller, a different quantity.
+
+Measured from the shipped code, for a player with **nothing but stat points**:
+
+```
+a0 17.1s  a1 20.9  a2 24.2  a3 24.1  a4 26.6  a5 31.5  a6 22.9  a7 28.8
+a8 34.4   a9 34.2  a10 38.8 a11 47.3 a12 30.7 a13 39.7 a14 48.8 a15 48.5
+```
+
+A steady rise from 17 s to 48 s across sixteen acts, with the six-act sawtooth being the
+archetypes' own base health. The first boss is **1.8× harder** than the nine seconds that drew
+the complaint, and nothing is a wall. `TheWholeCampaignStaysInsideAPlayableWindow` walks all
+sixteen and fails outside 5–60 s.
+
+## The army was worth almost nothing
+
+`1 + log10(1 + force)`. Across the entire game — sixty men at the first boss, a hundred thousand
+at the cap — that factor moves **2.79 to 6.00**. The thing the player spends every second of
+every run on paid **2.15× in total**, and a hundredfold army paid 1.7×.
+
+The first replacement was a single power law, and **the project's existing diminishing-returns
+test rejected it**: a single power law has a constant ratio between decades, and the `1 +` damps
+the small end rather than the large one, so the curve *accelerates*. The comment written
+alongside it claimed the opposite, plausibly and wrongly, and only the test knew.
+
+Two segments, with the exponent **dropping** at a two-thousand-man knee — 0.40 below, 0.18 above
+— diminish by construction, which is doc 01 R4's requirement that gear stay the long-term lever.
+The weight is solved from one anchor: the factor at sixty men is held at 2.80 against the old
+2.79, so no early fight is quietly made easier. What changes is the top.
+
+| force | old | new |
+|---:|---:|---:|
+| 60 | 2.79 | 2.80 |
+| 2,000 | 4.30 | 8.32 |
+| 100,000 | 6.00 | 15.80 |
+
+A hundredfold army now pays **3.5×**.
+
+## Blows that can kill you
+
+A blow took a fixed fraction of whatever is **left**, so every blow is smaller than the last and
+the sequence approaches zero without reaching it. Measured: **24 unblocked blows** to wipe ten
+thousand men, **30** for a hundred thousand. At a four-second attack interval that is a hundred
+seconds of ignoring every telegraph, in a fight lasting seventeen. The shield, the timing game,
+the entire reason a boss telegraphs, could be skipped and the player would still win.
+
+It was backwards in shape too: a **bigger army survived more blows**, so playing the run well
+bought passive safety as well as damage.
+
+Blending a tenth of the army that *walked in* into the basis costs **eight** blows instead of
+twenty-four, and makes the count nearly independent of army size — the army buys damage, Health
+and the shield buy survival. Health mitigates exactly as before: eighteen blows at 150 Health.
+
+With `referenceForce == force` the new overload is algebraically the old formula, so all five
+existing `BossHit_*` tests are untouched rather than rewritten.
