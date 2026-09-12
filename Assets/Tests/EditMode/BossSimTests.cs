@@ -112,7 +112,7 @@ namespace BattleRunner.Tests
             // fight measured 9 s, the player called the game too easy, and 5 s was never a
             // sane lower bound for the beat a whole level builds to.
             float ttk = BossSim.TimeToKill(
-                Hp(1150f, 0.05f, 0),
+                Hp(1150f, 0.042f, 0),
                 BossSim.PlayerDps(Result(150, 10f), SoftCap));
             Assert.Greater(ttk, 10f, "the first boss dies before the player has learned it");
             Assert.Less(ttk, 45f);
@@ -125,8 +125,8 @@ namespace BattleRunner.Tests
             // roster against the army and stat points each act expects, and require every
             // fight to be winnable in a sane time. Under the old per-round curve the act-10
             // boss needed roughly two and a half HOURS, and nothing in the suite noticed.
-            float[] bases = { 1150f, 1330f, 1450f, 1360f, 1390f, 1510f };
-            float[] pressures = { 0.05f, 0.055f, 0.06f, 0.06f, 0.065f, 0.07f };
+            float[] bases = { 1150f, 1330f, 1450f, 1320f, 1390f, 1510f };
+            float[] pressures = { 0.042f, 0.047f, 0.052f, 0.050f, 0.057f, 0.062f };
 
             for (int act = 0; act < 16; act++)
             {
@@ -134,13 +134,20 @@ namespace BattleRunner.Tests
                 // The stat points the game has handed out, and nothing else: gear and talents
                 // are the player's edge and are deliberately not modelled, so a real player
                 // beats this.
-                float hp = Hp(bases[act % 6], pressures[act % 6], act);
+                // WITH THE AFFIX THAT ACTUALLY APPLIES. The window is meaningless if it only
+                // holds for the plain boss: Colossal multiplies health by 1.40, and an affix
+                // rotation that lands one on the hardest act would push a curve that passes
+                // here straight through the ceiling in play.
+                BossAffix affix = BossAffixes.For(act);
+                float hp = BossAffixes.BossHp(bases[act % 6], pressures[act % 6], act,
+                    StatDamage(act), StatDamage(0), SoftCap, affix);
                 float dps = BossSim.PlayerDps(Result(force, StatDamage(act)), SoftCap);
                 float ttk = BossSim.TimeToKill(hp, dps) / SpellShare;
 
                 Assert.Greater(ttk, 5f, $"act {act} boss dies in {ttk:0.0}s");
                 Assert.Less(ttk, 60f,
-                    $"act {act} boss needs {ttk:0.0}s from a player with nothing but stat points");
+                    $"act {act} boss ({affix}) needs {ttk:0.0}s from a player with nothing "
+                    + "but stat points");
             }
         }
 

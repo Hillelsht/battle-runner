@@ -238,3 +238,48 @@ and the shield buy survival. Health mitigates exactly as before: eighteen blows 
 
 With `referenceForce == force` the new overload is algebraically the old formula, so all five
 existing `BossHit_*` tests are untouched rather than rewritten.
+
+
+## The affixes, and the window they broke
+
+The campaign window test was written against the **plain** boss, and that made it nearly
+worthless: `Colossal` multiplies health by 1.40, and the affix rotation lands one on act 15.
+Folding `BossAffixes.For(act)` into the test immediately failed it at **67.9 s** — a curve that
+passed comfortably and would have shipped a sixty-eight-second boss fight.
+
+The pressures come down from 0.042–0.070 to 0.042–0.062, and the Hollow Leech's base from 1360
+to 1320. The pressure compounds on the act index, so easing it touches **only the late slope** —
+act 0 is `(1 + p)⁰ = 1` either way and keeps every second of its new difficulty.
+
+The curve that ships, measured, for a player with nothing but stat points:
+
+```
+a0 17s  a1 21  a2 24(Frenzied)  a3 23(Armoured)  a4 26  a5 30(Vampiric)
+a6 22(Haunted)  a7 27  a8 45(Colossal)  a9 30(Frenzied)  a10 36(Armoured)
+a11 44  a12 28(Vampiric)  a13 36(Haunted)  a14 44  a15 57(Colossal)
+```
+
+The Colossal champions at acts 8 and 15 are the spikes, which is what a champion should be: a
+noticeably longer fight, not a differently-coloured one.
+
+## One thing the plan asserted that measurement did not support
+
+The plan claimed the multiply gates were mispriced — "a ×3's prize is proportional to force
+while its price is linear in round", making the multiply effectively free at depth. Modelled
+against the generator, with the multiplies compounding as a real run does:
+
+| round | step | force | Fork toll | share |
+|---:|---:|---:|---:|---:|
+| 0 | 6 | 41 | 20 | 48.7% |
+| 5 | 6 | 95 | 40 | 42.1% |
+| 20 | 6 | 257 | 100 | 38.9% |
+| 30 | 6 | 365 | 140 | 38.3% |
+
+The share is **near-constant**, because `AddValue` and the banked force both scale linearly in
+the round index — they move together. There is a mild decay across thirty rounds and a larger
+one *within* a round (48% at step 6 against 18% at step 12), and the latter is arguably the
+point: a later chunk should pay better.
+
+So no change was made. This is the third time in this increment that a measurement contradicted
+the plan it was meant to implement — the per-stone tone, the single power law, and this — which
+is an argument for the measuring, not against the planning.

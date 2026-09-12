@@ -33,6 +33,22 @@ army stands on the road instead of hovering over it — and a procedural cobbled
 with brick bonding, grime and a wet sheen, in place of the flat slab. The UI is
 rebuilt on code-generated sprites too: rounded bevelled panels, a bronze frame with
 corner notches, a gradient backdrop and readable disabled states, across every screen.
+**And the affixes broke the window the moment they were tested.** The campaign window test was
+written against the plain boss, which made it nearly worthless: `Colossal` multiplies health by
+1.40 and the rotation lands one on act 15. Folding `BossAffixes.For(act)` in failed it at
+**67.9 s** — a curve that passed comfortably and would have shipped a sixty-eight-second boss
+fight. Pressures ease from 0.042–0.070 to 0.042–0.062 and the Hollow Leech's base from 1360 to
+1320; because the pressure compounds on the act index this touches **only the late slope**, and
+act 0 keeps every second of its new difficulty. The curve that ships, measured:
+17s, 21, 24, 23, 26, 30, 22, 27, **45 (Colossal)**, 30, 36, 44, 28, 36, 44, **57 (Colossal)**.
+
+**One plan item was dropped because measurement did not support it.** The plan claimed multiply
+gates were mispriced — prize proportional to force, price linear in round. Modelled against the
+generator with the multiplies compounding, the Fork toll is a near-constant **48.7% → 38.3%** of
+force from round 0 to round 30, because `AddValue` and the banked force both scale linearly in
+the round index and move together. No change made. That is the third measurement in this
+increment to contradict the plan it was implementing.
+
 **The music was the wrong genre, not badly played.** The second bed is eight bars of D natural
 minor on a nylon guitar over a cello, correctly voiced, in a real room, with its chords verified
 by FFT — and the report was still *"music is bad"*, the same words as after the first. It is a
