@@ -216,6 +216,11 @@ namespace BattleRunner.Core.World
                     // A gateway you go THROUGH rather than under, and close together, because a
                     // storybook road is always arriving somewhere.
                     Arch = ArchStyle.Timber, ArchSpacing = 112f,
+                    // And the pony, which was asked for by name. No Kenney kit in this pack
+                    // has a creature or a character mesh of any kind — 119 pieces across five
+                    // kits, checked — so it is the one piece of scenery in the game that could
+                    // only ever have been built rather than fetched.
+                    SkyRider = SkyRiderKind.Pegasus,
                     VergeScale = 2.55f, FieldScale = 3.55f, LandmarkScale = 4.35f,
                 },
                 // Three kinds, all of them read as HEDGEROW rather than ruin: a coppiced

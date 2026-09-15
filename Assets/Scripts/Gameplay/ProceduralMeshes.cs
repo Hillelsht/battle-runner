@@ -1099,6 +1099,106 @@ namespace BattleRunner.Gameplay
             return mesh;
         }
 
+        private static Mesh _pegasus;
+        private static readonly Mesh[] _pegasusWings = new Mesh[2];
+
+        /// <summary>
+        /// A winged pony, asked for by name and the one piece of scenery in this game that
+        /// could only ever have been built rather than fetched: the Kenney pack is 119 pieces
+        /// across five kits and holds no creature or character mesh of any kind.
+        ///
+        /// Body only. The wings are their own mesh so they can beat — the crowd shader's one
+        /// per-instance animation channel is uniform scale, already spoken for by the walk
+        /// cycle, so anything that has to move a part relative to its body needs its own draw.
+        /// Two extra draws for the only flying thing in the game is affordable; the same trick
+        /// applied to a crowd would not be.
+        ///
+        /// It faces +Z, the direction the game's other asymmetric meshes face, so the flight
+        /// path's heading can be used as a yaw with no correction.
+        /// </summary>
+        public static Mesh Pegasus
+        {
+            get
+            {
+                if (_pegasus == null) _pegasus = BuildPegasus();
+                return _pegasus;
+            }
+        }
+
+        /// <summary>
+        /// One wing, hinged at the origin so a rotation about Z is a wingbeat. Left and right
+        /// are SEPARATE MESHES rather than one mesh drawn at a negative x scale, which was the
+        /// first version: a matrix with a negative determinant leaves the shader's Cull Back
+        /// alone, so the mirrored wing would have been backface-culled and the pony would have
+        /// flown with one wing. Two cached meshes, still two draw calls.
+        /// </summary>
+        public static Mesh PegasusWing(int side)
+        {
+            int i = side < 0 ? 0 : 1;
+            if (_pegasusWings[i] == null) _pegasusWings[i] = BuildPegasusWing(i == 0 ? -1f : 1f);
+            return _pegasusWings[i];
+        }
+
+        private static Mesh BuildPegasus()
+        {
+            var v = new List<Vector3>();
+            var t = new List<int>();
+
+            // Barrel, deepest at the shoulder and tapering to the hindquarters. At 16 m up and
+            // 58 m ahead this animal is perhaps twenty pixels long, so the proportions doing
+            // the work are the ones visible in outline: a deep chest, a long neck, a tail.
+            AddPrism(v, t, new Vector3(0f, -0.22f, 0.30f), new Vector2(0.34f, 1.10f),
+                           new Vector3(0f, 0.20f, 0.22f), new Vector2(0.40f, 1.24f));
+
+            // Neck, up and forward, then the head down again at the end of it — the line that
+            // says horse rather than dog.
+            AddPrism(v, t, new Vector3(0f, 0.16f, 0.62f), new Vector2(0.26f, 0.30f),
+                           new Vector3(0f, 0.62f, 0.92f), new Vector2(0.20f, 0.24f));
+            AddPrism(v, t, new Vector3(0f, 0.62f, 0.94f), new Vector2(0.20f, 0.24f),
+                           new Vector3(0f, 0.50f, 1.24f), new Vector2(0.15f, 0.17f));
+            // Ears, which are two of the four things that read at this size.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                AddPrism(v, t, new Vector3(side * 0.07f, 0.68f, 0.96f), new Vector2(0.05f, 0.05f),
+                               new Vector3(side * 0.10f, 0.84f, 0.92f), new Vector2(0.02f, 0.02f));
+            }
+
+            // Legs, tucked back and up the way a flying animal carries them. Straight down
+            // would read as a horse falling.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                AddOrientedBox(v, t, new Vector3(side * 0.20f, -0.42f, 0.52f),
+                    new Vector3(0.12f, 0.52f, 0.12f), Quaternion.Euler(-38f, 0f, 0f));
+                AddOrientedBox(v, t, new Vector3(side * 0.20f, -0.44f, -0.28f),
+                    new Vector3(0.13f, 0.58f, 0.13f), Quaternion.Euler(28f, 0f, 0f));
+            }
+
+            // Tail, streaming back and up. The third thing that reads in outline.
+            AddPrism(v, t, new Vector3(0f, 0.08f, -0.52f), new Vector2(0.18f, 0.22f),
+                           new Vector3(0f, 0.46f, -1.16f), new Vector2(0.06f, 0.10f));
+
+            return Finish(v, t, "Pegasus");
+        }
+
+        private static Mesh BuildPegasusWing(float side)
+        {
+            var v = new List<Vector3>();
+            var t = new List<int>();
+            // HINGED AT THE ORIGIN. The caller rotates this about Z to beat it, so the root
+            // has to sit at x = 0 — a wing modelled out at its shoulder would swing around the
+            // pony instead of flapping. `side` mirrors the x of every point and the sign of
+            // the spar's yaw, which is a real mirror rather than a negative scale.
+            AddPrism(v, t, new Vector3(side * 0.10f, 0f, 0.05f), new Vector2(0.24f, 0.62f),
+                           new Vector3(side * 0.62f, 0.10f, -0.02f), new Vector2(0.20f, 0.86f));
+            AddPrism(v, t, new Vector3(side * 0.62f, 0.10f, -0.02f), new Vector2(0.20f, 0.86f),
+                           new Vector3(side * 1.18f, 0.14f, -0.18f), new Vector2(0.10f, 0.58f));
+            // A leading-edge spar, so the wing has an edge rather than being a flat fin: the
+            // rim term is dot(normal, view) and a single flat plane gives it one constant.
+            AddOrientedBox(v, t, new Vector3(side * 0.58f, 0.10f, 0.34f),
+                new Vector3(1.16f, 0.09f, 0.14f), Quaternion.Euler(0f, side * 9f, side * 5f));
+            return Finish(v, t, $"PegasusWing{(side < 0f ? "L" : "R")}");
+        }
+
         private static readonly Mesh[] _arches = new Mesh[RoadArches.Count];
 
         /// <summary>

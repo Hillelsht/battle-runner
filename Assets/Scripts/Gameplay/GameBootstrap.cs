@@ -200,6 +200,11 @@ namespace BattleRunner.Gameplay
             ctx.Arena = trackGo.AddComponent<Track.BossArena>();
             ctx.Arena.Initialize(ctx.CrowdMaterial);
 
+            // The flier, on the track object with the rest of the dressing. It follows the
+            // crowd rather than sitting at a fixed z, so the circle travels with the run.
+            ctx.Sky = trackGo.AddComponent<Track.SkyRiderView>();
+            ctx.Sky.Initialize(ctx.Crowd, ctx.CrowdMaterial);
+
             // On the same object as the track, and after the crowd: the prop field needs the
             // crowd to know which slice of the verge is worth drawing.
             ctx.Props = trackGo.AddComponent<Track.SceneryField>();

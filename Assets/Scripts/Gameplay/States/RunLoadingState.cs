@@ -53,6 +53,8 @@ namespace BattleRunner.Gameplay.States
             // horizon while the player is still looking at it through fog.
             _ctx.Props.Build(theme, variant, _ctx.Profile.CurrentLevelIndex,
                 -20f, _ctx.TrackController.FinishZ + 210f);
+            // And whatever flies over this one, which for seven of the eight is nothing.
+            _ctx.Sky?.Dress(theme);
             // The music is bent to the world by the same two things the player can already
             // see: how far they can see (fog decides the filter) and how cold the sky is
             // (the zenith decides the pitch). One bed serves all eight worlds — eight beds

@@ -484,3 +484,64 @@ thing the player passes under, and a span that casts nothing across the road is 
 player never learns is above them. And unlike every other placement it gets no jitter, no lean
 and no per-instance scale — the clearance keeping a leg out of the middle lane is exact, and a
 random 7° tilt on a 12 m arch moves its foot by two thirds of a metre.
+
+---
+
+# The flying pony
+
+> *"another can be a fairy tale style with castles and flying pony"*
+
+Of everything in that sentence, the pony is the one item the asset pack could not supply. The
+inventory is 119 pieces across five Kenney kits — graveyard, nature, fantasy town, castle,
+survival — and **not one creature or character mesh of any kind**. It was always going to be
+built.
+
+It circles over Thistlewood, and over nothing else. A flier in all eight worlds is weather; a
+flier in one is that world's, and a test holds the count at exactly one.
+
+## Altitude is a correctness property here
+
+Nothing in this game collides with anything. A flight path that crosses an arch does not stop —
+it passes through it, once a lap, forever. So the path lives in Core (`SkyRiders`) where a test
+can assert the floor of the bob clears the tallest arch crown by four metres, and a second test
+asserts that the crown height the path is cleared against is the crown height the arches
+actually have.
+
+## The measurement that moved the orbit
+
+The first draft circled 58 m ahead on a 26 × 44 m ellipse at 16 m up. Checked against the
+camera — `CameraRig` puts it at y = 5.5 ten metres behind the crowd, aimed at y = 1.5 ten
+metres ahead, 60° vertical FOV, so the top of the frame is **18.7° above horizontal** — that
+orbit put the animal at **37° elevation** at its near end and on screen for **36% of its lap**.
+
+A flier nobody can see for two thirds of the time is not scenery; it is an intermittent glitch
+at the top of the screen. Pushed out to 78 m and pulled in to 22 × 38, it is in frame for
+**84%**, and height drops to 15 m to buy some of that back while still clearing the arches
+(floor of the bob 12.8 m against a crown of 8.4 plus the margin).
+
+The test also asserts the share is **under 97%**: something permanently parked in the frame
+stops being a thing that flies over and becomes part of the HUD.
+
+## Three draw calls, and why it is three
+
+The body is one `RenderMesh` and each wing is another, hinged at the shoulder. Uniform scale is
+the only per-instance animation channel this project has and `CrowdInstanced` has already spent
+it on the walk cycle, so anything that needs a part to move relative to its body needs its own
+transform. Affordable for one creature in one world; it is exactly the trick that would not
+scale to a flock.
+
+Two other decisions worth their lines:
+
+- **Left and right wings are separate meshes**, not one mesh at a negative x scale. A matrix
+  with a negative determinant leaves the shader's `Cull Back` alone, so the mirrored wing would
+  have been backface-culled and the pony would have flown with one wing.
+- **It casts no shadow.** It is 15 m up over a road whose shadows the player reads for gate
+  timing, and a shadow sweeping across the lane every twenty-two seconds is a moving dark shape
+  the game does not mean anything by.
+
+The wingbeat is `sin³`, not `sin`: a real wing hangs at the top of the stroke and snaps through
+the bottom, and a pure sine gives equal time to both. The path faces along the **tangent** of
+the ellipse rather than the radius — facing along the radius is the classic way to get a
+circling creature wrong, and it reads immediately as flying sideways for the whole lap — and it
+banks into the turn, because a flier that stays level through a circle reads as a cardboard
+cut-out being dragged around on a wire.

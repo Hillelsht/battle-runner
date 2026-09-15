@@ -56,6 +56,9 @@ namespace BattleRunner.Gameplay
 
         /// <summary>The place a boss fight happens in, which is not the road.</summary>
         public Track.BossArena Arena;
+
+        /// <summary>Whatever circles overhead. Only one of the eight worlds has anything.</summary>
+        public Track.SkyRiderView Sky;
         public BossView BossView;
         public CameraRig CameraRig;
         public Vfx.ShieldWard Ward;

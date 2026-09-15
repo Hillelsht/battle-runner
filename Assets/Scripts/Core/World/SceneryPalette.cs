@@ -81,6 +81,15 @@ namespace BattleRunner.Core.World
         /// </summary>
         public float ArchSpacing = 130f;
 
+        /// <summary>
+        /// What circles overhead. `None` for seven of the eight.
+        ///
+        /// Deliberately NOT given to every world. A flier in all eight is weather; a flier in
+        /// one is that world's, and the whole point of this pass is that the worlds stop being
+        /// the same place with a different filter on it.
+        /// </summary>
+        public SkyRiderKind SkyRider = SkyRiderKind.None;
+
         public bool IsComplete =>
             Verge.Length > 0 && Field.Length > 0 && Landmarks.Length > 0;
     }
