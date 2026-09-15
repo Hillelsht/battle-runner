@@ -742,10 +742,31 @@ ambush on the road.
 anything below that line and inside `|x| < 0.18` rotates about the hip every stride.
 
 The four meshes are built from the silhouette numbers in Core rather than from four hand-authored
-piles of boxes, because the numbers are the part that has to be *true*: at 1.35× and ~12 m the hero
-is about forty pixels tall, so what separates them is height, width, lean and what breaks the
-skyline — not detail. `HeroAbove` stretches and leans about the **hip** rather than the origin,
-which is the only pivot that leaves the feet on the ground and the legs out of the lean.
+piles of boxes, because the numbers are the part that has to be *true*. `HeroAbove` stretches and
+leans about the **hip** rather than the origin, which is the only pivot that leaves the feet on the
+ground and the legs out of the lean.
+
+**A correction, measured after the fact.** This section first claimed the hero was "about forty
+pixels tall", carried over from the crowd figure without doing the arithmetic. It is not. The
+camera sits at y = 5.5 ten metres behind the crowd centre and the hero stands on the crowd's
+leading plane, up to 7 m ahead of it — so it is 10–17 m from the lens, at 1.35×, under a 60°
+vertical FOV. On a 1920-tall render that is:
+
+| | height | on screen | width |
+|---|---|---|---|
+| Warden | 1.45 m | 172 px | 173 px |
+| Ashcaller | 2.04 m | 242 px | 148 px |
+| Houndmaster | 1.53 m | 181 px | 136 px |
+| Revenant | 1.63 m | 193 px | 168 px |
+
+Between **140 and 240 px** depending on how far forward the army's front rank is, not forty. The
+closest pair of silhouettes — Warden and Revenant — differ by 72 px sampled across twelve height
+bands, so the four are distinguishable by outline alone with a wide margin.
+
+It changes a conclusion rather than just a number: at forty pixels detail is wasted, and at two
+hundred it is not. The four meshes are built as if the first were true, which is why they carry
+crests, ribs, hounds and banners and nothing smaller. **There is room for more on these than they
+currently have**, and that is the honest note for whoever picks them up next.
 
 Measuring the four builds offline caught two faults that read as correct in source:
 
