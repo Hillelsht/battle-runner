@@ -54,6 +54,15 @@ namespace BattleRunner.Core.Feel
         public const float StrikeSeconds = 0.55f;
         /// <summary>How long a recoil from taking a hit lasts.</summary>
         public const float RecoilSeconds = 0.34f;
+
+        /// <summary>
+        /// How much of a recoil survives while the boss is mid-strike.
+        ///
+        /// Not zero: being hit has to keep reading, or the player loses the feedback that
+        /// their own army is landing blows. A quarter is enough to stay legible underneath a
+        /// drive forward without cancelling it.
+        /// </summary>
+        public const float StrikePriority = 0.25f;
         /// <summary>Metres the boss closes at the peak of a lunge.</summary>
         public const float LungeMetres = 2.4f;
 
@@ -110,13 +119,27 @@ namespace BattleRunner.Core.Feel
 
             // RECOIL. Snapped back and shrunk, recovering fast. This is the player's
             // confirmation that their spell landed on something with mass.
+            //
+            // DAMPED WHILE A STRIKE IS IN FLIGHT, and that is not a polish detail — it was
+            // the third reason the boss's attacks were invisible. The army's volley calls
+            // FlashHit twice a second, so `sinceHit` is almost always inside this 0.34 s
+            // window; recoil and strike share the same Lean, Surge and Scale channels at
+            // comparable magnitude, and the recoil was therefore fighting the drive forward
+            // for the whole of every strike. The boss was permanently flinching, which is
+            // exactly what a creature that is winning should not look like.
+            //
+            // A strike outranks a flinch. The recoil is not removed — being hit must still
+            // read — it is scaled back to a quarter while the blow is being delivered, and
+            // recovers the instant the strike window closes.
             if (sinceHit >= 0f && sinceHit < RecoilSeconds)
             {
                 float t = 1f - sinceHit / RecoilSeconds;
-                lean -= 9f * t * t;
-                surge += 0.8f * t * t;
-                twist += 7f * t * t;
-                scale *= 1f - 0.09f * t * t;
+                float striking = sinceBlow >= 0f && sinceBlow < StrikeSeconds ? StrikePriority : 1f;
+                float r = t * t * striking;
+                lean -= 9f * r;
+                surge += 0.8f * r;
+                twist += 7f * r;
+                scale *= 1f - 0.09f * r;
             }
 
             return new BossPose(lean, surge, twist, scale);

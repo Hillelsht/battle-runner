@@ -78,6 +78,41 @@ namespace BattleRunner.Tests
         }
 
         [Test]
+        public void AStrikeOutranksAFlinchThatIsHappeningAtTheSameTime()
+        {
+            // THE THIRD REASON THE BOSS'S ATTACKS WERE INVISIBLE, as an assertion.
+            //
+            // The army's volley calls BossView.FlashHit twice a second for the whole fight,
+            // so `sinceHit` is almost always inside the 0.34 s recoil window. Recoil and
+            // strike share the same Lean, Surge and Scale channels at comparable magnitude,
+            // so a flinch that is always running was fighting the drive forward every time
+            // the boss actually hit back.
+            //
+            // What must hold is that a strike still reads as a strike while a flinch is live.
+            float peak = BossChoreography.StrikeSeconds * 0.2f;   // the drive's peak
+
+            BossPose flinchOnly = BossChoreography.Pose(0f, -1f, 0.02f, 0f);
+            BossPose striking = BossChoreography.Pose(0f, peak, 0.02f, 0f);
+
+            Assert.Greater(striking.Lean, flinchOnly.Lean + 12f,
+                "a strike landing during a flinch must still drive the body forward");
+            Assert.Less(striking.Surge, flinchOnly.Surge - 1.0f,
+                "and must still close the distance to the army");
+        }
+
+        [Test]
+        public void AFlinchStillReadsWhenNoStrikeIsRunning()
+        {
+            // The other half. Damping the recoil during a strike must not delete it, or the
+            // player loses the confirmation that their own army is landing blows.
+            BossPose rest = BossChoreography.Pose(0f, -1f, -1f, 0f);
+            BossPose flinching = BossChoreography.Pose(0f, -1f, 0.02f, 0f);
+
+            Assert.Less(flinching.Lean, rest.Lean - 5f, "being hit must still snap the body back");
+            Assert.Less(flinching.Scale, rest.Scale, "and must still shrink it");
+        }
+
+        [Test]
         public void EventsThatHaveNotHappenedContributeNothing()
         {
             // sinceBlow and sinceHit are negative until the event occurs, and a negative

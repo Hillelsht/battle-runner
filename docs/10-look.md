@@ -723,3 +723,72 @@ Nothing here can be seen from CI. What CI *does* prove is that the shaders compi
 Android and the C# builds — which is most of the risk, because a shader typo is a magenta
 build and a wrong URP property is a compile error. Everything past that needs a screenshot
 from a real device.
+
+
+---
+
+## The boss needed something to arrive
+
+> *"I see that some of my crowd members do fight the boss, but I don't see the boss fighting me,
+> my numbers decrease without visuals of the boss hurting me after each blow or shooting."*
+
+Three separate failures, and the largest one was the attack the player actually feels.
+
+### The maul was the invisible attack
+
+`ApplyMaul` fires every `SwingSeconds` — **twice a second, for the whole fight** — and is the
+dominant source of the continuous drain. Its entire presentation was:
+
+- an **11-degree yaw** on the boss body for 0.42 s, against an idle sway of `sin(t·0.62)·3.4°`,
+  on a near-symmetric 6.7 m mesh seen head-on from about seventeen metres;
+- four motes at **the boss's own feet**, life 0.26 s, fired on the *same frame* as the army's own
+  five-mote burst at the same point, inside a thirty-man melee line already animating.
+
+No audio. No camera shake, kick or fov punch. Nothing anywhere near the army. The reported
+sentence is a precise description of that list.
+
+It now throws its debris off **the men** rather than off the boss, lands a small ground wave at
+the army's front, rocks the camera by 0.018 m on an alternating side, and plays `EnemyBite` at
+0.42 volume. `EnemyBite` is reused rather than a new cue being authored, because it is already
+designed as *"short, dry, percussive; it fires per pack and must not accumulate into mush"* —
+which is exactly this attack's problem. **Every element is deliberately small**: this happens
+forty-odd times a fight, and a swat dressed as a catastrophe forty times is worse than a swat
+dressed as nothing.
+
+### The blow landed with nothing having arrived
+
+Every impact effect was spawned at the crowd's centre, while every bolt in the fight ran the
+*other* way — army to boss, for the spell, the vampiric siphon and the shield reflect. A red burst
+appeared at the player's feet with no visible cause. The one cross-arena bolt that did exist was
+archetype-gated to the Summoner, and it is a summon rather than an attack.
+
+Two halves now, and they are different statements:
+
+- a **`Shock` ring at the boss's feet** — the slam *leaving* him. A ground wave rolling outward
+  from something that large is what makes it read as a slam rather than a lean.
+- a **`Bolt` to the army's front** — the blow *arriving*. `VfxSystem.Bolt` self-detonates with its
+  own `Shock` and `Burst` at the landing point, so the impact cannot drift from the projectile.
+
+Speed 45 over an arena closed to roughly six metres is about **0.15 s** of flight. Fast on purpose:
+the force is applied on the frame of the strike, so a slow bolt would land visibly *after* the
+number had already dropped.
+
+**The pool is the constraint and it was sized, not assumed.** `BoltCapacity` is 4 and overflow
+overwrites a bolt mid-flight. Worst case is a blow bolt, one of vampiric-or-reflect (they are
+mutually exclusive — blocking starves the siphon and is what triggers the reflect), a spell and an
+echo: exactly four. A three-blow Volley does not stack, because the volley gap is 0.21–0.29 s and
+the bolt lives 0.15 s. And the degradation is graceful: if a bolt is ever dropped, the ring at the
+boss's feet and the burst on the army both still fire.
+
+### The boss was permanently flinching
+
+The subtlest of the three, and found by reading rather than by running. The army's volley calls
+`FlashHit` twice a second, so `sinceHit` is almost always inside its 0.34 s recoil window — and
+recoil and strike share the same `Lean`, `Surge` and `Scale` channels at comparable magnitude. The
+flinch was fighting the drive forward for the whole of every strike. A creature that is winning
+should not look like that.
+
+`StrikePriority = 0.25` scales the recoil back while a strike is in flight. Not to zero: being hit
+must still read, or the player loses the confirmation that their own army is landing blows. Two
+tests pin both halves — a strike must still drive the body forward and close the distance while a
+flinch is live, and a flinch must still snap the body back when no strike is running.

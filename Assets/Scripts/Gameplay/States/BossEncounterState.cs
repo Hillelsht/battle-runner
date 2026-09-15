@@ -218,7 +218,42 @@ namespace BattleRunner.Gameplay.States
             // The men it actually killed go down and stay down. A blow that removes force and
             // nothing else is a number; this is what makes it something that happened.
             _ctx.TrackController?.Squads?.BossKilled(bite >= 3.0 ? 2 : 1);
-            _ctx.Effects.Burst(_bossPosition + Vector3.up * 0.6f, DeathTint, 4, 2.2f, 0.26f);
+
+            // EVERYTHING BELOW THIS LINE EXISTS BECAUSE THE MAUL WAS INVISIBLE, and it was
+            // the attack the player actually felt: it fires every SwingSeconds -- twice a
+            // second, for the whole fight -- and is the dominant source of the drain. Its
+            // entire presentation was an 11-degree yaw on the boss body (against an idle sway
+            // of 3.4 degrees, on a near-symmetric mesh seen head-on from seventeen metres)
+            // and four motes at the boss's own FEET, fired on the same frame as the army's
+            // own five-mote burst at the same point. No audio. No camera. Nothing anywhere
+            // near the army. "my numbers decrease without visuals of the boss hurting me" is
+            // an exact description of that list.
+            //
+            // The rule for every element here is that it must READ, not that it must
+            // dominate. This happens forty-odd times a fight, and a swat dressed as a
+            // catastrophe forty times is worse than a swat dressed as nothing.
+            var front = new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.FrontZ);
+
+            // The debris comes off THE MEN, not off the boss. It was at _bossPosition, which
+            // is why it read as part of the army's own volley rather than as an answer to it.
+            _ctx.Effects.Burst(front, DeathTint, 4, 2.2f, 0.26f);
+
+            // A small ground wave arriving at the army. Rings steal the oldest rather than
+            // dropping (VfxSystem takes the oldest when the pool is full), and at 0.22 s life
+            // roughly one is alive at a time, so this costs nothing in pool pressure.
+            _ctx.Effects.Shock(front, DeathTint, 0.4f, 2.4f, 0.22f);
+
+            // Alternating sign, so consecutive swats rock the camera opposite ways instead of
+            // pumping it one direction. Small: Kick clamps at 0.35 m and this is a twentieth
+            // of that.
+            _maulSide = -_maulSide;
+            _ctx.CameraRig.Kick(_maulSide * 0.018f);
+
+            // EnemyBite rather than a new cue, and that is a deliberate reuse: it is already
+            // authored as "short, dry, percussive; it fires per pack and must not accumulate
+            // into mush", which is precisely this attack's problem. Quiet, because it fires
+            // twice a second and the boss blow has to stay the loudest thing in the fight.
+            _ctx.Audio.Play(AudioCue.EnemyBite, 0.42f);
 
             if (after <= 0) OnCrowdWiped();
         }
@@ -232,6 +267,9 @@ namespace BattleRunner.Gameplay.States
         /// blows the player can actually answer.
         /// </summary>
         private const float MaulFractionPerSecond = 0.0026f;
+
+        /// <summary>Which way the last swat rocked the camera. Flipped per maul.</summary>
+        private float _maulSide = 1f;
 
         public void Tick(float dt)
         {
@@ -573,6 +611,28 @@ namespace BattleRunner.Gameplay.States
                 _ctx.Effects.Bolt(new Vector3(_ctx.Crowd.CenterX, 0.8f, _ctx.Crowd.CenterZ),
                     _bossPosition + Vector3.up * 1.2f, VampireTint, 28f);
             }
+
+            // THE BLOW NOW CROSSES THE ARENA. Every impact effect used to be spawned at the
+            // crowd's centre while every bolt in the fight ran the other way -- army to boss,
+            // for the spell, the vampiric siphon and the shield reflect -- so a red burst
+            // appeared at the player's feet with nothing having arrived to cause it. The
+            // player could see that they were being hurt and never see what hurt them.
+            //
+            // Two halves, and they are different statements. The ring at the boss's feet is
+            // the slam LEAVING him: a ground wave rolling outward from a thing that large is
+            // what makes it read as a slam rather than a lean. The bolt is the blow ARRIVING,
+            // and VfxSystem.Bolt self-detonates with its own Shock and Burst at the landing
+            // point, so the impact cannot drift away from the projectile that caused it.
+            //
+            // Speed 45 over an arena that has closed to roughly six metres puts the flight at
+            // about 0.15 s. Fast on purpose: the force is applied on this frame, so a slow
+            // bolt would land visibly after the number had already dropped. Bolt capacity is
+            // four and overflow overwrites one mid-flight, so a short life also keeps a
+            // three-blow Volley from cancelling the player's own spell bolt.
+            _ctx.Effects.Shock(_bossPosition, blocked ? BlockTint : StrikeTint, 0.8f, 6.5f, 0.38f);
+            _ctx.Effects.Bolt(_bossPosition + Vector3.up * 1.5f,
+                new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.FrontZ),
+                blocked ? BlockTint : StrikeTint, 45f);
 
             // A landed blow throws debris off the ARMY; a blocked one rings off the shield
             // instead. Two different events that used to look the same except for a number.
