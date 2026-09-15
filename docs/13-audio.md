@@ -170,7 +170,7 @@ texture seam metric in doc 14, and caught the same way.
 
 | Cue | What it is |
 |---|---|
-| Gate add | A two-partial bell. The sound heard most in a run, so it is short and sits low in the mix |
+| Gate add | A struck glockenspiel bar out of the SoundFont. The sound heard most in a run, so it is short and sits low in the mix |
 | Gate multiply | A four-note rising arpeggio. The best thing that happens in a run should go *up* |
 | Gate subtract | A pitch-swept thud with a dirty edge — loss, inside the quarter-second available to read it |
 | Enemy bite | Short, dry, percussive; it fires per pack and must not accumulate into mush |
@@ -386,3 +386,67 @@ fourth guess. What can be stated as measured rather than intended: 132 BPM writt
 on every beat and a 4.5:1 accent range, an eighth-note bass ostinato, chord tones present in
 every bar, four sections with the breakdown 36% quieter than the tune, no step discontinuity at
 the loop point, and the fight layer louder than the calm one.
+
+
+---
+
+# The add gate was a placeholder sitting next to a real instrument
+
+> *"the sound of addition or multiplication is terrible, make it nicer."*
+
+Measuring both cues says which one, and why.
+
+**The multiply has been a real harp since the beds were built** — GM program 46 out of
+GeneralUser GS, four notes 48 ms apart, rendered at 44.1 kHz and decimated. **The add was four
+sine partials**: 880, 1108.7, 1318.5 and 2640 Hz, all starting at phase zero together, with a 6 ms
+noise click on the front.
+
+Those frequencies are an A major triad — ratios **1 : 1.26 : 1.5 : 3**. They are *harmonic*. A
+struck bar is not: its first overtone sits near **2.76×** the fundamental, nowhere near an octave,
+and that inharmonicity is the entire difference between metal and a synthesiser imitating metal.
+
+So the two gates were never two designs. They were a real instrument and a placeholder sitting
+next to each other, and the ear finds that immediately — which is exactly why the complaint named
+both cues and the fault was only ever in one.
+
+## Measured, before and after
+
+| | strongest partial ratios |
+|---|---|
+| old `gate_add` (sines) | 1.00, 2.00, 2.53 |
+| **new `gate_add` (glockenspiel)** | **1.00, 2.68, 2.72, 4.05, 5.25, 8.05** |
+| a real glockenspiel bar | 1.00, 2.76, 5.40 |
+| a harmonic series, for contrast | 1.00, 2.00, 3.00, 4.00, 5.00 |
+
+The 2.68/2.72 pair is the bar's first mode, landing where a real one does. The old cue had nothing
+there at all.
+
+Candidates were **probed rather than assumed** — this project's minimal SoundFont reader has
+failed to resolve a GM kit before, so every bell-family program was rendered and measured first.
+Glockenspiel, Music Box, Vibraphone, Marimba, Xylophone, Tubular Bells, Dulcimer, Crystal and
+Tinkle Bell all returned audio; glockenspiel won on inharmonicity and on cutting through the bed
+at low volume.
+
+## Three pitches, not three detunings
+
+The variants were the same waveform detuned ±0.6%, measuring 874.8 / 880.2 / 885.6 Hz. They are
+now three *degrees of D aeolian* — **A4, D5, F5**, at 440 / 584 / 696 Hz — so a run of gates reads
+as a set of chimes rather than as one note with a tuning problem. All three are in the key the bed
+is in.
+
+The instrument rings for about three quarters of a second on its own and is enveloped back down to
+the 0.42 s the synthesised cue occupied: a tail that long on a sound firing several hundred times
+a run is mud, not depth. Both ends still measure below 0.01, as every one-shot must.
+
+## The fallback stays, and it is honestly worse
+
+`bank()` never throws — it returns `None` and prints a warning — so the synthesis branch is what
+runs on a machine with no network. It is kept verbatim. The warning says plainly that the fallback
+is the worse one rather than shipping quietly, which is the same rule the beds already follow.
+
+## One thing found while reading
+
+`gate_multiply`'s fallback branch played a **C major** arpeggio (523.25, 659.25, 783.99, 1046.5)
+while its own docstring said D minor and its SoundFont branch played D minor. Corrected to
+587.33 / 698.46 / 880.0 / 1174.66. It only ever runs with no network, which is presumably why
+nobody heard it.

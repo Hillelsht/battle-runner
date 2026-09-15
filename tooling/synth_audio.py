@@ -152,6 +152,7 @@ SOUNDFONT_PATH = os.path.join(REPO, "tooling", ".cache", "soundfont", "GeneralUs
 # General MIDI programs, chosen for the reference rather than for coverage. The nylon guitar is
 # the load-bearing one: the dark-fantasy town theme everyone actually means is a solo acoustic
 # guitar, not an orchestra, and no amount of string pad substitutes for it.
+GM_GLOCKENSPIEL = 9
 GM_NYLON_GUITAR = 24
 GM_CELLO = 42
 GM_DOUBLE_BASS = 43
@@ -387,28 +388,56 @@ def layer(n, *stages):
 
 def gate_add(seed=0):
     """
-    A struck bell, in three stages. Blue gates ADD, and this is the sound heard most in a
-    run, so it stays short and sits low in the mix — but "heard most" is also exactly why it
-    had to stop being one sine stack under one envelope.
+    A struck glockenspiel bar. Blue gates ADD, and this is the sound heard most in a run.
 
-    The partials are the A major triad the music's own key contains (A, C sharp, E), so a
-    gate chime landing over the bed is consonant with it rather than merely loud near it.
+    IT WAS RAW SINES AND THAT WAS THE COMPLAINT. The report was "the sound of addition or
+    multiplication is terrible", and measuring both cues explains which one and why: the
+    MULTIPLY has been a real harp out of the SoundFont since the beds were built, while the
+    ADD was four sine partials at 880 / 1108.7 / 1318.5 / 2640 Hz -- an A major triad, ratios
+    1 : 1.26 : 1.5 : 3, all four starting at phase zero together. Those are HARMONIC ratios.
+    A struck bar is not harmonic: its first overtone sits near 2.7 times the fundamental,
+    nowhere near an octave, and that inharmonicity is the entire difference between metal
+    and a synthesiser imitating metal. Measured on the shipped file, the old cue's strongest
+    partials came out at ratios 1.0, 2.0 and 2.53. The instrument's come out at 1.0, 2.73 and
+    5.27.
+
+    So the two gates were not two designs, they were a real instrument and a placeholder
+    sitting next to each other, and the ear finds that immediately.
+
+    The three variants are three PITCHES rather than three detunings of one. All are degrees
+    of D aeolian, the key the bed is in -- A4, D5, F5 -- so a run of gates reads as a set of
+    chimes rather than as one note with a tuning problem.
     """
     n = int(0.42 * SR)
-    x = np.arange(n) / SR
-    detune = 1.0 + (seed - 1) * 0.006       # variants sit a few cents apart
+    sf = bank()
 
-    # ATTACK: the hammer. Almost all noise, three milliseconds long, and it is what makes
-    # the difference between a bell being struck and a bell simply existing.
+    if sf is not None:
+        # A4, D5, F5 -- root, fifth and minor third of the bed's key, in the bright register
+        # where a chime cuts through a bed without being loud.
+        degree = (31, 36, 39)[seed % 3]
+        v = play(sf, GM_GLOCKENSPIEL, TONIC_KEY + degree, 0.34, gain=0.95, release=0.22)
+        out = decimate(np.asarray(v, dtype=np.float64))[:n]
+        if len(out) < n:
+            out = np.pad(out, (0, n - len(out)))
+        # Trimmed to the same 0.42 s the synthesised cue occupied. A glockenspiel rings for
+        # three quarters of a second on its own, and a tail that long on a sound that fires
+        # several hundred times a run is mud rather than depth.
+        out *= env(n, 0.0004, 0.19)
+        return oneshot(room(out, 0.12), 0.85)
+
+    # FALLBACK, and it must stay: bank() never throws, it returns None and prints a warning,
+    # so this branch is what runs on a machine with no network. It is the old cue, and it is
+    # honestly worse -- which is exactly why the warning says so rather than shipping quietly.
+    x = np.arange(n) / SR
+    detune = 1.0 + (seed - 1) * 0.006
+
     strike = lowpass(noise(n, 500 + seed), 7000, 2200) * env(n, 0.0005, 0.006)
 
-    # BODY: the partials, each with its own decay — high ones die first, as they do on metal.
     body = np.zeros(n)
     for f, g, decay in ((880.0, 0.60, 0.16), (1108.7, 0.20, 0.12),
                         (1318.5, 0.26, 0.10), (2640.0, 0.10, 0.05)):
         body += np.sin(2 * np.pi * f * detune * x) * g * env(n, 0.002, decay)
 
-    # TAIL: the hum the metal is left with, a couple of octaves down and much longer.
     tail = np.sin(2 * np.pi * 440.0 * detune * x) * env(n, 0.02, 0.30)
 
     return oneshot(room(layer(n, (strike, 0.55), (body, 1.0), (tail, 0.16)), 0.14), 0.85)
@@ -423,7 +452,10 @@ def gate_multiply():
     n = int(0.72 * SR)
     if sf is None:
         out = np.zeros(n)
-        for i, f in enumerate([523.25, 659.25, 783.99, 1046.5]):
+        # D minor rising, matching both the docstring and the SoundFont branch below. It
+        # was a C MAJOR arpeggio -- 523.25, 659.25, 783.99, 1046.5 -- which is neither the
+        # key the bed is in nor what the comment three lines up claims.
+        for i, f in enumerate([587.33, 698.46, 880.0, 1174.66]):
             start = int(i * 0.052 * SR)
             m = n - start
             x = np.arange(m) / SR
