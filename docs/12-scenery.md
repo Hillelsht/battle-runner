@@ -399,3 +399,88 @@ re-fetches on demand. `.gitattributes` gained explicit `binary` entries, because
 marked nine text extensions and nothing as binary — a new `.bytes` or `.wav` was relying
 entirely on git's content heuristic, and the unconditional `*.asset text eol=lf` would have
 LF-mangled any Unity asset written in binary mode.
+
+---
+
+# Arches: the only scenery that crosses the road
+
+## Why the three bands could never answer the report
+
+`docs/11-worlds.md` measured the palettes and found they were already far apart. The scenery
+had a structural version of the same problem, and it is visible in the field's own constants:
+
+```
+VergeInner  5.2    VergeOuter 12.0
+FieldInner 12.0    FieldOuter 40.0
+LandmarkRoadClearance 8.5
+```
+
+**Every band is to the side.** The road half-width is 3.30 m, so nothing the scenery system
+places has ever come within 1.9 m of the road's edge, by design — a landmark's own clearance
+rule exists precisely to keep a castle wall out of the lane. However far two worlds' palettes
+and pieces are pushed apart, the player runs down an identically-shaped corridor in both, and
+the one thing that would change the **outline** of the frame was the one thing the system could
+not do.
+
+## The shape, not the edges
+
+`Core/World/RoadArch.cs` gives each world an `ArchStyle` and a spacing. Five styles over eight
+worlds, arranged so no two worlds the player meets back to back share both (a test checks the
+wrap-around pair too):
+
+| style | worlds | what it is |
+|---|---|---|
+| Gothic | Ashen Road, Sunken Crypt | pointed span, crosses on top — the tallest at 8.7 m |
+| Timber | Thistlewood | pitched roof, hanging banners — a gateway you go *through* |
+| Rib | Bone Wastes, Blood Marsh | two shafts curving to meet, **no lintel at all** |
+| Broken | Ember Fields, Throne of Dust | one leg, a snapped span, a stub opposite |
+| Frozen | Frozen Reach | a flat slab of ice far overhead on slender columns |
+
+Spacing is per-world and carries as much as the style does: the Sunken Crypt runs the *same*
+gothic arch as the Ashen Road at 74 m instead of 128 m, and underground that turns a landmark
+into a ceiling. A test holds two to five arches per 400 m round — one is an accident, six is
+architecture the player stops noticing.
+
+## The numbers live in Core because a mistake here is a wall across the track
+
+An arch is the only thing in the game deliberately placed on the centreline. Everything else is
+protected by a clearance rule; this one has to carry its own. So `ArchShape` is a struct of
+five numbers in Core — leg inner and outer face, clearance, crown, depth — and the tests assert
+that every style keeps its legs outside `RoadHalfWidth + 0.75` and its span above 4.5 m.
+
+**4.5 m is about the camera, not the army.** A soldier is 1.5 m and the hero is drawn at 1.35×,
+so the army itself needs barely two. The camera sits 5.5 m up and looks down the road: a span
+at two metres would cut across the middle of the frame and hide the gates the player is
+reading. An arch has to change the skyline without occluding the game.
+
+The pack cannot supply these numbers. `SceneryPieces` bakes a height per piece and nothing
+else, so building an arch out of `ca_gate` would mean guessing how wide a gate is — and a guess
+wrong by a metre is a pillar in the middle lane.
+
+## What measuring caught
+
+Every arch was walked offline against the rule *nothing inside the rail line (3.758 m) below
+4.5 m*, and two of the five broke it:
+
+- **The rib ran through the road at head height.** Driving its inward curve from the foot put
+  the shaft at |x| = 3.23 at a height of 3.60 m — a bone rib through the middle lane. The lean
+  now starts at the clearance line, which meant widening that style's clearance-to-crown gap
+  from 1.6 m to 3.6 m so the curve has somewhere to happen. It reads better for it: a rib
+  should be nearly vertical where it leaves the ground and turn hardest at the top.
+- **Thistlewood's banners hung through the railings** by four centimetres — 0.80 m wide at an
+  offset of 4.20 m reaches in to 3.80, and the rails stand at 3.758.
+
+Neither was visible in source. Both would have been visible on a device.
+
+## One draw call
+
+An arch is **one mesh** — both legs and the span together — because it is drawn instanced:
+three arches in a round is three matrices in one bucket and one `RenderMeshInstanced`. Built as
+separate leg and lintel pieces it would have been three kinds and three draws for the same
+thing, and the scenery field is already the largest instancing user in the game.
+
+It is filed in the **landmark** zone, which is what earns it a shadow: an arch is the only
+thing the player passes under, and a span that casts nothing across the road is a span the
+player never learns is above them. And unlike every other placement it gets no jitter, no lean
+and no per-instance scale — the clearance keeping a leg out of the middle lane is exact, and a
+random 7° tilt on a 12 m arch moves its foot by two thirds of a metre.

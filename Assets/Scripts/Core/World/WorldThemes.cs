@@ -91,6 +91,10 @@ namespace BattleRunner.Core.World
                     // The judged baseline. Left on the defaults on purpose: this is the one palette
                     // that has been looked at on a real screen, and it is what the other seven are
                     // measured away from.
+                    // The anchor world, and the style the other four are named against: a pointed span
+                    // with crosses on it, which is the one thing over the road that says graveyard
+                    // from four hundred metres away.
+                    Arch = ArchStyle.Gothic, ArchSpacing = 128f,
                     VergeScale = 2.00f, FieldScale = 2.80f, LandmarkScale = 3.40f,
                 },
                 Props = new[] { PropKind.Gravestone, PropKind.DeadTree, PropKind.BrokenColumn },
@@ -209,6 +213,9 @@ namespace BattleRunner.Core.World
                     // 4.35 and not the 4.70 first authored: the keep's tallest part is 7.67
                     // units, so 4.70 stands it 36 m and it blots out the sky. This is the
                     // largest landmark scale in the game that still leaves a horizon.
+                    // A gateway you go THROUGH rather than under, and close together, because a
+                    // storybook road is always arriving somewhere.
+                    Arch = ArchStyle.Timber, ArchSpacing = 112f,
                     VergeScale = 2.55f, FieldScale = 3.55f, LandmarkScale = 4.35f,
                 },
                 // Three kinds, all of them read as HEDGEROW rather than ruin: a coppiced
@@ -284,6 +291,9 @@ namespace BattleRunner.Core.World
                     // and 2.80 rather than the 2.60 first authored because a world's scale is
                     // bounded by its OWN shortest landmark: the column hall is 2.19 units, so
                     // below 2.75 it stops being a landmark and becomes a large prop.
+                    // The same gothic span as the Ashen Road and nearly TWICE as often, which is the
+                    // whole difference: underground the arches are the ceiling, so they come at you.
+                    Arch = ArchStyle.Gothic, ArchSpacing = 74f,
                     VergeScale = 1.50f, FieldScale = 2.05f, LandmarkScale = 2.80f,
                 },
                 Props = new[] { PropKind.BrokenColumn, PropKind.Obelisk, PropKind.BoneArch },
@@ -351,6 +361,8 @@ namespace BattleRunner.Core.World
                     VergeTint = 0.28f, FieldTint = 0.15f, LandmarkTint = 0.06f,
                     // Jagged and a size up: the field is basalt and burnt trunks, and they have to
                     // stand over the verge rather than beside it.
+                    // Fallen spans, spread thin. A volcanic field is somewhere that USED to have roads.
+                    Arch = ArchStyle.Broken, ArchSpacing = 150f,
                     VergeScale = 2.20f, FieldScale = 3.15f, LandmarkScale = 4.00f,
                 },
                 Props = new[] { PropKind.RockSpire, PropKind.Brazier, PropKind.RuinedWall },
@@ -426,6 +438,10 @@ namespace BattleRunner.Core.World
                     // debris under enormous bone arches, with nothing in between. A uniform scale
                     // here would read as rubble. 6.20 is the largest landmark scale in the game
                     // and it only fits because the keep was taken out of this world's set.
+                    // Ribcage arches, which is what this world has always been described as and had no
+                    // way to draw: the three bands are all to the SIDE of the road, and a ribcage
+                    // is over it.
+                    Arch = ArchStyle.Rib, ArchSpacing = 96f,
                     VergeScale = 1.65f, FieldScale = 4.20f, LandmarkScale = 6.20f,
                 },
                 Props = new[] { PropKind.Gravestone, PropKind.BoneArch, PropKind.RockSpire },
@@ -492,6 +508,9 @@ namespace BattleRunner.Core.World
                     VergeTint = 0.26f, FieldTint = 0.13f, LandmarkTint = 0.05f,
                     // Tall and thin. Ice is vertical, so the field is pushed up while the verge stays
                     // low — the opposite proportion to the marsh.
+                    // A flat slab of ice far overhead on slender columns — the highest span in the game,
+                    // so it reads as something that could come down.
+                    Arch = ArchStyle.Frozen, ArchSpacing = 138f,
                     VergeScale = 1.80f, FieldScale = 3.45f, LandmarkScale = 4.40f,
                 },
                 Props = new[] { PropKind.RockSpire, PropKind.Obelisk, PropKind.DeadTree },
@@ -567,6 +586,9 @@ namespace BattleRunner.Core.World
                     // swamp has no horizon and no hierarchy, just more of it in every direction.
                     // The floor here is the gatehouse at 1.70 units, the shortest landmark in the
                     // game, which is why this cannot go under 3.60.
+                    // Ribs again, but the sparsest in the game: the marsh has no horizon, and anything
+                    // regular overhead would give it one and undo the world.
+                    Arch = ArchStyle.Rib, ArchSpacing = 160f,
                     VergeScale = 2.45f, FieldScale = 2.60f, LandmarkScale = 3.65f,
                 },
                 Props = new[] { PropKind.Stump, PropKind.HangingCage, PropKind.Gravestone, PropKind.DeadTree },
@@ -638,6 +660,9 @@ namespace BattleRunner.Core.World
                     // 4.44 the castle stands 34 m and fills the sky from thirty metres away. That
                     // ceiling is the honest limit of expressing size through this one number, and
                     // it is why the Bone Wastes gave its castle up to go bigger.
+                    // Broken spans, close together. An imperial ruin is a place where the ARCHITECTURE is
+                    // what is left standing, so this is the one world where the arches are the point.
+                    Arch = ArchStyle.Broken, ArchSpacing = 104f,
                     VergeScale = 2.05f, FieldScale = 3.05f, LandmarkScale = 4.40f,
                 },
                 Props = new[] { PropKind.Obelisk, PropKind.Brazier, PropKind.RuinedWall, PropKind.BoneArch },

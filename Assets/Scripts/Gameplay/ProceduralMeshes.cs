@@ -1099,6 +1099,165 @@ namespace BattleRunner.Gameplay
             return mesh;
         }
 
+        private static readonly Mesh[] _arches = new Mesh[RoadArches.Count];
+
+        /// <summary>
+        /// What crosses over the road in a world.
+        ///
+        /// ONE MESH FOR THE WHOLE ARCH, both legs and the span, because it is drawn instanced:
+        /// three arches in a round is three matrices in one bucket and ONE draw call. Built as
+        /// separate leg and lintel pieces it would be three kinds and three draws for the same
+        /// thing, and the scenery field is already the largest instancing user in the game.
+        ///
+        /// Every dimension comes from `RoadArches.For`, in Core, where a test can hold the one
+        /// property that matters: an arch is the only scenery the game puts OVER the lane the
+        /// player runs in, so a leg half a metre too far in is a pillar in the middle lane.
+        /// Nothing here may invent an x inside `ArchShape.LegInner`.
+        /// </summary>
+        public static Mesh RoadArch(ArchStyle style)
+        {
+            int i = (int)style;
+            if (i < 0 || i >= _arches.Length) i = 0;
+            if (_arches[i] == null) _arches[i] = BuildArch((ArchStyle)i);
+            return _arches[i];
+        }
+
+        private static Mesh BuildArch(ArchStyle style)
+        {
+            ArchShape a = RoadArches.For(style);
+            var v = new List<Vector3>();
+            var t = new List<int>();
+
+            float mid = (a.LegInner + a.LegOuter) * 0.5f;
+            float legW = a.LegOuter - a.LegInner;
+
+            switch (style)
+            {
+                case ArchStyle.Rib:
+                    // NO LINTEL AT ALL. Two shafts leaning in over four segments until they
+                    // nearly meet — which is the one shape here that is not architecture, and
+                    // the reason the bone and marsh worlds get it. A ribcage has no keystone.
+                    //
+                    // THE LEAN STARTS AT THE CLEARANCE LINE, NOT AT THE GROUND, and that is
+                    // not a style choice. Driving x in from the foot put the shaft at
+                    // |x| = 3.23 at a height of 3.6 m — a bone rib through the middle lane at
+                    // head height, which is the exact failure the clearance rule exists to
+                    // stop. Measured, not spotted: every arch was walked offline against the
+                    // rule "nothing inside the rail line below 4.5 m" and this was the one
+                    // that broke it.
+                    for (int side = -1; side <= 1; side += 2)
+                    {
+                        const int Segments = 6;
+                        for (int seg = 0; seg < Segments; seg++)
+                        {
+                            float y0 = a.Crown * seg / Segments;
+                            float y1 = a.Crown * (seg + 1) / Segments;
+                            AddPrism(v, t,
+                                new Vector3(side * RibX(a, mid, y0), y0,  0f),
+                                new Vector2(RibWidth(a, legW, y0), a.Depth),
+                                new Vector3(side * RibX(a, mid, y1), y1, 0f),
+                                new Vector2(RibWidth(a, legW, y1), a.Depth));
+                        }
+                    }
+                    break;
+
+                case ArchStyle.Broken:
+                    // ONE LEG AND A STUB. Asymmetric on purpose: a symmetric ruin reads as a
+                    // design. The standing side carries the whole span out to a snapped end
+                    // that stops WELL SHORT of the centreline, so nothing hangs over the road.
+                    AddPrism(v, t, new Vector3(-mid, 0f, 0f), new Vector2(legW * 1.25f, a.Depth),
+                                   new Vector3(-mid, a.Clearance, 0f), new Vector2(legW, a.Depth));
+                    AddOrientedBox(v, t, new Vector3(-mid + 0.55f, a.Clearance + 0.45f, 0f),
+                        new Vector3(2.2f, 0.55f, a.Depth), Quaternion.Euler(0f, 0f, -14f));
+                    AddPrism(v, t, new Vector3(-mid, a.Clearance, 0f), new Vector2(legW, a.Depth),
+                                   new Vector3(-mid - 0.18f, a.Crown, 0f), new Vector2(legW * 0.5f, a.Depth * 0.7f));
+                    // The stub opposite: knee-high, so the eye completes the span itself.
+                    AddPrism(v, t, new Vector3(mid, 0f, 0f), new Vector2(legW * 1.3f, a.Depth),
+                                   new Vector3(mid + 0.10f, a.Clearance * 0.38f, 0f), new Vector2(legW * 0.8f, a.Depth * 0.8f));
+                    break;
+
+                default:
+                    // Two legs and a span. The shared skeleton for gothic, timber and frozen;
+                    // what separates them is the taper, the depth and what rides on top.
+                    for (int side = -1; side <= 1; side += 2)
+                    {
+                        float taper = style == ArchStyle.Frozen ? 0.55f
+                            : style == ArchStyle.Timber ? 1.05f : 0.72f;
+                        AddPrism(v, t, new Vector3(side * mid, 0f, 0f),
+                            new Vector2(legW, a.Depth),
+                            new Vector3(side * mid, a.Clearance, 0f),
+                            new Vector2(legW * taper, a.Depth * taper));
+                    }
+                    // The span itself, resting on the legs and reaching their outer faces so
+                    // the joint is a joint rather than a beam balanced on two posts.
+                    AddOrientedBox(v, t, new Vector3(0f, a.Clearance + 0.30f, 0f),
+                        new Vector3(a.LegOuter * 2f, 0.60f, a.Depth), Quaternion.identity);
+                    break;
+            }
+
+            switch (style)
+            {
+                case ArchStyle.Gothic:
+                    // A point, and crosses. The point is what makes it gothic rather than a
+                    // gate, and it is the highest thing on the mesh.
+                    AddPrism(v, t, new Vector3(0f, a.Clearance + 0.60f, 0f),
+                        new Vector2(2.6f, a.Depth),
+                        new Vector3(0f, a.Crown - 0.55f, 0f), new Vector2(0.55f, a.Depth * 0.8f));
+                    for (int side = -1; side <= 1; side++)
+                    {
+                        float x = side * 2.35f;
+                        float y = a.Crown - (side == 0 ? 0.55f : 1.35f);
+                        AddBox(v, t, new Vector3(x, y + 0.42f, 0f), new Vector3(0.16f, 0.84f, 0.16f));
+                        AddBox(v, t, new Vector3(x, y + 0.60f, 0f), new Vector3(0.52f, 0.16f, 0.16f));
+                    }
+                    break;
+
+                case ArchStyle.Timber:
+                    // A pitched roof over the gateway, and a banner hanging from each end.
+                    // The roof is what makes this somewhere people maintain.
+                    AddPrism(v, t, new Vector3(0f, a.Clearance + 0.60f, 0f),
+                        new Vector2(a.LegOuter * 2.15f, a.Depth * 1.5f),
+                        new Vector3(0f, a.Crown, 0f), new Vector2(0.35f, a.Depth * 0.4f));
+                    // Hung at mid - 0.40 rather than mid - 0.75: a 0.80-wide banner at the
+                    // closer offset reaches in to |x| = 3.80 and the road's rails stand at
+                    // 3.758, so it would have hung through a railing by four centimetres.
+                    for (int side = -1; side <= 1; side += 2)
+                    {
+                        AddOrientedBox(v, t, new Vector3(side * (mid - 0.40f), a.Clearance - 0.55f, 0f),
+                            new Vector3(0.20f, 1.30f, 0.20f), Quaternion.identity);
+                        AddOrientedBox(v, t, new Vector3(side * (mid - 0.40f), a.Clearance - 1.35f, 0.05f),
+                            new Vector3(0.80f, 1.10f, 0.06f), Quaternion.identity);
+                    }
+                    break;
+
+                case ArchStyle.Frozen:
+                    // A flat slab, wider than the span and offset, so it reads as ice that
+                    // formed across rather than as a roof somebody built.
+                    AddOrientedBox(v, t, new Vector3(0.35f, a.Clearance + 0.95f, 0.20f),
+                        new Vector3(a.LegOuter * 2.3f, 0.45f, a.Depth * 2.2f),
+                        Quaternion.Euler(0f, 4f, -2.5f));
+                    AddOrientedBox(v, t, new Vector3(-0.90f, a.Crown - 0.35f, -0.10f),
+                        new Vector3(3.1f, 0.70f, a.Depth * 1.1f), Quaternion.Euler(0f, -6f, 3f));
+                    break;
+            }
+
+            return Finish(v, t, $"Arch{style}");
+        }
+
+        /// <summary>
+        /// A rib's x at a given height: straight up to the clearance line, then curving in on
+        /// a square law. Squared rather than linear so the shaft is still nearly vertical as
+        /// it leaves the clearance and turns hardest at the top, which is what a rib does.
+        /// </summary>
+        private static float RibX(ArchShape a, float mid, float y)
+        {
+            float lean = Mathf.InverseLerp(a.Clearance, a.Crown, y);
+            return Mathf.Lerp(mid, 0.55f, lean * lean);
+        }
+
+        private static float RibWidth(ArchShape a, float legW, float y) =>
+            Mathf.Lerp(legW, legW * 0.35f, Mathf.Clamp01(y / Mathf.Max(0.01f, a.Crown)));
+
         private static Mesh _arenaFloor;
         private static Mesh _standingStone;
 

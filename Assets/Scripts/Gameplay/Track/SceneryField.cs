@@ -119,6 +119,7 @@ namespace BattleRunner.Gameplay.Track
         private int[] _zoneOf;
         private Mesh[] _meshes;
         private int _kindCount;
+        private int _archKind0;
 
         private float _lastGatherZ = float.NegativeInfinity;
         private bool _dressed;
@@ -143,7 +144,12 @@ namespace BattleRunner.Gameplay.Track
             _zoneMaterials = LoadZoneMaterials();
             if (_zoneMaterials == null) _sceneryReady = false;
 
-            _kindCount = ProceduralKinds + (_sceneryReady ? SceneryPieces.Count : 0);
+            // The arches sit at the END of the kind table, after the procedural props and the
+            // imported pieces. They are NOT scenery pieces — they come from ProceduralMeshes
+            // rather than the pack — but they go through the same bucket so three arches in a
+            // round cost one instanced draw instead of three.
+            _archKind0 = ProceduralKinds + (_sceneryReady ? SceneryPieces.Count : 0);
+            _kindCount = _archKind0 + RoadArches.Count;
             _buckets = new Matrix4x4[_kindCount][];
             _counts = new int[_kindCount];
             _zoneOf = new int[_kindCount];
@@ -161,6 +167,14 @@ namespace BattleRunner.Gameplay.Track
                     _meshes[ProceduralKinds + i] = SceneryMeshes.At(i);
                     _zoneOf[ProceduralKinds + i] = (int)SceneryPieces.Zones[i];
                 }
+            }
+            for (int i = 0; i < RoadArches.Count; i++)
+            {
+                _meshes[_archKind0 + i] = ProceduralMeshes.RoadArch((ArchStyle)i);
+                // Filed as a LANDMARK, which is what earns it a shadow. An arch is the only
+                // thing the player passes under, and a span that casts nothing across the road
+                // is a span the player never learns is above them.
+                _zoneOf[_archKind0 + i] = (int)SceneryZone.Landmark;
             }
 
             _instancingSupported = SystemInfo.supportsInstancing
@@ -256,6 +270,12 @@ namespace BattleRunner.Gameplay.Track
                     FieldInner, FieldOuter, clustered: true);
                 ScatterLandmarks(palette, ref rng, side);
             }
+
+            // ONCE, not once per side: an arch spans the road, so it has no side. And NOT
+            // gated on useScenery, unlike the three bands — an arch is built by
+            // ProceduralMeshes, so a device where the Kenney pack failed to load still gets
+            // the one piece of scenery that changes the shape of the frame.
+            ScatterArches(palette, fromZ, toZ);
 
             _placements.Sort((a, b) => a.Z.CompareTo(b.Z));
             AllocateBuckets();
@@ -498,6 +518,44 @@ namespace BattleRunner.Gameplay.Track
                     Trs = Matrix4x4.TRS(origin + turn * local,
                         turn * Quaternion.Euler(0f, part.Yaw, 0f),
                         Vector3.one * (scale * part.Scale))
+                });
+            }
+        }
+
+        /// <summary>
+        /// What crosses over the road, placed on the centreline at the world's own spacing.
+        ///
+        /// THE ONLY THING THIS FIELD PUTS OVER THE ROAD. Every other placement is pushed out
+        /// past VergeInner or LandmarkRoadClearance, and all three bands are to the SIDE —
+        /// which is structurally why "the difference between worlds is pretty much only
+        /// colour" was true however far the palettes were pushed apart. An arch changes the
+        /// outline of the whole frame.
+        ///
+        /// No jitter, no lean and no per-instance scale, unlike everything else here: the
+        /// clearance that keeps a leg out of the middle lane is exact, and a random 7-degree
+        /// tilt on a 12 m arch moves its foot by two thirds of a metre.
+        /// </summary>
+        private void ScatterArches(SceneryPalette palette, float fromZ, float toZ)
+        {
+            if (palette == null || palette.Arch == ArchStyle.None) return;
+
+            int count = RoadArches.CountOver(toZ - fromZ, palette.ArchSpacing);
+            int kind = _archKind0 + (int)palette.Arch;
+            if (kind < 0 || kind >= _kindCount || _meshes[kind] == null) return;
+
+            for (int i = 0; i < count; i++)
+            {
+                float z = fromZ + RoadArches.PositionOf(i, palette.ArchSpacing);
+                if (z > toZ) break;
+                // Yawed a few degrees alternately, which is as much variation as an arch can
+                // take: it is symmetric about the road, so a yaw is the one rotation that does
+                // not move a leg inward.
+                _placements.Add(new Placement
+                {
+                    Kind = kind,
+                    Z = z,
+                    Trs = Matrix4x4.TRS(new Vector3(0f, 0f, z),
+                        Quaternion.Euler(0f, (i % 2 == 0 ? 2.5f : -2.5f), 0f), Vector3.one)
                 });
             }
         }

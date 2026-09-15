@@ -64,6 +64,23 @@ namespace BattleRunner.Core.World
         /// <summary>And barely at all for landmarks — they are the colour in the frame.</summary>
         public float LandmarkTint = 0.10f;
 
+        /// <summary>
+        /// What crosses over the road here, and how often.
+        ///
+        /// THE ONLY THING IN THE SCENERY SYSTEM THAT TOUCHES THE ROAD. Everything else is held
+        /// off it by a clearance rule, and all three bands are to the SIDE — which is most of
+        /// why eight worlds read as one road with different edges. An arch changes the
+        /// silhouette of the whole frame rather than its margins, and it is the only per-world
+        /// element the player runs through instead of past.
+        /// </summary>
+        public ArchStyle Arch = ArchStyle.None;
+
+        /// <summary>
+        /// Metres between arches. A round is about 400 m, so 130 gives three: often enough to
+        /// be the world's rhythm, rare enough that running under one is still an event.
+        /// </summary>
+        public float ArchSpacing = 130f;
+
         public bool IsComplete =>
             Verge.Length > 0 && Field.Length > 0 && Landmarks.Length > 0;
     }
