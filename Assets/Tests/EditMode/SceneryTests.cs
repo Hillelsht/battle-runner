@@ -203,10 +203,31 @@ namespace BattleRunner.Tests
                 Assert.LessOrEqual(s.VergeTint, 0.40f,
                     $"{t.DisplayName} paints {s.VergeTint:P0} of its roadside over with one colour, "
                     + "which is how eight dressings became one grey");
-                Assert.Greater(s.VergeTint, 0.15f,
-                    $"{t.DisplayName} roadside keeps too much Kenney colour to read as dark fantasy");
                 Assert.Less(s.LandmarkTint, 0.25f, $"{t.DisplayName} drains its own landmarks");
+                // DELIBERATELY REWRITTEN A SECOND TIME, and again the ordering was right and
+                // the bound was the bug. This floor said "every world must read as dark
+                // fantasy", which was true of all eight and is exactly what the report was
+                // about: "the difference in graphics between before the boss and after is
+                // minimal", and then "every world is very different from the previous".
+                //
+                // The floor exists because Kenney's pack ships cheerful, and a cheerful
+                // roadside under a black sky is a mismatch the eye reads as a bug. That
+                // reasoning is about the SKY, not about the pack — so the rule is now
+                // conditional on it, and a world in daylight has nothing to reconcile.
+                if (t.SkyZenith.Peak >= 0.10f) continue;
+                Assert.Greater(s.VergeTint, 0.15f,
+                    $"{t.DisplayName} has a night sky and a roadside that keeps too much "
+                    + "Kenney colour, which reads as the tint failing rather than as a choice");
             }
+
+            // AND AT MOST ONE WORLD MAY TAKE THE EXEMPTION. Without this the rule would be
+            // "brighten the sky and the tint stops applying", and eight worlds would drift
+            // back into one over the next few increments — by the other door this time.
+            int daylight = 0;
+            foreach (WorldTheme t in WorldThemes.All)
+                if (t.SkyZenith.Peak >= 0.10f) daylight++;
+            Assert.LessOrEqual(daylight, 1,
+                $"{daylight} worlds are in daylight; the contrast IS that there is one");
         }
 
         [Test]

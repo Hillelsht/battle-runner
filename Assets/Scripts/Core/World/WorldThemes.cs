@@ -44,6 +44,7 @@ namespace BattleRunner.Core.World
                 SkyZenith = new Rgb(0.022f, 0.020f, 0.055f),
                 SkyHorizon = new Rgb(0.085f, 0.070f, 0.125f),
                 SkyGlow = new Rgb(0.500f, 0.330f, 0.230f),
+                // The judged baseline: 0.40 / 0.35, left alone.
                 SkyStars = 1.6f, SkyGlowYaw = 0.0f,
                 Fog = new Rgb(0.440f, 0.300f, 0.230f), FogStart = 70f, FogEnd = 170f,
                 LightColor = new Rgb(0.750f, 0.780f, 0.950f),
@@ -86,7 +87,11 @@ namespace BattleRunner.Core.World
                     },
                     VergeDensity = 20f, FieldDensity = 9f,
                     LandmarkSpacing = 105f,
-                    VergeTint = 0.32f, FieldTint = 0.2f, LandmarkTint = 0.12f
+                    VergeTint = 0.32f, FieldTint = 0.2f, LandmarkTint = 0.12f,
+                    // The judged baseline. Left on the defaults on purpose: this is the one palette
+                    // that has been looked at on a real screen, and it is what the other seven are
+                    // measured away from.
+                    VergeScale = 2.00f, FieldScale = 2.80f, LandmarkScale = 3.40f,
                 },
                 Props = new[] { PropKind.Gravestone, PropKind.DeadTree, PropKind.BrokenColumn },
                 PropDensity = 4f,
@@ -94,66 +99,125 @@ namespace BattleRunner.Core.World
                 Accent = new Rgb(0.85f, 0.55f, 0.30f)
             },
 
-            // ---- 1 : green, low, and drowning -------------------------------
+            // ---- 1 : THE ONE IN DAYLIGHT ------------------------------------
+            //
+            // "one can be diablo style with crosses, another can be a fairy tale style with
+            // castles and flying pony, etc. Like every world is very different from the
+            // previous."
+            //
+            // This slot held Gallows Mire — a green swamp, which world 6 (The Blood Marsh)
+            // already is and does better. It is now the counterweight to the Ashen Road, and
+            // the counterweight is not a colour, it is the TIME OF DAY.
+            //
+            // MEASURED ACROSS ALL EIGHT WORLDS BEFORE THIS: every zenith sat between 0.016
+            // and 0.030 luminance — a span of 0.014 across the entire game. The sky is the
+            // largest single area in a runner's frame and it was black in every world, which
+            // is most of why eight settings read as one. The palettes underneath were never
+            // the problem: measured frame brightness already ran 0.090 (Ember Fields) to
+            // 0.318 (Frozen Reach), a 3.5x spread nobody could see past the identical sky.
+            //
+            // Thistlewood's zenith is 0.44 — roughly EIGHTEEN TIMES any of the other seven.
+            // Nothing else in this table is that far from its neighbours on any axis.
             new WorldTheme
             {
-                DisplayName = "Gallows Mire",
-                RoadStone = new Rgb(0.240f, 0.260f, 0.200f),
-                RoadMortar = new Rgb(0.110f, 0.120f, 0.100f),
-                RoadDamp = new Rgb(0.260f, 0.360f, 0.280f),
-                RoadTiling = 1.20f, RoadWetness = 0.80f, RoadGloss = 10f, RoadStoneVariation = 0.80f, RoadGrimeContrast = 0.58f,
-                RoadMortarWidth = 0.190f, Surface = RoadSurfaces.Planks,
-                SkyZenith = new Rgb(0.020f, 0.028f, 0.030f),
-                SkyHorizon = new Rgb(0.070f, 0.095f, 0.070f),
-                SkyGlow = new Rgb(0.280f, 0.420f, 0.200f),
-                SkyStars = 0.50f, SkyGlowPower = 6f, SkyGlowYaw = 26.0f,
-                Fog = new Rgb(0.266f, 0.389f, 0.200f), FogStart = 45f, FogEnd = 120f,
-                LightColor = new Rgb(0.700f, 0.820f, 0.720f),
-                LightIntensity = 0.95f, LightPitch = 26f, LightYaw = 215f,
-                // Ground: standing bog water between sedge; the coarsest patches in the game and the second wettest.
-                Ground = new Rgb(0.095f, 0.138f, 0.088f),
-                GroundAlt = new Rgb(0.152f, 0.200f, 0.108f),
-                GroundPatchScale = 0.06f, GroundSpeckle = 0.26f,
-                GroundSurface = RoadSurfaces.Dirt, GroundSurfaceTiling = 0.24f,
-                GroundGloss = 16f, GradeTemperature = -9f, GradeTint = -6f,
-                GroundSheen = new Rgb(0.42f, 0.62f, 0.48f), GroundSheenStrength = 0.55f,
+                DisplayName = "Thistlewood",
+                // Warm dry flagstone, barely wet. Every other world's road is damp, which is
+                // a night-and-rain cue the eye reads before it reads hue.
+                RoadStone = new Rgb(0.620f, 0.575f, 0.495f),
+                RoadMortar = new Rgb(0.430f, 0.400f, 0.350f),
+                RoadDamp = new Rgb(0.640f, 0.620f, 0.560f),
+                RoadTiling = 1.45f, RoadWetness = 0.10f, RoadGloss = 22f, RoadStoneVariation = 0.55f, RoadGrimeContrast = 0.26f,
+                // PLANKS, and not because a boardwalk is storybook: it is the only surface of the
+                // eight not already carrying another world, and two worlds paved the same way
+                // are two worlds the player walks down identically however they are coloured.
+                RoadMortarWidth = 0.095f, Surface = RoadSurfaces.Planks,
+                // A real blue overhead and a pale warm band on the horizon.
+                SkyZenith = new Rgb(0.230f, 0.430f, 0.780f),
+                SkyHorizon = new Rgb(0.620f, 0.680f, 0.780f),
+                SkyGlow = new Rgb(0.260f, 0.200f, 0.105f),
+                // A WIDE SOFT VAULT. pow(height, 1.70) keeps the horizon colour most of the
+                // way up, so the pastel gradient takes the whole frame instead of snapping to a
+                // zenith twenty degrees off the road. Storybook skies are big.
+                SkyZenithFalloff = 1.70f, SkyGroundFalloff = 0.55f,
+                // No stars, obviously — and a WIDE, LOW glow rather than a tight ember band:
+                // power 3 spreads the warm light right along the horizon like late afternoon
+                // instead of pointing at one spot the way a burning city does.
+                SkyStars = 0.0f, SkyGlowPower = 3f, SkyGlowHeight = 7f, SkyGlowYaw = -14.0f,
+                // Haze, not fog, and it reaches almost to MaxFogEnd: seeing a castle on the
+                // horizon is half of what makes this world storybook rather than pretty.
+                // Fog is horizon + 0.70 x glow on red and green, to the fourth decimal. That
+                // relationship is what stops a seam where the road meets the sky, and a daylight
+                // world is where it would show worst — there is no darkness to hide it in.
+                Fog = new Rgb(0.802f, 0.820f, 0.884f), FogStart = 95f, FogEnd = 182f,
+                LightColor = new Rgb(1.000f, 0.965f, 0.880f),
+                LightIntensity = 1.55f, LightPitch = 52f, LightYaw = 205f,
+                // Ground: meadow. The brightest ground in the game by a wide margin, and the
+                // only one that is a growing thing rather than what is left of one.
+                Ground = new Rgb(0.330f, 0.470f, 0.205f),
+                GroundAlt = new Rgb(0.455f, 0.590f, 0.270f),
+                GroundPatchScale = 0.11f, GroundSpeckle = 0.20f,
+                GroundSurface = RoadSurfaces.Dirt, GroundSurfaceTiling = 0.34f,
+                GroundGloss = 6f, GradeTemperature = 9f, GradeTint = 5f,
+                GroundSheen = new Rgb(0.70f, 0.80f, 0.55f), GroundSheenStrength = 0.08f,
                 Scenery = new SceneryPalette
                 {
+                    // Round, fat and alive. Not one broken, burnt or dead piece in the list,
+                    // which is the single hardest rule to keep in a pack built for a graveyard.
                     Verge = new[]
                     {
-                        "na_stump_oldTall",
-                        "na_stump_round",
-                        "na_log",
+                        "na_grass_large",
+                        "na_grass",
                         "na_grass_leafs",
+                        "na_plant_bushDetailed",
                         "na_plant_bushSmall",
                         "na_mushroom_redGroup",
-                        "gr_gravestone-debris",
-                        "gr_debris",
+                        "na_stone_smallA",
+                        "gr_bench",
                     },
                     Field = new[]
                     {
-                        "na_tree_thin",
-                        "na_tree_tall",
-                        "na_tree_plateau",
-                        "fa_fence-broken",
-                        "su_tent",
-                        "na_crop_carrot",
-                        "fa_planks",
+                        "na_tree_oak",
+                        "na_tree_default",
+                        "na_tree_pineRoundA",
+                        "na_tree_small",
+                        "fa_stall",
+                        "fa_cart",
+                        "fa_fence-gate",
+                        "fa_lantern",
+                        "na_crop_melon",
+                        "na_crops_bambooStageA",
                     },
                     Landmarks = new[]
                     {
-                        Landmarks.Watermill,
-                        Landmarks.StiltHouse,
-                        Landmarks.Ruin,
+                        Landmarks.MarketGreen,
+                        Landmarks.Keep,
+                        Landmarks.Cottage,
+                        Landmarks.Windmill,
                     },
-                    VergeDensity = 28f, FieldDensity = 13f,
-                    LandmarkSpacing = 95f,
-                    VergeTint = 0.34f, FieldTint = 0.22f, LandmarkTint = 0.14f
+                    // Villages close together — a storybook road always has somewhere in sight.
+                    VergeDensity = 24f, FieldDensity = 16f,
+                    LandmarkSpacing = 82f,
+                    // NEARLY UNTINTED, and that is the other half of this world. Kenney's models
+                    // ship with cheerful baked vertex colour and every world so far has dragged
+                    // it 26-34% toward its own grim stone, because a dark-fantasy road cannot
+                    // afford cheerful. This one is not a dark-fantasy road. Letting the pack be
+                    // the colour it already is costs nothing and no other world can do it.
+                    VergeTint = 0.08f, FieldTint = 0.03f, LandmarkTint = 0.01f,
+                    // EVERYTHING BIGGER AND ROUNDER. The size language is half of what makes a world a
+                    // place: a storybook is drawn with fat trees and tall pointed roofs, and the
+                    // same eight pieces at 2.0 read as the same eight pieces.
+                    // 4.35 and not the 4.70 first authored: the keep's tallest part is 7.67
+                    // units, so 4.70 stands it 36 m and it blots out the sky. This is the
+                    // largest landmark scale in the game that still leaves a horizon.
+                    VergeScale = 2.55f, FieldScale = 3.55f, LandmarkScale = 4.35f,
                 },
-                Props = new[] { PropKind.DeadTree, PropKind.HangingCage, PropKind.Stump, PropKind.Gravestone },
-                PropDensity = 6f,
-                PropStone = new Rgb(0.200f, 0.215f, 0.170f),
-                Accent = new Rgb(0.45f, 0.95f, 0.40f)
+                // Three kinds, all of them read as HEDGEROW rather than ruin: a coppiced
+                // stump, a dry-stone field wall, and a lit post at the roadside. The same
+                // three meshes every other world uses for a graveyard, asked to be a village.
+                Props = new[] { PropKind.Stump, PropKind.RuinedWall, PropKind.Brazier },
+                PropDensity = 4f,
+                PropStone = new Rgb(0.560f, 0.520f, 0.430f),
+                Accent = new Rgb(1.00f, 0.52f, 0.86f)
             },
 
             // ---- 2 : cold, tight, and under something ----------------------
@@ -168,6 +232,10 @@ namespace BattleRunner.Core.World
                 SkyZenith = new Rgb(0.014f, 0.020f, 0.038f),
                 SkyHorizon = new Rgb(0.050f, 0.080f, 0.115f),
                 SkyGlow = new Rgb(0.160f, 0.360f, 0.440f),
+                // A LID, NOT A SKY. At 0.16 the zenith colour arrives almost immediately above
+                // the horizon, which is the difference between being outdoors and being under
+                // several metres of stone.
+                SkyZenithFalloff = 0.16f, SkyGroundFalloff = 0.20f,
                 SkyStars = 0.15f, SkyGlowPower = 5f, SkyGlowYaw = -22.0f,
                 Fog = new Rgb(0.162f, 0.332f, 0.360f), FogStart = 35f, FogEnd = 105f,
                 LightColor = new Rgb(0.620f, 0.780f, 0.980f),
@@ -210,7 +278,13 @@ namespace BattleRunner.Core.World
                     },
                     VergeDensity = 22f, FieldDensity = 12f,
                     LandmarkSpacing = 88f,
-                    VergeTint = 0.3f, FieldTint = 0.17f, LandmarkTint = 0.08f
+                    VergeTint = 0.3f, FieldTint = 0.17f, LandmarkTint = 0.08f,
+                    // SMALL AND TIGHT, because a crypt is a place you are too big for. The landmark
+                    // scale is the lowest in the game — a structure underground cannot tower —
+                    // and 2.80 rather than the 2.60 first authored because a world's scale is
+                    // bounded by its OWN shortest landmark: the column hall is 2.19 units, so
+                    // below 2.75 it stops being a landmark and becomes a large prop.
+                    VergeScale = 1.50f, FieldScale = 2.05f, LandmarkScale = 2.80f,
                 },
                 Props = new[] { PropKind.BrokenColumn, PropKind.Obelisk, PropKind.BoneArch },
                 PropDensity = 5f,
@@ -230,6 +304,9 @@ namespace BattleRunner.Core.World
                 SkyZenith = new Rgb(0.045f, 0.022f, 0.020f),
                 SkyHorizon = new Rgb(0.140f, 0.070f, 0.048f),
                 SkyGlow = new Rgb(0.950f, 0.420f, 0.160f),
+                // Smoke banking up: a little slower than the baseline so the ember band keeps its
+                // height and the column above it stays dirty rather than clearing to black.
+                SkyZenithFalloff = 0.55f, SkyGroundFalloff = 0.30f,
                 SkyStars = 0.30f, SkyGlowPower = 10f, SkyGlowHeight = 12f, SkyGlowYaw = 10.0f,
                 Fog = new Rgb(0.805f, 0.364f, 0.200f), FogStart = 55f, FogEnd = 150f,
                 LightColor = new Rgb(1.000f, 0.800f, 0.620f),
@@ -271,7 +348,10 @@ namespace BattleRunner.Core.World
                     },
                     VergeDensity = 16f, FieldDensity = 8f,
                     LandmarkSpacing = 100f,
-                    VergeTint = 0.28f, FieldTint = 0.15f, LandmarkTint = 0.06f
+                    VergeTint = 0.28f, FieldTint = 0.15f, LandmarkTint = 0.06f,
+                    // Jagged and a size up: the field is basalt and burnt trunks, and they have to
+                    // stand over the verge rather than beside it.
+                    VergeScale = 2.20f, FieldScale = 3.15f, LandmarkScale = 4.00f,
                 },
                 Props = new[] { PropKind.RockSpire, PropKind.Brazier, PropKind.RuinedWall },
                 PropDensity = 4f,
@@ -291,6 +371,10 @@ namespace BattleRunner.Core.World
                 SkyZenith = new Rgb(0.028f, 0.026f, 0.048f),
                 SkyHorizon = new Rgb(0.115f, 0.100f, 0.095f),
                 SkyGlow = new Rgb(0.420f, 0.360f, 0.280f),
+                // THE BIGGEST SKY IN THE GAME, and the one number that says 'desert': at 2.10 the
+                // gradient never quite arrives, so the sky reads as going on rather than as
+                // closing over. Paired with the widest scale spread of any world.
+                SkyZenithFalloff = 2.10f, SkyGroundFalloff = 0.70f,
                 SkyStars = 2.40f, SkyGlowPower = 6f, SkyGlowYaw = -34.0f,
                 Fog = new Rgb(0.409f, 0.352f, 0.300f), FogStart = 100f, FogEnd = 185f,
                 LightColor = new Rgb(0.880f, 0.860f, 0.920f),
@@ -328,11 +412,21 @@ namespace BattleRunner.Core.World
                     {
                         Landmarks.Outcrop,
                         Landmarks.BoneShrine,
-                        Landmarks.Keep,
+                        // The keep used to stand here and it was the thing CAPPING this world:
+                        // a castle is 7.66 units, so any world holding one cannot scale past
+                        // 4.44 without filling the sky — and "enormous" is the whole point of a
+                        // bone desert. A watchtower is 4.92, which buys back a third of the range
+                        // and is a better fit for somewhere nobody garrisons.
+                        Landmarks.Watchtower,
                     },
                     VergeDensity = 13f, FieldDensity = 7f,
                     LandmarkSpacing = 120f,
-                    VergeTint = 0.27f, FieldTint = 0.14f, LandmarkTint = 0.05f
+                    VergeTint = 0.27f, FieldTint = 0.14f, LandmarkTint = 0.05f,
+                    // THE WIDEST SPREAD OF ANY WORLD, and that IS the world: a bleached desert is small
+                    // debris under enormous bone arches, with nothing in between. A uniform scale
+                    // here would read as rubble. 6.20 is the largest landmark scale in the game
+                    // and it only fits because the keep was taken out of this world's set.
+                    VergeScale = 1.65f, FieldScale = 4.20f, LandmarkScale = 6.20f,
                 },
                 Props = new[] { PropKind.Gravestone, PropKind.BoneArch, PropKind.RockSpire },
                 PropDensity = 3f,
@@ -352,6 +446,9 @@ namespace BattleRunner.Core.World
                 SkyZenith = new Rgb(0.020f, 0.030f, 0.058f),
                 SkyHorizon = new Rgb(0.095f, 0.125f, 0.165f),
                 SkyGlow = new Rgb(0.300f, 0.580f, 0.720f),
+                // A dark zenith pulled down close over a pale horizon, which is what gives the
+                // aurora band something to sit against instead of glowing into more of itself.
+                SkyZenithFalloff = 0.30f, SkyGroundFalloff = 0.45f,
                 SkyStars = 2.80f, SkyGlowPower = 7f, SkyGlowHeight = 20f, SkyGlowYaw = 38.0f,
                 Fog = new Rgb(0.305f, 0.531f, 0.620f), FogStart = 60f, FogEnd = 155f,
                 LightColor = new Rgb(0.800f, 0.900f, 1.000f),
@@ -392,7 +489,10 @@ namespace BattleRunner.Core.World
                     },
                     VergeDensity = 17f, FieldDensity = 15f,
                     LandmarkSpacing = 98f,
-                    VergeTint = 0.26f, FieldTint = 0.13f, LandmarkTint = 0.05f
+                    VergeTint = 0.26f, FieldTint = 0.13f, LandmarkTint = 0.05f,
+                    // Tall and thin. Ice is vertical, so the field is pushed up while the verge stays
+                    // low — the opposite proportion to the marsh.
+                    VergeScale = 1.80f, FieldScale = 3.45f, LandmarkScale = 4.40f,
                 },
                 Props = new[] { PropKind.RockSpire, PropKind.Obelisk, PropKind.DeadTree },
                 PropDensity = 4f,
@@ -418,6 +518,9 @@ namespace BattleRunner.Core.World
                 SkyZenith = new Rgb(0.038f, 0.014f, 0.020f),
                 SkyHorizon = new Rgb(0.125f, 0.048f, 0.060f),
                 SkyGlow = new Rgb(0.720f, 0.160f, 0.200f),
+                // Cloud at head height. Nearly as closed as the crypt and for the same reason —
+                // the marsh is a place with no horizon.
+                SkyZenithFalloff = 0.22f, SkyGroundFalloff = 0.25f,
                 SkyStars = 0.20f, SkyGlowPower = 9f, SkyGlowYaw = -12.0f,
                 Fog = new Rgb(0.629f, 0.160f, 0.160f), FogStart = 40f, FogEnd = 115f,
                 LightColor = new Rgb(0.950f, 0.680f, 0.680f),
@@ -459,7 +562,12 @@ namespace BattleRunner.Core.World
                     },
                     VergeDensity = 26f, FieldDensity = 12f,
                     LandmarkSpacing = 92f,
-                    VergeTint = 0.33f, FieldTint = 0.21f, LandmarkTint = 0.13f
+                    VergeTint = 0.33f, FieldTint = 0.21f, LandmarkTint = 0.13f,
+                    // LOW AND DENSE, with the three bands almost the same size, which is the point: a
+                    // swamp has no horizon and no hierarchy, just more of it in every direction.
+                    // The floor here is the gatehouse at 1.70 units, the shortest landmark in the
+                    // game, which is why this cannot go under 3.60.
+                    VergeScale = 2.45f, FieldScale = 2.60f, LandmarkScale = 3.65f,
                 },
                 Props = new[] { PropKind.Stump, PropKind.HangingCage, PropKind.Gravestone, PropKind.DeadTree },
                 PropDensity = 5f,
@@ -481,6 +589,9 @@ namespace BattleRunner.Core.World
                 SkyZenith = new Rgb(0.018f, 0.014f, 0.036f),
                 SkyHorizon = new Rgb(0.070f, 0.055f, 0.115f),
                 SkyGlow = new Rgb(0.400f, 0.220f, 0.620f),
+                // A tall imperial sky, opening out above a ruin. The only world that is both wide
+                // above and monumental below; everything else picks one.
+                SkyZenithFalloff = 0.90f, SkyGroundFalloff = 0.40f,
                 SkyStars = 0.90f, SkyGlowPower = 9f, SkyGlowYaw = 30.0f,
                 Fog = new Rgb(0.350f, 0.209f, 0.420f), FogStart = 65f, FogEnd = 165f,
                 LightColor = new Rgb(0.820f, 0.760f, 1.000f),
@@ -522,7 +633,12 @@ namespace BattleRunner.Core.World
                     },
                     VergeDensity = 21f, FieldDensity = 11f,
                     LandmarkSpacing = 82f,
-                    VergeTint = 0.29f, FieldTint = 0.16f, LandmarkTint = 0.04f
+                    VergeTint = 0.29f, FieldTint = 0.16f, LandmarkTint = 0.04f,
+                    // MONUMENTAL, and 4.40 is as monumental as a world holding a KEEP can be: at
+                    // 4.44 the castle stands 34 m and fills the sky from thirty metres away. That
+                    // ceiling is the honest limit of expressing size through this one number, and
+                    // it is why the Bone Wastes gave its castle up to go bigger.
+                    VergeScale = 2.05f, FieldScale = 3.05f, LandmarkScale = 4.40f,
                 },
                 Props = new[] { PropKind.Obelisk, PropKind.Brazier, PropKind.RuinedWall, PropKind.BoneArch },
                 PropDensity = 4f,

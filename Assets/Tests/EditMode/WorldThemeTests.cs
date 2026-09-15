@@ -81,6 +81,51 @@ namespace BattleRunner.Tests
         }
 
         [Test]
+        public void TheSkyIsNotTheSameInEveryWorld()
+        {
+            // THE MEASUREMENT THAT DROVE THIS. Before Thistlewood, every one of the eight
+            // zeniths sat between 0.016 and 0.030 luminance — a span of 0.014 across the whole
+            // game. The sky above the horizon is the largest single area in a runner's frame,
+            // and it was the same black in all eight worlds.
+            //
+            // That was most of "the difference in graphics is pretty much only colour", and
+            // the palettes underneath were never the problem: measured frame brightness
+            // already ran 0.090 to 0.318, a 3.5x spread nobody could see past the identical
+            // sky. So the property worth holding is not "the palettes differ" — they always
+            // did — it is that the BIGGEST THING IN THE FRAME differs.
+            float lo = float.MaxValue, hi = 0f;
+            foreach (WorldTheme t in All)
+            {
+                float l = Luminance(t.SkyZenith);
+                if (l < lo) lo = l;
+                if (l > hi) hi = l;
+            }
+            Assert.Greater(hi - lo, 0.15f,
+                $"every sky in the game is within {hi - lo:0.000} of every other; "
+                + "eight worlds with one sky read as one world");
+        }
+
+        [Test]
+        public void NoWorldIsLeftOnTheDefaultSizeLanguage()
+        {
+            // VergeScale, FieldScale, LandmarkScale and the two sky falloffs were shipped as
+            // five per-world knobs and then set by NOBODY: all eight worlds sat on the struct
+            // defaults, so the one axis that could have made a world feel like a different
+            // PLACE rather than a different colour was inert. A new world copied from an old
+            // one is how that comes back.
+            var seen = new HashSet<string>();
+            foreach (WorldTheme t in All)
+            {
+                string key = $"{t.Scenery.VergeScale:0.00}/{t.Scenery.FieldScale:0.00}/" +
+                             $"{t.Scenery.LandmarkScale:0.00}/{t.SkyZenithFalloff:0.00}";
+                Assert.IsTrue(seen.Add(key),
+                    $"{t.DisplayName} has the same size language and sky shape as another world");
+            }
+        }
+
+        private static float Luminance(Rgb c) => 0.2126f * c.R + 0.7152f * c.G + 0.0722f * c.B;
+
+        [Test]
         public void EveryWorldIsDressed()
         {
             foreach (WorldTheme t in All)

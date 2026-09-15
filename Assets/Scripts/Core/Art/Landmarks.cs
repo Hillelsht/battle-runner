@@ -79,6 +79,17 @@ namespace BattleRunner.Core.Art
         public const string Gatehouse = "gatehouse";
         public const string Manor = "manor";
 
+        /// <summary>
+        /// Thistlewood's own: a market green, which is the only landmark in the game that is
+        /// not a BUILDING. Every other one is walls and a roof, because the pack is a
+        /// medieval-European kit and that is what it holds — and a world whose only structures
+        /// are the same walls as the graveyard world's is the report this work answers.
+        ///
+        /// A ring of stalls and carts under banners reads as somewhere PEOPLE ARE, at a
+        /// distance where a cottage reads only as a box with a pitched top.
+        /// </summary>
+        public const string MarketGreen = "marketgreen";
+
         /// <summary>A square tower: base, middle, roof, and a flag if it is a corner one.</summary>
         private static void Tower(System.Collections.Generic.List<LandmarkPart> into,
             float x, float z, bool flagged)
@@ -139,6 +150,40 @@ namespace BattleRunner.Core.Art
                 new LandmarkPart("fa_cart", -1.5f, 0f, 0.8f, 35f)
             };
             return new Landmark(Cottage, 2.2f, parts.ToArray());
+        }
+
+        private static Landmark BuildMarketGreen()
+        {
+            var parts = new System.Collections.Generic.List<LandmarkPart>();
+            // Six stalls around an open centre, alternating with carts so the ring is not a
+            // fence. Placed on a circle by hand rather than by trigonometry at runtime: a
+            // landmark is DATA, and data a test can read beats an arrangement it cannot.
+            float[,] ring = { { 0f, -2.2f }, { 1.9f, -1.1f }, { 1.9f, 1.1f },
+                              { 0f, 2.2f }, { -1.9f, 1.1f }, { -1.9f, -1.1f } };
+            for (int i = 0; i < 6; i++)
+            {
+                float x = ring[i, 0], z = ring[i, 1];
+                // Yaw so every stall faces the middle. 60 degrees a step, starting at the
+                // near one, which is the only orientation that does not put a stall's back
+                // to the square it belongs to.
+                float yaw = i * 60f;
+                parts.Add(new LandmarkPart(i % 2 == 0 ? "fa_stall" : "fa_cart", x, 0f, z, yaw));
+            }
+            // A banner mast in the middle, STACKED rather than floated: a tower base is
+            // 1.01 units tall, so three segments at 0.40 make a slender 1.21-unit pole and
+            // each course actually sits on the one below it. The first draft hung a flag at
+            // y = 1.1 over a base whose top was 0.45, and the test that catches a floating
+            // course caught it.
+            for (int course = 0; course < 3; course++)
+                parts.Add(new LandmarkPart("ca_tower-square-base", 0f, course * 0.404f, 0f, 0f, 0.40f));
+            parts.Add(new LandmarkPart("ca_flag-wide", 0f, 1.212f, 0f, 0f, 1.2f));
+            parts.Add(new LandmarkPart("ca_flag", 0f, 2.251f, 0f, 180f, 1.0f));
+            // And a fence arc on the far side only, so the green has a back without being
+            // enclosed — an enclosed square at 80 m reads as a compound rather than a market.
+            parts.Add(new LandmarkPart("fa_fence", -2.2f, 0f, 2.2f, 25f));
+            parts.Add(new LandmarkPart("fa_fence", 0f, 0f, 2.6f, 0f));
+            parts.Add(new LandmarkPart("fa_fence", 2.2f, 0f, 2.2f, -25f));
+            return new Landmark(MarketGreen, 3.2f, parts.ToArray());
         }
 
         private static Landmark BuildMausoleum()
@@ -376,6 +421,7 @@ namespace BattleRunner.Core.Art
         {
             BuildKeep(),
             BuildCottage(),
+            BuildMarketGreen(),
             new Landmark(Windmill, 3.3f, new[]
             {
                 new LandmarkPart("fa_windmill", 0f, 0f, 0f),

@@ -61,8 +61,11 @@ roster size. The pairing repeats after `lcm(8, 6) = 24` acts, against exactly **
 it is the one look that has been seen on a real screen and judged, so the other seven are
 pushed away from it rather than invented beside it.
 
-Ashen Road · Gallows Mire · Sunken Crypt · Ember Fields · Bone Wastes · Frozen Reach ·
+Ashen Road · **Thistlewood** · Sunken Crypt · Ember Fields · Bone Wastes · Frozen Reach ·
 Blood Marsh · Throne of Dust.
+
+Slot 1 was **Gallows Mire**, a green swamp, which is what slot 6 (Blood Marsh) already is and
+does better. See *One world in daylight* below for what replaced it and why.
 
 A world carries only values that were **already shader properties** — `Road.shader` exposes
 eight, `DarkSky.shader` exposes ten — plus fog, ambient and the key light. No new shader work
@@ -392,3 +395,112 @@ work fell into. The first version also accepted a declaration ending in `)`, mea
 parameter on a continuation line — and caught them so well that every method PARAMETER was
 recorded in the class scope and never popped, so the next method to reuse a name was reported.
 A checker that finds a problem is not the same as a checker that is right.
+
+---
+
+# One world in daylight, and four knobs nobody had turned
+
+> *"the difference in graphics between before the boss and after is minimal - pretty much only
+> colour - turns to green from the blue. Fix it."* Extended, when asked: *"all the above plus
+> all the surroundings different. One - can be diablo style with crosses, another can be a
+> fairy tale style with castles and flying pony, etc. Like every world is very different from
+> the previous."*
+
+## The measurement that decided what to do
+
+The obvious reading is that the eight palettes are too similar. Measured, they are not.
+
+Frame brightness — sky, ground and road weighted by roughly how much of the screen each one
+takes — already ran from **0.090** (Ember Fields) to **0.318** (Frozen Reach) before any of
+this work: a 3.5× spread. The furthest pair of worlds sat four times further apart in colour
+than the closest pair. The palettes were doing their job.
+
+What was *not* doing its job is one number, and it is the largest area in the frame:
+
+| | zenith luminance |
+|---|---|
+| The Ashen Road | 0.023 |
+| Gallows Mire | 0.026 |
+| The Sunken Crypt | 0.020 |
+| Ember Fields | 0.027 |
+| The Bone Wastes | 0.028 |
+| The Frozen Reach | 0.030 |
+| The Blood Marsh | 0.020 |
+| The Throne of Dust | 0.016 |
+
+**A span of 0.014 across the entire game.** The sky above the horizon was the same black in
+all eight worlds, and a runner looks down a road at a horizon: the sky is most of what is on
+screen. Eight authored palettes were being seen through one identical lid.
+
+And four more knobs had been shipped as per-world fields and then set by **nobody** —
+`VergeScale`, `FieldScale`, `LandmarkScale`, `SkyZenithFalloff` and `SkyGroundFalloff` all sat
+on their struct defaults in all eight worlds. Both are wired to the engine already
+(`SceneryField`, `EnvironmentLook`), so authoring them costs nothing but the decision.
+
+## Thistlewood
+
+Slot 1 is now the counterweight to the Ashen Road, and the counterweight is not a colour — it
+is the **time of day**. Its zenith is **0.413**, roughly fifteen times the next brightest world
+in the game, and its frame brightness is 0.493 against the old range of 0.090–0.318. Nothing
+else in the table is that far from its neighbours on any axis.
+
+Every choice in it follows from being the one world in daylight:
+
+- **A dry road.** Every other world's road is damp. Wetness is a night-and-rain cue the eye
+  reads before it reads hue, so Thistlewood's is `RoadWetness = 0.10` against 0.55–0.80.
+- **Planks**, because it is the only one of the eight paved surfaces not already carrying
+  another world — two worlds paved the same way are two worlds the player walks down
+  identically however they are coloured.
+- **Fog that reaches to 182 m**, nearly `MaxFogEnd`. Seeing a castle on the horizon is half of
+  what makes this world storybook rather than merely pretty.
+- **Nearly untinted scenery** — `VergeTint = 0.08` against 0.26–0.34 everywhere else. Kenney's
+  models ship with cheerful baked vertex colour and every world so far dragged it a third of
+  the way toward its own grim stone, because a dark-fantasy road cannot afford cheerful. This
+  one is not a dark-fantasy road, so the pack is allowed to be the colour it already is. **No
+  other world can do this**, and a test holds that: the tint floor now applies to any world
+  with a night sky, and at most one world may take the exemption. Without that second clause
+  the rule becomes "brighten the sky and the tint stops applying", and eight worlds drift back
+  into one by the other door.
+- **Its own landmark.** `MarketGreen` is the only landmark in the game that is not a *building*
+  — a ring of stalls and carts under a banner mast. Every other one is walls and a roof,
+  because the pack is a medieval-European kit and that is what it holds.
+
+## The size language, and the ceiling nobody had found
+
+`VergeScale` / `FieldScale` / `LandmarkScale` now differ per world, and the point is
+proportion rather than size: the Bone Wastes runs 1.65 / 4.20 / 6.20 — small debris under
+enormous arches, with nothing in between — while the Blood Marsh runs 2.45 / 2.60 / 3.65, three
+bands almost the same size, because a swamp has no horizon and no hierarchy.
+
+**A world's landmark scale is bounded by its own landmark set, and the window is narrower than
+it looks.** A landmark must top out above 6 m to be a landmark and below 34 m or it fills the
+sky. The castle keep is 7.66 units tall and the gatehouse is 1.70, so:
+
+| world | shortest landmark | window | authored |
+|---|---|---|---|
+| Thistlewood | cottage | [2.76, 4.44] | 4.35 |
+| The Sunken Crypt | column hall | [2.75, 10.01] | 2.80 |
+| The Blood Marsh | gatehouse | [3.52, 10.01] | 3.65 |
+| The Throne of Dust | keep | [2.97, **4.44**] | 4.40 |
+
+Four of the eight first-draft values fell outside their own window and the test caught all
+four. **Any world holding a keep is capped at 4.44** — which is the honest limit of expressing
+size through this one number. The Bone Wastes wanted to be the largest world in the game and
+could not be while it held a castle, so it gave the castle up for a watchtower (4.92 units) and
+went to 6.20. A castle in a bleached bone desert was the weaker of the two claims anyway.
+
+## Sky shape
+
+`SkyZenithFalloff` is the exponent in `pow(height, falloff)` between the horizon colour and the
+zenith colour, so it is not a colour at all — it is how **closed** the sky is:
+
+- **Low (0.16, the Sunken Crypt)** — the zenith colour arrives almost immediately above the
+  horizon. A lid, not a sky, which is the difference between being outdoors and being under
+  several metres of stone.
+- **High (2.10, the Bone Wastes)** — the gradient never quite arrives, so the sky reads as
+  going on rather than as closing over. The one number that says "desert".
+- **1.70, Thistlewood** — the pastel gradient takes the whole frame instead of snapping to a
+  zenith twenty degrees off the road. Storybook skies are big.
+
+Slot 0 keeps 0.40 / 0.35, as it keeps everything else: it is the one look that has been judged
+on a real screen.
