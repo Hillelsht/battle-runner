@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using BattleRunner.Core.Boss;
+using BattleRunner.Core.Heroes;
 using BattleRunner.Core.World;
 using UnityEngine;
 
@@ -196,6 +197,304 @@ namespace BattleRunner.Gameplay
         }
 
         private static Mesh BuildUnit() => BuildSoldier(SoldierKind.Spear);
+
+        private static readonly Mesh[] _heroes = new Mesh[HeroRoster.Count];
+
+        /// <summary>
+        /// The player's own figure, one mesh per hero class.
+        ///
+        /// THE REPORT WAS "my main figure - yellow soldier is very boring", and it was
+        /// literally true: HeroVisual was handed ProceduralMeshes.Unit, the same spear
+        /// soldier every crowd body uses, at 1.35x and a gold tint. The leader of the army
+        /// was one of the army with the brightness turned up.
+        ///
+        /// These four are built from the silhouette numbers in Core rather than from four
+        /// hand-authored piles of boxes, because the numbers are the part that has to be
+        /// TRUE: at 1.35x and ~12 m the hero is maybe forty pixels tall, so what separates
+        /// them is height, width, lean and what breaks the skyline — not detail.
+        ///
+        /// THE HIP LINE IS LOAD-BEARING HERE TOO. heroMaterial is derived from the crowd
+        /// material and never clears _BobAmount, so CrowdInstanced swings the hero's legs
+        /// about y = 0.30 exactly as it swings a soldier's. Legs stay below it and inside
+        /// |x| &lt; 0.18; everything carried stays outside that band, or the haft would bend
+        /// at the hip the way a spear butt once did.
+        /// </summary>
+        public static Mesh Hero(HeroClass hero)
+        {
+            int i = (int)hero;
+            if (i < 0 || i >= _heroes.Length) i = (int)HeroRoster.Default;
+            if (_heroes[i] == null) _heroes[i] = BuildHero((HeroClass)i);
+            return _heroes[i];
+        }
+
+        private const float HeroHip = HeroSilhouette.HipLine;
+
+        /// <summary>
+        /// A point on the upper body, stretched to the hero's height and leaned by its stoop.
+        ///
+        /// Both transforms pivot on the HIP rather than on the origin, which is the only
+        /// choice that leaves the feet on the ground and the legs out of the lean: a stoop
+        /// applied about y = 0 would swing the shins backward through the road.
+        /// </summary>
+        private static Vector3 HeroAbove(float x, float y, float z, float stretch, float stoop)
+        {
+            float dy = (y - HeroHip) * stretch;
+            float rad = stoop * Mathf.Deg2Rad;
+            return new Vector3(x, HeroHip + dy * Mathf.Cos(rad), z - dy * Mathf.Sin(rad));
+        }
+
+        /// <summary>A carried object's rotation: the hero's stoop, then its own roll.</summary>
+        private static Quaternion HeroTilt(float stoop, float roll) =>
+            Quaternion.Euler(-stoop, 0f, 0f) * Quaternion.Euler(0f, 0f, roll);
+
+        private static Mesh BuildHero(HeroClass hero)
+        {
+            HeroSilhouette s = HeroRoster.For(hero).Silhouette;
+            var v = new List<Vector3>();
+            var t = new List<int>();
+
+            float k = s.Height;
+            float lean = s.Stoop;
+            float half = s.Shoulders * 0.5f;
+
+            // Legs. Authored in soldier space and deliberately NOT stretched or leaned —
+            // they are the one part of the body the shader owns, and it expects to find
+            // them below y = 0.30 with |x| under 0.18 whatever the hero is.
+            float legW = Mathf.Clamp(s.Shoulders * 0.30f, 0.085f, 0.15f);
+            AddPrism(v, t, new Vector3(-0.105f, 0f, 0f), new Vector2(legW, 0.17f),
+                           new Vector3(-0.09f, 0.32f, 0f), new Vector2(legW + 0.01f, 0.18f));
+            AddPrism(v, t, new Vector3(0.105f, 0f, 0f), new Vector2(legW, 0.17f),
+                           new Vector3(0.09f, 0.32f, 0f), new Vector2(legW + 0.01f, 0.18f));
+
+            // Torso: waist to chest, widening to whatever "shoulders" means for this hero.
+            // The taper is what carries "broad" versus "thin" at distance; a straight trunk
+            // reads as a pillar however wide it is.
+            AddPrism(v, t, HeroAbove(0f, 0.30f, 0.01f, k, lean),
+                        new Vector2(s.Shoulders * 0.60f, 0.19f),
+                     HeroAbove(0f, 0.66f, -0.01f, k, lean),
+                        new Vector2(s.Shoulders, 0.22f));
+
+            // Pauldrons, placed off the shoulder width rather than a constant, so the
+            // Warden spreads and the Ashcaller does not.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                AddPrism(v, t,
+                    HeroAbove(side * half, 0.56f, 0f, k, lean), new Vector2(0.13f, 0.19f),
+                    HeroAbove(side * (half + 0.015f), 0.68f, 0f, k, lean), new Vector2(0.10f, 0.15f));
+            }
+
+            // Head.
+            AddPrism(v, t, HeroAbove(0f, 0.68f, -0.01f, k, lean), new Vector2(0.17f, 0.17f),
+                           HeroAbove(0f, 0.84f, -0.01f, k, lean), new Vector2(0.15f, 0.15f));
+
+            switch (hero)
+            {
+                case HeroClass.Warden:
+                    BuildWardenGear(v, t, s, k, lean);
+                    break;
+                case HeroClass.Ashcaller:
+                    BuildAshcallerGear(v, t, s, k, lean);
+                    break;
+                case HeroClass.Houndmaster:
+                    BuildHoundmasterGear(v, t, s, k, lean);
+                    break;
+                default:
+                    BuildRevenantGear(v, t, s, k, lean);
+                    break;
+            }
+
+            for (int i = 0; i < s.Companions; i++)
+            {
+                float side = (i & 1) == 0 ? -1f : 1f;
+                AddHound(v, t, side * (0.36f + 0.05f * (i >> 1)), 0.12f + 0.20f * (i >> 1), side);
+            }
+
+            return Finish(v, t, $"Hero{hero}");
+        }
+
+        /// <summary>
+        /// A carried shaft, given where its BUTT is rather than where its middle is.
+        ///
+        /// AddOrientedBox takes a centre, and computing that centre from a grip height is
+        /// exactly how a 1.45-long staff ended up spanning y = -0.11 to 1.34 — a wizard
+        /// holding a pole that went through the road. A butt and a length cannot make that
+        /// mistake, and every head mounted on the shaft is placed with <see cref="OnShaft"/>
+        /// from the same two numbers, so haft and head can never come apart.
+        /// </summary>
+        private static void AddShaft(List<Vector3> v, List<int> t, Vector3 butt, float thick,
+            float length, Quaternion tilt)
+        {
+            AddOrientedBox(v, t, butt + tilt * new Vector3(0f, length * 0.5f, 0f),
+                new Vector3(thick, length, thick), tilt);
+        }
+
+        /// <summary>A point this far up a shaft from its butt.</summary>
+        private static Vector3 OnShaft(Vector3 butt, Quaternion tilt, float up) =>
+            butt + tilt * new Vector3(0f, up, 0f);
+
+        /// <summary>
+        /// WARDEN — a tower shield and a crested helm. The shield is the read: it is the only
+        /// flat slab in the set and it doubles the hero's apparent width on one side, which
+        /// is what "broad" looks like at forty pixels.
+        /// </summary>
+        private static void BuildWardenGear(List<Vector3> v, List<int> t, HeroSilhouette s,
+            float k, float lean)
+        {
+            // Held at x = -0.37, NOT -0.32, and the 5 cm matters: a 0.30-wide shield centred
+            // at -0.32 reaches in to x = -0.17, and its bottom edge sits at y = 0.16. That
+            // is inside the shader's leg band (|x| < 0.18, below the hip), so the two inner
+            // bottom corners would have been swung with the left leg every stride while the
+            // rest of the slab held still — a shield that visibly tears in half at a walk.
+            Quaternion face = HeroTilt(lean, 3f);
+            AddOrientedBox(v, t, HeroAbove(-0.37f, 0.50f, -0.09f, k, lean),
+                new Vector3(0.30f, 0.66f * k, 0.07f), face);
+            // A boss on the shield face, so the slab has a centre instead of reading as a door.
+            AddOrientedBox(v, t, HeroAbove(-0.37f, 0.52f, -0.15f, k, lean),
+                new Vector3(0.13f, 0.15f, 0.05f), face);
+
+            // Mace: short haft, heavy head, held at x = 0.27 — outside the leg band, so the
+            // walk cycle leaves it alone.
+            Quaternion swing = HeroTilt(lean, -12f);
+            var butt = new Vector3(0.27f, 0.26f, 0.02f);
+            float haft = s.Haft * 0.52f;
+            AddShaft(v, t, butt, 0.05f, haft, swing);
+            AddOrientedBox(v, t, OnShaft(butt, swing, haft + 0.07f),
+                new Vector3(0.17f, 0.19f, 0.17f), swing);
+
+            // Helm crest: a fin along the skull, front to back. Low and wide — the opposite
+            // of the Revenant's spikes, so the two differ at the very top of the silhouette.
+            AddPrism(v, t, HeroAbove(0f, 0.83f, -0.01f, k, lean), new Vector2(0.06f, 0.20f),
+                           HeroAbove(0f, 0.83f + s.Crest, 0.01f, k, lean), new Vector2(0.03f, 0.13f));
+        }
+
+        /// <summary>
+        /// ASHCALLER — a hood and a staff whose orb rides above the head. The staff is the
+        /// tallest thing on any of the four and the only element that breaks the skyline,
+        /// which is the same trick the spear soldier already uses in the crowd.
+        /// </summary>
+        private static void BuildAshcallerGear(List<Vector3> v, List<int> t, HeroSilhouette s,
+            float k, float lean)
+        {
+            Quaternion tilt = HeroTilt(lean, -5f);
+            var butt = new Vector3(0.26f, 0.04f, 0.02f);
+            AddShaft(v, t, butt, 0.045f, s.Haft, tilt);
+
+            // The orb, and a cage crossed at 45 degrees over it: the highest point on the
+            // mesh gets a shape rather than a blob.
+            Vector3 orb = OnShaft(butt, tilt, s.Haft - 0.09f);
+            AddOrientedBox(v, t, orb, new Vector3(0.15f, 0.15f, 0.15f), tilt);
+            AddOrientedBox(v, t, orb, new Vector3(0.11f, 0.22f, 0.11f),
+                tilt * Quaternion.Euler(0f, 45f, 0f));
+
+            // Hood: pulled over the head and coming to a point behind it.
+            AddPrism(v, t, HeroAbove(0f, 0.70f, -0.02f, k, lean), new Vector2(0.22f, 0.23f),
+                           HeroAbove(0f, 0.83f + s.Crest, 0.05f, k, lean), new Vector2(0.05f, 0.07f));
+            // Robe: flares from the waist outward and stops ABOVE the hip line, so the legs
+            // still swing free underneath it.
+            AddPrism(v, t, HeroAbove(0f, 0.31f, 0f, k, lean), new Vector2(0.34f, 0.30f),
+                           HeroAbove(0f, 0.52f, 0f, k, lean), new Vector2(0.22f, 0.21f));
+        }
+
+        /// <summary>
+        /// HOUNDMASTER — crouched under a fur mantle, with a horn. The mantle is deliberately
+        /// heavier than the body under it: a low wide mass over a short figure is the cheapest
+        /// way to say "hunter" in an outline, and it pairs with the 12-degree stoop.
+        /// </summary>
+        private static void BuildHoundmasterGear(List<Vector3> v, List<int> t, HeroSilhouette s,
+            float k, float lean)
+        {
+            // Fur mantle over the shoulders, widening upward — the inverse taper of the torso.
+            AddPrism(v, t, HeroAbove(0f, 0.48f, 0f, k, lean), new Vector2(0.30f, 0.26f),
+                           HeroAbove(0f, 0.70f, 0.01f, k, lean), new Vector2(0.46f, 0.34f));
+
+            // Horn, slung across the chest and flaring out to the right.
+            AddPrism(v, t, HeroAbove(0.16f, 0.50f, -0.12f, k, lean), new Vector2(0.07f, 0.07f),
+                           HeroAbove(0.34f, 0.62f, -0.16f, k, lean), new Vector2(0.13f, 0.13f));
+
+            // A short spear carried the way you carry one walking rather than fighting: low,
+            // angled, and nowhere near the skyline.
+            Quaternion carry = HeroTilt(lean, 14f);
+            var butt = new Vector3(0.31f, 0.20f, 0.08f);
+            AddShaft(v, t, butt, 0.04f, s.Haft, carry);
+            AddOrientedBox(v, t, OnShaft(butt, carry, s.Haft + 0.05f),
+                new Vector3(0.05f, 0.14f, 0.03f), carry);
+
+            // Cowl: barely anything, which is the point — this is the only hero whose skyline
+            // is flat, so the two hounds beside him are what the eye finds instead.
+            AddPrism(v, t, HeroAbove(0f, 0.82f, -0.01f, k, lean), new Vector2(0.19f, 0.19f),
+                           HeroAbove(0f, 0.83f + s.Crest, 0.01f, k, lean), new Vector2(0.14f, 0.15f));
+        }
+
+        /// <summary>
+        /// REVENANT — a broken crown, a ribcage and a torn standard. Three spikes of three
+        /// different heights, because a symmetric crown reads as a helmet: the whole identity
+        /// of this one is that it is DAMAGED.
+        /// </summary>
+        private static void BuildRevenantGear(List<Vector3> v, List<int> t, HeroSilhouette s,
+            float k, float lean)
+        {
+            // Ribs: three bars across the chest, thinning upward.
+            for (int rib = 0; rib < 3; rib++)
+            {
+                AddOrientedBox(v, t, HeroAbove(0f, 0.44f + rib * 0.09f, -0.10f, k, lean),
+                    new Vector3(0.30f - rib * 0.04f, 0.035f, 0.05f), HeroTilt(lean, 0f));
+            }
+
+            // Broken crown: three spikes, none of them the same, and the tallest off-centre.
+            float[] spikes = { 1.0f, 0.42f, 0.72f };
+            float[] xs = { -0.07f, 0.01f, 0.09f };
+            for (int i = 0; i < spikes.Length; i++)
+            {
+                AddPrism(v, t,
+                    HeroAbove(xs[i], 0.83f, -0.01f, k, lean), new Vector2(0.06f, 0.07f),
+                    HeroAbove(xs[i] * 1.6f, 0.83f + s.Crest * spikes[i], 0.01f, k, lean),
+                        new Vector2(0.02f, 0.03f));
+            }
+
+            // A standard with a torn banner — two panels with a gap between them, so the
+            // outline is ragged rather than a rectangle.
+            Quaternion pole = HeroTilt(lean, -6f);
+            var butt = new Vector3(0.25f, 0.12f, 0.03f);
+            AddShaft(v, t, butt, 0.035f, s.Haft, pole);
+            Vector3 upper = OnShaft(butt, pole, s.Haft - 0.18f);
+            AddOrientedBox(v, t, upper + new Vector3(0.08f, 0f, 0f),
+                new Vector3(0.20f, 0.26f, 0.02f), pole);
+            Vector3 lower = OnShaft(butt, pole, s.Haft - 0.58f);
+            AddOrientedBox(v, t, lower + new Vector3(0.06f, 0f, 0f),
+                new Vector3(0.13f, 0.14f, 0.02f), pole);
+        }
+
+        /// <summary>
+        /// A hound at the Houndmaster's flank.
+        ///
+        /// Placed at |x| >= 0.30 on purpose: the crowd shader swings anything below the hip
+        /// line that sits inside |x| &lt; 0.18, so a hound any closer to the midline would be
+        /// torn in half every stride.
+        /// </summary>
+        private static void AddHound(List<Vector3> v, List<int> t, float x, float z, float facing)
+        {
+            AddPrism(v, t, new Vector3(x, 0.09f, z), new Vector2(0.12f, 0.30f),
+                           new Vector3(x, 0.23f, z - 0.02f), new Vector2(0.10f, 0.26f));
+            // Head thrust forward and DOWN — a descending prism, which AddPrism swaps ends
+            // for so the hull still winds outward.
+            AddPrism(v, t, new Vector3(x, 0.21f, z - 0.14f), new Vector2(0.09f, 0.10f),
+                           new Vector3(x, 0.12f, z - 0.25f), new Vector2(0.07f, 0.08f));
+            for (int ear = -1; ear <= 1; ear += 2)
+            {
+                AddPrism(v, t, new Vector3(x + ear * 0.035f, 0.22f, z - 0.11f), new Vector2(0.03f, 0.03f),
+                               new Vector3(x + ear * 0.055f, 0.31f, z - 0.09f), new Vector2(0.015f, 0.02f));
+            }
+            for (int lx = -1; lx <= 1; lx += 2)
+            {
+                for (int lz = -1; lz <= 1; lz += 2)
+                {
+                    AddBox(v, t, new Vector3(x + lx * 0.045f, 0.045f, z + lz * 0.10f),
+                        new Vector3(0.04f, 0.09f, 0.04f));
+                }
+            }
+            AddPrism(v, t, new Vector3(x, 0.21f, z + 0.15f), new Vector2(0.04f, 0.05f),
+                           new Vector3(x + facing * 0.04f, 0.35f, z + 0.20f), new Vector2(0.02f, 0.025f));
+        }
 
         /// <summary>
         /// The boss, ~1.11 units tall so BossView's 6x renders a figure just under 7 m.

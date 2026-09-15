@@ -1,4 +1,5 @@
 using BattleRunner.Core.Crowd;
+using BattleRunner.Core.Heroes;
 using UnityEngine;
 
 namespace BattleRunner.Gameplay.Crowd
@@ -11,6 +12,8 @@ namespace BattleRunner.Gameplay.Crowd
     {
         private CrowdController _crowd;
         private Transform _visual;
+        private MeshFilter _filter;
+        private Material _material;
         private int _tierCap = 200;
 
         public void Initialize(CrowdController crowd, Mesh unitMesh, Material heroMaterial, int tierCap)
@@ -20,12 +23,35 @@ namespace BattleRunner.Gameplay.Crowd
 
             var visual = new GameObject("HeroMesh", typeof(MeshFilter), typeof(MeshRenderer));
             visual.transform.SetParent(transform, false);
-            visual.GetComponent<MeshFilter>().sharedMesh = unitMesh;
+            _filter = visual.GetComponent<MeshFilter>();
+            _filter.sharedMesh = unitMesh;
             var renderer = visual.GetComponent<MeshRenderer>();
             renderer.sharedMaterial = heroMaterial;
+            _material = heroMaterial;
             // Casts: the hero leads the column and needs to sit in it.
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
             _visual = visual.transform;
+        }
+
+        /// <summary>
+        /// Become a different hero.
+        ///
+        /// A RE-SKIN RATHER THAN A CONSTRUCTOR ARGUMENT because of when the two things
+        /// happen: the hero object is built during bootstrap, before any save slot is
+        /// active, so at the moment Initialize runs nobody has chosen anything yet. The
+        /// alternative — deferring the whole GameObject until after character select —
+        /// would leave every other system holding a null Hero for the first few states.
+        ///
+        /// It MUTATES the shared hero material rather than instancing a new one, so the
+        /// shield ward keeps pointing at the same object it was handed. That is also why
+        /// the ward has to be told to re-read its rest colour afterwards: it caches one.
+        /// </summary>
+        public void Wear(HeroProfile profile, Mesh mesh)
+        {
+            if (_filter != null && mesh != null) _filter.sharedMesh = mesh;
+            if (_material == null) return;
+            _material.SetColorSafe("_BaseColor", ThemePalette.ToColor(profile.Body));
+            _material.SetColorSafe("_EmissionColor", ThemePalette.ToColor(profile.Glow));
         }
 
         private void LateUpdate()

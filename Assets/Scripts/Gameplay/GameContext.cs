@@ -39,7 +39,16 @@ namespace BattleRunner.Gameplay
         // Scene systems
         public GameObject ArenaRoot;
         public CrowdController Crowd;
+        public CrowdRenderer CrowdRenderer;
         public HeroVisual Hero;
+
+        /// <summary>
+        /// The crowd's OWN material — the instance derived at bootstrap, not the shared
+        /// Resources asset CrowdMaterial points at. Choosing a hero repaints the army, and
+        /// repainting the shared asset would leak the colour into the enemy, gate, rail and
+        /// road materials that are all derived from it.
+        /// </summary>
+        public Material CrowdMaterialInstance;
         public TrackController TrackController;
 
         /// <summary>What stands beside the road. Dressed per round from the act's world.</summary>
@@ -59,6 +68,7 @@ namespace BattleRunner.Gameplay
         public SkillTreeScreen SkillScreen;
         public ResurrectPrompt Resurrect;
         public SlotSelectScreen SlotScreen;
+        public HeroSelectScreen HeroScreen;
         public TutorialOverlay TutorialOverlay;
         public TutorialCoach Tutorial;
 
@@ -66,6 +76,7 @@ namespace BattleRunner.Gameplay
         public GameStateMachine Machine;
         public BootState BootState;
         public SlotSelectState SlotState;
+        public HeroSelectState HeroSelectState;
         public MainMenuState MenuState;
         public RunLoadingState RunLoadingState;
         public RunnerLoopState RunnerState;
@@ -130,6 +141,9 @@ namespace BattleRunner.Gameplay
             Profile = SaveService.Load();
             Tutorial?.AdoptProfile();
             CurrentStats = ProfileStatsResolver.Resolve(Profile, Config);
+            // The arena has to match the save, not the last save. Continue skips the select
+            // screen entirely, so this is the only place a returning player's hero is put on.
+            HeroOutfit.Apply(this);
         }
     }
 }

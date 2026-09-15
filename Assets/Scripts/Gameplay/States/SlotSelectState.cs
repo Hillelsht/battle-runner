@@ -45,7 +45,11 @@ namespace BattleRunner.Gameplay.States
         private void OnPlay(int slot)
         {
             _ctx.ActivateSlot(slot);
-            _ctx.Machine.TransitionTo(_ctx.MenuState);
+            // A save that has never been asked who it is goes through character select
+            // first. Everything else — including every save that existed before heroes did,
+            // which the v7 migration marked as having already chosen — goes straight on.
+            _ctx.Machine.TransitionTo(HeroSelectState.IsOwed(_ctx)
+                ? (IGameState)_ctx.HeroSelectState : _ctx.MenuState);
         }
 
         private void OnErase(int slot)

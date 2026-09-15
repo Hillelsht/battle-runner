@@ -681,3 +681,110 @@ A champion chunk holds one champion and nothing inside the reaction gap either s
 recruit gate it does carry sits 16 m earlier and in a different lane, which gives the player
 somewhere to be if they choose to dodge — so the dodge is a decision with a payoff rather than a
 hole in the round.
+
+---
+
+# Four characters
+
+> *"my mane figure - yellow soldier is very boring, at the very beginning give an option to choose
+> several main characters before the game starts, each with his/her individual looks and skills and
+> fighting dynamics, think through the options, suggest"*
+
+The report was literally true. `HeroVisual` was handed `ProceduralMeshes.Unit` — the same spear
+soldier every body in the crowd is — at 1.35× with a gold tint, chosen in `GameBootstrap` before a
+save slot even exists. The leader of the army was one of the army with the brightness turned up,
+identical for every player forever.
+
+## What makes four heroes a choice rather than four paint jobs
+
+Each carries three things, and the third is the one that matters:
+
+1. a **silhouette** — broad, thin, crouched, skeletal
+2. a **stat block**, which is a nudge and nothing more
+3. **one rule** that changes how the run is played
+
+| | look | stats | the rule |
+|---|---|---|---|
+| **Warden** | broad, tower shield, crested helm, gold on blue | +Health, +ShieldDuration, +1 shield charge | a **blocked** ambush converts 30% of what it would have cost into recruits |
+| **Ashcaller** | tall, thin, hooded, staff and orb, ember | +SpellPower, +Cooldown, +1 spell charge | the spell sweeps **1.35×** further |
+| **Houndmaster** | crouched under a fur mantle, two hounds, green | +GateYield, +Magnetism, +RunSpeed | **recruit gates only** pay +0.35 extra yield |
+| **Revenant** | skeletal, broken crown, torn standard, violet | +Damage, +SecondWind, −Health | 34% of every loss walks back 0.9 s later |
+
+The rules are deliberately spread across the four verbs the game already has — the shield, the
+spell, the gates, and losing men — so choosing a hero chooses which part of the existing game you
+lean on, rather than adding a fifth system nobody asked for. Stats are modest **on purpose**: a hero
+who starts 40% ahead is the hero everyone picks, and a test asserts that no hero is strictly better
+than another on every axis.
+
+**Not the rally arch, for the Houndmaster.** A bonus on the multiply would compound with itself
+across a run and be worth an order of magnitude by the finish — the same trap that killed the ×2
+gate. A flat extra share on the adds is worth a steady few per cent a round and nothing more.
+
+**A block, not a dodge, for the Warden.** Stepping out of a champion's lane costs it nothing and so
+earns nothing; the rule is about standing there and taking it. Paying out for a dodge would hand the
+bonus to every hero who simply steered well.
+
+**The delay is the point, for the Revenant.** Paid on the same frame, a refund is indistinguishable
+from the loss having been smaller. One debt and one timer rather than a queue: two ambushes half a
+second apart return as one wave, and a list of pending refunds would allocate inside the run loop to
+make a difference nobody can see.
+
+Two properties are pinned by tests rather than by reading: **every rule is inert for the three
+heroes who lack it** — which is what makes it safe to call `ConvertBlock` and `Owe` from every block
+and every loss site unconditionally — and **no answer is ever worth more than the threat it
+answers**, or blocking becomes a way to farm and the best play is to stand in front of the largest
+ambush on the road.
+
+## The hip line is load-bearing for the hero too
+
+`heroMaterial` is derived from the crowd material and never clears `_BobAmount`, so
+`CrowdInstanced` swings the hero's legs about **y = 0.30** exactly as it swings a soldier's —
+anything below that line and inside `|x| < 0.18` rotates about the hip every stride.
+
+The four meshes are built from the silhouette numbers in Core rather than from four hand-authored
+piles of boxes, because the numbers are the part that has to be *true*: at 1.35× and ~12 m the hero
+is about forty pixels tall, so what separates them is height, width, lean and what breaks the
+skyline — not detail. `HeroAbove` stretches and leans about the **hip** rather than the origin,
+which is the only pivot that leaves the feet on the ground and the legs out of the lean.
+
+Measuring the four builds offline caught two faults that read as correct in source:
+
+- **The Ashcaller's staff went through the road.** `AddOrientedBox` takes a centre, and a 1.45-long
+  staff placed by grip height spanned y = −0.11 to 1.34. Carried shafts are now given their **butt**
+  and a length (`AddShaft`), and every head on a shaft is placed from the same two numbers
+  (`OnShaft`), so haft and head cannot come apart.
+- **The Warden's shield would have torn in half at a walk.** A 0.30-wide shield centred at x = −0.32
+  reaches in to x = −0.17 with its bottom edge at y = 0.16 — inside the leg band, below the hip. The
+  two inner bottom corners would have swung with the left leg while the rest of the slab held still.
+  It is held at −0.37.
+
+Measured after the fix, all four have exactly **eight** vertices in the swept region, and they are
+the leg soles — which is what the shader is there to move. Nothing on any of the four dips below
+y = 0. Heights run 1.07 / 1.51 / 1.13 / 1.21, the Ashcaller's staff dominating by a third.
+
+**The army is repainted too**, and that is most of what makes a run feel like a different character:
+the leader is one figure among a few hundred, and at 0.47 scale the crowd is what the eye actually
+reads. The hero's kind takes over the **majority share** of the archetype mix rather than replacing
+all four — an army of one shape is the photocopy the four soldier meshes exist to prevent.
+
+## Where the choice lives
+
+`PlayerProfile` gains `HeroId` **and** `HeroChosen`, and the second field exists because "chose the
+Warden" and "was never asked" both store id 0. Without it, every existing player would be sent back
+through the character screen on the next launch. The **v7 migration** marks an existing save as
+having already chosen — the same reasoning as the v2→v3 tutorial migration, which marks every step
+taught rather than coaching someone who has clearly finished learning. A brand-new profile is
+created at `SchemaVersion = CurrentVersion`, so no step runs on it and it is offered the choice.
+
+`HeroSelectState` sits between the slot screen and the main menu and is entered only when the
+profile still owes a choice. `HeroOutfit.Apply` is the one place the arena is dressed, called from
+both `GameContext.ActivateSlot` (which is how a returning player who skips the screen gets their
+hero) and from the select screen itself — it reads the choice straight off the profile rather than
+taking it as an argument, so there is no way to call it with a hero the save does not hold. It
+repaints **after** which the shield ward is told to re-read its resting colours: the ward caches the
+colour it has to put back, and repainting under it is exactly how an army would end a run stuck on
+the previous hero's tint.
+
+Hero stats compose through `ProfileStatsResolver` with talents, paragon and gear, by one set of
+rules — so they also show up in the stat summary the player already reads, and `HeroRoster.StatLine`
+prints them through the same formatter gear affixes use.

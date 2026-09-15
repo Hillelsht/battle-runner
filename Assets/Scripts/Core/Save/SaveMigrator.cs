@@ -10,7 +10,7 @@ namespace BattleRunner.Core.Save
     /// </summary>
     public static class SaveMigrator
     {
-        public const int CurrentVersion = 6;
+        public const int CurrentVersion = 7;
 
         private static readonly Dictionary<int, Action<PlayerProfile>> Steps = new Dictionary<int, Action<PlayerProfile>>
         {
@@ -97,6 +97,19 @@ namespace BattleRunner.Core.Save
             {
                 if (double.IsNaN(profile.ArmyBanked) || profile.ArmyBanked < 0.0) profile.ArmyBanked = 0.0;
                 if (double.IsNaN(profile.ArmyBestEver) || profile.ArmyBestEver < 0.0) profile.ArmyBestEver = 0.0;
+            },
+
+            // v6 -> v7: the player picks a hero. An existing save has been playing the gold
+            // soldier, which is the Warden, and HeroId defaults to 0 — so the migration marks
+            // the choice as ALREADY MADE rather than sending a veteran to a character screen
+            // and inviting them to change who they have been for twenty rounds.
+            //
+            // The same reasoning as the v2 -> v3 tutorial migration, which marks every step
+            // taught rather than coaching someone who has clearly finished learning.
+            [6] = profile =>
+            {
+                profile.HeroId = (int)Heroes.HeroRoster.Default;
+                profile.HeroChosen = true;
             }
         };
 

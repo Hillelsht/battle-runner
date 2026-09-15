@@ -175,6 +175,8 @@ namespace BattleRunner.Gameplay
             ctx.Crowd.Initialize(ctx.ForceChangedChannel, ctx.TierCap, ctx.Config.Balance.LaneWidthMeters);
             var crowdRenderer = crowdGo.AddComponent<CrowdRenderer>();
             crowdRenderer.Initialize(ctx.Crowd, ProceduralMeshes.Unit, crowdMaterial);
+            ctx.CrowdRenderer = crowdRenderer;
+            ctx.CrowdMaterialInstance = crowdMaterial;
             // The army's headcount, in world space over the crowd — so the player compares it
             // against a squad's number in one glance instead of against the HUD readout.
             crowdGo.AddComponent<Crowd.ArmyCountLabel>().Initialize(ctx.Crowd, UiFactory.Font);
@@ -271,6 +273,7 @@ namespace BattleRunner.Gameplay
                 () => ctx.Audio.Enabled,
                 () => ctx.Audio.Enabled = !ctx.Audio.Enabled);
             ctx.SlotScreen = new SlotSelectScreen(root);
+            ctx.HeroScreen = new HeroSelectScreen(root);
             ctx.Hud = new HudScreen(root);
             ctx.LootScreen = new LootScreen(root);
             ctx.SkillScreen = new SkillTreeScreen(root);
@@ -294,6 +297,7 @@ namespace BattleRunner.Gameplay
             ctx.Machine = new GameStateMachine();
             ctx.BootState = new BootState(ctx);
             ctx.SlotState = new SlotSelectState(ctx);
+            ctx.HeroSelectState = new HeroSelectState(ctx);
             ctx.MenuState = new MainMenuState(ctx);
             ctx.RunLoadingState = new RunLoadingState(ctx);
             ctx.RunnerState = new RunnerLoopState(ctx);

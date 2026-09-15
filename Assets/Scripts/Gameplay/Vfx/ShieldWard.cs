@@ -56,6 +56,22 @@ namespace BattleRunner.Gameplay.Vfx
                 ? heroMaterial.GetColorSafe("_EmissionColor", Color.black) : Color.black;
         }
 
+        /// <summary>
+        /// Re-read the resting colours from the materials.
+        ///
+        /// Needed because choosing a hero repaints the army and the leader IN PLACE, on the
+        /// same two materials this holds. Without this the ward would keep restoring the
+        /// gold it cached at bootstrap, so the first shield of a Revenant's run would end
+        /// with the whole army turning yellow and staying that way.
+        /// </summary>
+        public void RefreshRest()
+        {
+            if (_crowdMaterial != null)
+                _crowdRest = _crowdMaterial.GetColorSafe("_EmissionColor", Color.black);
+            if (_heroMaterial != null)
+                _heroRest = _heroMaterial.GetColorSafe("_EmissionColor", Color.black);
+        }
+
         /// <summary>A blow the shield actually ATE. The one frame the player must not miss.</summary>
         public void FlashBlock() => _flash = 1f;
 

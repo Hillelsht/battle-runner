@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using BattleRunner.Core.Heroes;
 using BattleRunner.Core.Loot;
 using BattleRunner.Core.Progression;
 using BattleRunner.Core.Save;
@@ -33,6 +34,12 @@ namespace BattleRunner.Meta.Services
             // Paragon composes through the same path as everything else, so an endless rank
             // and a talent and an affix all stack by one set of rules.
             modifiers.AddRange(Paragon.ModifiersFor(profile.ParagonRankMap()));
+
+            // The chosen hero, through the SAME path. A hero's stat block is deliberately
+            // small — a nudge, not a head start — and composing it here rather than
+            // special-casing it at run start means it stacks with talents and gear by one
+            // set of rules, and shows up in the stat summary the player already reads.
+            modifiers.AddRange(HeroRoster.For(HeroRoster.FromSaved(profile.HeroId)).Stats);
 
             Dictionary<string, GearItemDefinition> gearById = GearById(config);
             foreach (GearSlot slot in new[] { GearSlot.Weapon, GearSlot.Armor, GearSlot.Relic })

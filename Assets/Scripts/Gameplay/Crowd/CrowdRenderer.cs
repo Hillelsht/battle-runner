@@ -9,6 +9,16 @@ namespace BattleRunner.Gameplay.Crowd
     /// </summary>
     public sealed class CrowdRenderer : MonoBehaviour
     {
+        // Which archetype the army LEANS ON. -1 keeps the mixed default; a hero sets it to
+        // their own kind, which takes over the majority share only — the other three stay
+        // in the crowd at their usual rate. Replacing all four outright would undo the
+        // reason there are four meshes at all: an army of one shape is a photocopy again.
+        private int _favored = -1;
+
+        /// <summary>Lean the army toward one soldier kind. Out of range restores the mix.</summary>
+        public void Favor(int soldierKind) =>
+            _favored = soldierKind >= 0 && soldierKind < Kinds.Length ? soldierKind : -1;
+
         /// <summary>
         /// Which soldier a slot is. A cheap integer hash rather than i % 4, so the four
         /// kinds scatter through the phyllotaxis spiral instead of banding into four
@@ -18,7 +28,7 @@ namespace BattleRunner.Gameplay.Crowd
         /// every fourth man is a parade; a banner here and there over a mass of spears is
         /// an army.
         /// </summary>
-        private static int Archetype(int slot)
+        private int Archetype(int slot)
         {
             uint h = (uint)slot * 2654435761u;
             h ^= h >> 15;
@@ -30,7 +40,7 @@ namespace BattleRunner.Gameplay.Crowd
                 case 2: return 1;               // shield, 2 in 8
                 case 3:
                 case 4: return 2;               // axe, 2 in 8
-                default: return 0;              // spear, 3 in 8
+                default: return _favored >= 0 ? _favored : 0;   // spear, 3 in 8
             }
         }
 

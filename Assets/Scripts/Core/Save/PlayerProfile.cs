@@ -74,6 +74,24 @@ namespace BattleRunner.Core.Save
         /// </summary>
         public double ArmyBestEver;
 
+        /// <summary>
+        /// Which hero this slot plays, as an int so JsonUtility need not know the enum.
+        ///
+        /// Zero is the Warden, which is deliberate rather than incidental: it is the gold
+        /// soldier every existing save has already been playing, so an old profile that has
+        /// never seen the choice screen keeps exactly the character it had.
+        /// </summary>
+        public int HeroId;
+
+        /// <summary>
+        /// True once this slot has actually been through the character screen.
+        ///
+        /// Separate from HeroId because "chose the Warden" and "was never asked" are
+        /// different states that would otherwise both read as zero — and the second one needs
+        /// to send the player to the screen, while the first must never ask again.
+        /// </summary>
+        public bool HeroChosen;
+
         public long SoftCurrency;
         public int Keys;
         public int PityCounter;

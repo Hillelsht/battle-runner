@@ -1,6 +1,7 @@
 using BattleRunner.Core.Audio;
 using BattleRunner.Core.Flow;
 using BattleRunner.Core.Feel;
+using BattleRunner.Core.Heroes;
 using BattleRunner.Core.Progression;
 using BattleRunner.Core.Run;
 using BattleRunner.Core.Stats;
@@ -20,12 +21,27 @@ namespace BattleRunner.Gameplay.States
         private bool _awaitingPrompt;
         private bool _finished;
 
+        // Who is leading, latched at Enter. Read once per round rather than per event: the
+        // hero cannot change during a run, and a lookup inside OnGateApplied would be a
+        // profile read on the hottest path in the game.
+        private HeroClass _hero = HeroRoster.Default;
+
+        // REVENANT. What a loss takes, a share of it walks back a moment later. One debt and
+        // one timer rather than a queue: two ambushes half a second apart should return as
+        // one wave, and a list of pending refunds would allocate inside the run loop to make
+        // a difference nobody can see.
+        private double _returnPending;
+        private float _returnIn;
+
         public RunnerLoopState(GameContext ctx) => _ctx = ctx;
 
         public void Enter()
         {
             _awaitingPrompt = false;
             _finished = false;
+            _hero = HeroRoster.FromSaved(_ctx.Profile.HeroId);
+            _returnPending = 0.0;
+            _returnIn = 0f;
 
             _ctx.Hud.Show();
             _ctx.Hud.SetForce(_ctx.Run.ForceCount);
@@ -95,6 +111,12 @@ namespace BattleRunner.Gameplay.States
             _ctx.Crowd.Tick(dt);
             _ctx.TrackController.Tick(_ctx.Crowd, _ctx.CurrentStats.Get(StatIds.Magnetism));
 
+            if (_returnPending > 0.0)
+            {
+                _returnIn -= dt;
+                if (_returnIn <= 0f) PayReturns();
+            }
+
             _ctx.Spell.Tick(dt);
             _ctx.Shield.Tick(dt);
             _ctx.Hud.SetAbilities(_ctx.Spell.Fill, _ctx.Spell.Charges, _ctx.Spell.Capacity,
@@ -114,6 +136,9 @@ namespace BattleRunner.Gameplay.States
         private static readonly Color CritTint = new Color(1.75f, 1.30f, 0.42f);
         private static readonly Color ShatterTint = new Color(0.62f, 1.65f, 1.20f);
 
+        /// <summary>The Revenant's violet — the same hue its army is painted.</summary>
+        private static readonly Color ReturnTint = new Color(0.95f, 0.70f, 1.55f);
+
         private static Color GateTint(GateOp op) => op switch
         {
             GateOp.Multiply => new Color(1.60f, 1.10f, 0.34f),
@@ -132,7 +157,10 @@ namespace BattleRunner.Gameplay.States
             // already standing on. What reached ahead was eight metres — under a second at
             // the run speed — which is why the report was that the spell does nothing.
             float from = _ctx.Crowd.FrontZ;
-            float range = _ctx.Config.Spells.ClearRangeMeters;
+            // ASHCALLER: the sweep is longer. Applied to the range ITSELF, which is what
+            // both the clear and the bolt are computed from, so the effect cannot end up
+            // detonating somewhere other than where the road was actually cleared.
+            float range = _ctx.Config.Spells.ClearRangeMeters * HeroRoster.SpellReach(_hero);
 
             _spellHits.Clear();
             _ctx.TrackController.CollectAmbushesAhead(from, range, _spellHits);
@@ -199,6 +227,10 @@ namespace BattleRunner.Gameplay.States
                 _ctx.Effects.Shock(where, ShatterTint, 0.5f, 6.5f, 0.5f);
                 _ctx.Effects.Burst(where, ShatterTint, 20, 5.8f, 0.6f);
                 run.GatesHit++;
+                // What the block SAVED, priced through the same function that would have
+                // taken it, so the Warden's conversion can never disagree with the loss it
+                // is converting.
+                ConvertBlock(before - GateMath.ApplyGate(before, GateOp.Subtract, weight, depth), where);
                 return;
             }
 
@@ -208,8 +240,14 @@ namespace BattleRunner.Gameplay.States
                 _ctx.CurrentStats.Get(StatIds.ChainMultiply));
             bool crit = Talents.Rolls(_ctx.CurrentStats.Get(StatIds.GateCrit), Random.value);
 
-            run.SetForce(Talents.ApplyGate(run.ForceCount, op, weight, depth,
-                _ctx.CurrentStats.Get(StatIds.GateYield), chain, crit));
+            // HOUNDMASTER: recruit gates pay more, and only recruit gates. Folded into the
+            // yield the gate was already going to use, so it composes with talents and crits
+            // by the rules that already exist instead of being a second addition bolted on
+            // after them.
+            float gateYield = _ctx.CurrentStats.Get(StatIds.GateYield);
+            if (op == GateOp.Add) gateYield += (float)HeroRoster.RecruitBonus(_hero);
+
+            run.SetForce(Talents.ApplyGate(run.ForceCount, op, weight, depth, gateYield, chain, crit));
             run.MultiplyChain = op == GateOp.Multiply ? run.MultiplyChain + 1 : 0;
             run.GatesHit++;
             _ctx.Crowd.SetForce(run.ForceCount);
@@ -239,6 +277,11 @@ namespace BattleRunner.Gameplay.States
                 _ctx.CameraRig.PunchFov(3.4f);
             }
 
+            // Any gate that COST men, not only a subtract: a multiply under one loses an
+            // army the same way, and a rule about losses that ignored half of them would
+            // read as the rule misfiring.
+            if (run.ForceCount < before) Owe(before - run.ForceCount);
+
             if (run.ForceCount <= 0) OnForceDepleted();
         }
 
@@ -254,6 +297,8 @@ namespace BattleRunner.Gameplay.States
                 _ctx.Audio.Play(AudioCue.ShieldBlock, 0.85f);
                 _ctx.Effects.Shock(where, ShatterTint, 0.5f, 6.5f, 0.5f);
                 _ctx.Effects.Burst(where, ShatterTint, 20, 5.8f, 0.6f);
+                ConvertBlock(Talents.PackBite(_ctx.Run.ForceCount, weight, depth,
+                    _ctx.CurrentStats.Get(StatIds.EnemyResist), false), where);
                 return;
             }
 
@@ -287,6 +332,8 @@ namespace BattleRunner.Gameplay.States
             _ctx.Effects.Shock(where, LossTint, 0.6f, 2.2f + 2.6f * loss, 0.42f);
             _ctx.Effects.Burst(where, LossTint, 6 + Mathf.RoundToInt(14f * loss), 3.8f, 0.55f);
 
+            Owe(beforeBite - run.ForceCount);
+
             if (run.ForceCount <= 0) OnForceDepleted();
         }
 
@@ -309,6 +356,12 @@ namespace BattleRunner.Gameplay.States
                 _ctx.Audio.Play(dodged && !blocked ? AudioCue.SpellCast : AudioCue.ShieldBlock, 0.85f);
                 _ctx.Effects.Shock(where, ShatterTint, 0.5f, 6.0f, 0.45f);
                 _ctx.Effects.Burst(where, ShatterTint, 16, 5.4f, 0.55f);
+                // A BLOCK, not a dodge. Stepping out of the lane costs the champion nothing
+                // and so earns nothing — the Warden's rule is about standing there and
+                // taking it, and paying out for a dodge would hand the bonus to every hero
+                // who simply steered well.
+                if (blocked)
+                    ConvertBlock(Elite.SwingCost(_ctx.Run.ForceCount, weight, false, false), where);
                 return;
             }
 
@@ -326,7 +379,63 @@ namespace BattleRunner.Gameplay.States
             _ctx.CameraRig.Apply(CameraFeel.ForLoss(before, run.ForceCount));
             _ctx.Audio.Play(AudioCue.BossBlow, 0.8f);
 
+            Owe(before - run.ForceCount);
+
             if (run.ForceCount <= 0) OnForceDepleted();
+        }
+
+        /// <summary>
+        /// WARDEN. Part of what a block saved joins the army instead.
+        ///
+        /// Inert for the other three, which is what makes it safe to call from all three
+        /// block paths — the gate, the pack and the champion — rather than picking the one
+        /// that happened to be convenient. A rule the player is told applies to blocking has
+        /// to apply to every block, or they learn a rule the game does not have.
+        /// </summary>
+        private void ConvertBlock(double saved, Vector3 where)
+        {
+            double gained = HeroRoster.BlockConverts(_hero, saved);
+            if (gained <= 0.0) return;
+
+            RunState run = _ctx.Run;
+            run.SetForce(run.ForceCount + gained);
+            _ctx.Crowd.SetForce(run.ForceCount);
+            _ctx.Hud.SetForce(run.ForceCount);
+            _ctx.Effects.Burst(where, CritTint, 14, 4.6f, 0.65f);
+            _ctx.Audio.Play(AudioCue.GateAdd, 0.7f);
+        }
+
+        /// <summary>
+        /// REVENANT. A share of a loss is owed back, and arrives a moment later.
+        ///
+        /// The DELAY is the whole point: paid on the same frame it would be indistinguishable
+        /// from the loss having been smaller, and the fantasy is the fallen getting up. Inert
+        /// for everyone else, so every loss site can call it unconditionally.
+        /// </summary>
+        private void Owe(double lost)
+        {
+            double back = HeroRoster.Returns(_hero, lost);
+            if (back <= 0.0) return;
+            _returnPending += back;
+            _returnIn = HeroRoster.ReturnDelaySeconds;
+        }
+
+        private void PayReturns()
+        {
+            RunState run = _ctx.Run;
+            double back = _returnPending;
+            _returnPending = 0.0;
+            _returnIn = 0f;
+            if (back <= 0.0 || run == null) return;
+
+            run.SetForce(run.ForceCount + back);
+            _ctx.Crowd.SetForce(run.ForceCount);
+            _ctx.Hud.SetForce(run.ForceCount);
+
+            var front = new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.FrontZ);
+            _ctx.Effects.Shock(front, ReturnTint, 0.45f, 5.2f, 0.5f);
+            _ctx.Effects.Burst(front, ReturnTint, 16, 4.6f, 0.7f);
+            _ctx.Audio.Play(AudioCue.GateAdd, 0.6f);
         }
 
         /// <summary>A champion is down. It pays, and the payment has to be seen.</summary>
