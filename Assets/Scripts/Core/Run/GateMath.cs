@@ -99,11 +99,52 @@ namespace BattleRunner.Core.Run
             }
         }
 
-        /// <summary>Applies one gate. Force never goes negative and has no ceiling.</summary>
+        /// <summary>
+        /// Applies one gate. Force never goes negative and has no ceiling.
+        ///
+        /// A GATE ALWAYS MOVES THE ARMY BY AT LEAST ITS WEIGHT IN MEN, and that floor is the
+        /// whole of this method beyond the multiply. The report was "at the first level the
+        /// adding +1 doesn't add anything, multiplication does. At the next levels addition
+        /// works", and it was exactly true:
+        ///
+        ///   * <see cref="Headcount"/> promoted any positive sub-1 delta to 1, so the sign
+        ///     on the gate read "+1".
+        ///   * this method applied no such floor, so the army moved by 2.6% of itself.
+        ///   * three separate floors downstream then threw that away — StatFormat.Army
+        ///     floors under a thousand, CrowdMath.VisibleUnits casts to int, and
+        ///     StandingArmy.Rank floors a logarithm.
+        ///
+        /// So the sign promised a man the gate could not deliver. Computed from the shipped
+        /// constants, a weight-1 recruit gate first moved an integer army at THIRTY-NINE MEN;
+        /// from the seed of five, the first four recruit gates of a run changed nothing at
+        /// all. Multiply escaped only because 30% of five is already more than one, which is
+        /// precisely the asymmetry that was reported.
+        ///
+        /// The floor makes the sign and the mechanic THE SAME FUNCTION rather than two
+        /// functions that agree above a threshold. It is the gate's weight rather than a flat
+        /// one man so that a heavier gate is still visibly heavier at the bottom of the
+        /// curve: a Ladder chunk reads 6, 8, 11 from five men instead of three identical
+        /// ticks.
+        ///
+        /// It stops binding at 39 men for EVERY weight — the weight cancels — so nothing past
+        /// the opening of the game is touched, and the campaign curve is unchanged from
+        /// round one onward.
+        /// </summary>
         public static double ApplyGate(double force, GateOp op, int weight, int depth)
         {
             if (double.IsNaN(force)) throw new ArgumentOutOfRangeException(nameof(force));
-            double result = Math.Max(0.0, force) * Factor(op, weight, depth);
+            double from = Math.Max(0.0, force);
+            double result = from * Factor(op, weight, depth);
+            int w = Math.Max(0, weight);
+            if (w == 0) return result < 0.0 ? 0.0 : result;
+
+            // The floor, applied in the direction the operator already went. A gate that
+            // gains must gain at least w; a gate that costs must cost at least w — but it
+            // can never take more than the army has, and an army of two men meeting a
+            // weight-three ambush loses two rather than going negative.
+            if (result > from) result = Math.Max(result, from + w);
+            else if (result < from) result = Math.Min(result, from - w);
+
             return result < 0.0 ? 0.0 : result;
         }
 
@@ -111,18 +152,23 @@ namespace BattleRunner.Core.Run
         /// The signed number of men this gate will hand over or take away from the army in
         /// front of it — what goes on the sign.
         ///
-        /// Rounded away from zero so a gate that does anything at all never reads "+0": a
-        /// 3% recruit gate in front of ten men is worth 0.3 of a man, and printing zero on
-        /// a gate the player is about to gain from is a lie about the mechanic.
+        /// Derived from <see cref="ApplyGate"/> rather than computed alongside it, so the
+        /// number on the sign cannot drift from the number the army moves by. The two used to
+        /// disagree below 39 men, and that disagreement was the bug.
         /// </summary>
         public static long Headcount(double force, GateOp op, int weight, int depth)
         {
             double delta = ApplyGate(force, op, weight, depth) - Math.Max(0.0, force);
-            if (delta > 0.0 && delta < 1.0) return 1L;
-            if (delta < 0.0 && delta > -1.0) return -1L;
             if (delta >= long.MaxValue) return long.MaxValue;
             if (delta <= long.MinValue) return long.MinValue;
-            return (long)Math.Round(delta, MidpointRounding.AwayFromZero);
+            long men = (long)Math.Round(delta, MidpointRounding.AwayFromZero);
+
+            // A gate that does ANYTHING must never read "+0". Rounding can still land on
+            // zero when the floor did not apply — a weight-0 gate, or an ambush clamped by
+            // an army that has almost nothing left.
+            if (men == 0L && delta > 0.0) return 1L;
+            if (men == 0L && delta < 0.0) return -1L;
+            return men;
         }
 
         /// <summary>

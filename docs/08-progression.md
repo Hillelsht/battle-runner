@@ -537,3 +537,59 @@ Geometric Shapes, the HUD draws in Unity's built-in font, and a glyph missing th
 a box on device with no way to find that out from here. A count always renders. If a device
 screenshot shows it reading poorly mid-run, pips with a bundled font are the fix — not a guess
 at what Arial happens to carry.
+
+
+---
+
+# The gate that promised a man it could not deliver
+
+> *"at the first level the adding +1 doesn't add anything, multiplication does. At the next
+> levels addition works."*
+
+Exactly true, and the cause was a disagreement between two functions that were supposed to
+describe the same event.
+
+`GateMath.Headcount` — which writes the number on the gate's sign — promoted any positive sub-1
+delta to `1`, because a gate reading "+0" in front of a player about to gain from it is a lie
+about the mechanic. `GateMath.ApplyGate` applied no such floor. So at the seed muster of five men
+a weight-1 recruit gate signed itself **+1** and moved the army by 2.6% of itself — 0.13 of a man
+— which three separate floors downstream then discarded:
+
+| floor | file |
+|---|---|
+| `Math.Floor` under a thousand | `Core/Stats/StatFormat.cs:160` |
+| `(int)forceCount` | `Core/Crowd/CrowdMath.cs:175` |
+| `Math.Floor(log2(...))` | `Core/Run/StandingArmy.cs:81` |
+
+Computed from the shipped constants, a weight-1 recruit first moves an integer army at **39 men**.
+Multiply escaped only because 30% of five is already more than one — which is precisely the
+asymmetry that was reported. And `RecruitWeight` is a flat 1 (`ChunkLayouts.cs:109`), so the
+opening of the game is where weight-1 gates live.
+
+Measured over twelve recruit gates from the seed:
+
+```
+before   5, 5, 5, 5, 6, 6, 6, 7, 7, 8, 8, 9      <- the first four did nothing at all
+after    6, 8, 11, 12, 14, 17, 18, 20, 23, 24, 26, 29
+```
+
+## The rule
+
+**A gate moves the army by at least its weight in men.** `ApplyGate` takes the floor `Headcount`
+already promised, and `Headcount` is now *derived from* `ApplyGate` rather than computed beside it
+— so the sign and the mechanic are one function and cannot drift apart again.
+
+The floor is the gate's **weight** rather than a flat one man so that a heavier gate is still
+visibly heavier at the bottom of the curve. At five men a Ladder chunk reads 6, 7, 8 for its three
+gates instead of three identical ticks.
+
+It stops binding at 39 men **for every weight** — the weight cancels, since both the floor and the
+share scale linearly in it — so nothing past the opening is touched. Measured on the real
+generator, round 0 now runs **5 → 43** with fourteen of twenty-five decisions visibly moving the
+number; the other eleven are lane-dodges, where the best lane is correctly empty. The 62-round
+campaign walk in `StandingArmyTests` is unchanged.
+
+`Talents.PackBite` takes the same floor, and for the same reason: it was computing its gross
+straight off `Factor` and so skipped what a red gate gets, and a pack and a red gate are the same
+threat wearing different clothes. Resist mitigates down toward one man but never through it —
+**zero is reserved for a shattered pack**, which is the whole fantasy of that talent.

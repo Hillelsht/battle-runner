@@ -92,6 +92,95 @@ namespace BattleRunner.Tests
             Assert.Greater(GateMath.Headcount(1_000_000.0, GateOp.Add, 1, 0), 1000L);
         }
 
+        // ===================================================================
+        // The floor: a gate moves the army by at least its weight in men.
+        // ===================================================================
+
+        [Test]
+        public void EveryGateMovesTheDisplayedArmyEvenAtTheSeedMuster()
+        {
+            // THE REPORTED BUG, as an assertion. "at the first level the adding +1 doesn't
+            // add anything, multiplication does." A gate whose sign says it will do something
+            // must do something the player can SEE — and what the player sees is
+            // StatFormat.Army, which floors under a thousand.
+            for (double army = StandingArmy.Seed; army < 60.0; army += 1.0)
+                for (int weight = 1; weight <= 3; weight++)
+                {
+                    double after = GateMath.ApplyGate(army, GateOp.Add, weight, 0);
+                    Assert.AreNotEqual(
+                        BattleRunner.Core.Stats.StatFormat.Army(army),
+                        BattleRunner.Core.Stats.StatFormat.Army(after),
+                        $"a weight-{weight} recruit gate did not move the number at {army} men");
+                }
+        }
+
+        [Test]
+        public void TheSignAndTheArmyAlwaysAgree()
+        {
+            // The two used to be different functions that agreed only above 39 men, and the
+            // disagreement was the bug. They are one function now, so this holds everywhere.
+            foreach (double army in new[] { 1.0, 5.0, 7.0, 38.0, 39.0, 40.0, 1000.0, 4.2e12 })
+                foreach (GateOp op in new[] { GateOp.Add, GateOp.Multiply, GateOp.Subtract })
+                    for (int weight = 1; weight <= 3; weight++)
+                    {
+                        double delta = GateMath.ApplyGate(army, op, weight, 0) - army;
+                        long sign = GateMath.Headcount(army, op, weight, 0);
+                        Assert.AreEqual(Math.Sign(delta), Math.Sign(sign),
+                            $"{op} w{weight} at {army}: army moved {delta}, sign said {sign}");
+                        if (Math.Abs(delta) < 1e9)
+                            Assert.AreEqual(delta, sign, 1.0,
+                                $"{op} w{weight} at {army}: sign and army disagree in magnitude");
+                    }
+        }
+
+        [Test]
+        public void TheFloorIsWorthTheGatesWeightSoAHeavierGateIsStillHeavier()
+        {
+            // Three identical ticks would be worse than the bug: the player would see the
+            // number move and learn that gate size does not matter.
+            double one = GateMath.ApplyGate(5.0, GateOp.Add, 1, 0);
+            double two = GateMath.ApplyGate(5.0, GateOp.Add, 2, 0);
+            double three = GateMath.ApplyGate(5.0, GateOp.Add, 3, 0);
+            Assert.AreEqual(6.0, one, 1e-9);
+            Assert.AreEqual(7.0, two, 1e-9);
+            Assert.AreEqual(8.0, three, 1e-9);
+        }
+
+        [Test]
+        public void TheFloorStopsBindingAtThirtyNineMenForEveryWeight()
+        {
+            // The weight cancels — floor and share cross at the same army size whatever the
+            // gate weighs — which is why nothing past the opening of the game is touched.
+            for (int weight = 1; weight <= 3; weight++)
+            {
+                double atThirtyEight = GateMath.ApplyGate(38.0, GateOp.Add, weight, 0);
+                Assert.AreEqual(38.0 + weight, atThirtyEight, 1e-9,
+                    $"the floor should still bind at 38 men for weight {weight}");
+
+                double atForty = GateMath.ApplyGate(40.0, GateOp.Add, weight, 0);
+                Assert.AreEqual(40.0 * GateMath.Factor(GateOp.Add, weight, 0), atForty, 1e-9,
+                    $"the share should have overtaken the floor at 40 men for weight {weight}");
+            }
+        }
+
+        [Test]
+        public void TheFloorNeverPushesAnArmyPastZero()
+        {
+            // An army of two meeting a weight-three ambush loses two, not three.
+            Assert.AreEqual(0.0, GateMath.ApplyGate(2.0, GateOp.Subtract, 3, 0), 1e-9);
+            Assert.AreEqual(0.0, GateMath.ApplyGate(0.0, GateOp.Subtract, 3, 0), 1e-9);
+        }
+
+        [Test]
+        public void ScaleInvarianceSurvivesTheFloor()
+        {
+            // The property the whole continuous army rests on. Above the floor a gate is
+            // still worth the same ratio at every size.
+            double small = GateMath.ApplyGate(500.0, GateOp.Add, 1, 0) / 500.0;
+            double huge = GateMath.ApplyGate(500e12, GateOp.Add, 1, 0) / 500e12;
+            Assert.AreEqual(small, huge, 1e-9);
+        }
+
         [Test]
         public void NegativeGateWeightThrows()
         {
@@ -121,7 +210,16 @@ namespace BattleRunner.Tests
                         _ => 1.0 - Math.Min(GateMath.AmbushShareMax,
                             (GateMath.AmbushShare + GateMath.AmbushDepthStep * depth) * weight)
                     };
-                    expected = Math.Max(0.0, expected * factor);
+                    double moved = expected * factor;
+                    // The floor: a gate moves the army by at least its weight in men. The
+                    // reference has to model it too, or this test would pin the bug rather
+                    // than the behaviour.
+                    if (weight > 0)
+                    {
+                        if (moved > expected) moved = Math.Max(moved, expected + weight);
+                        else if (moved < expected) moved = Math.Min(moved, expected - weight);
+                    }
+                    expected = Math.Max(0.0, moved);
                 }
                 Assert.AreEqual(expected, force, Math.Abs(expected) * 1e-9,
                     $"trial {trial} diverged");

@@ -83,9 +83,23 @@ namespace BattleRunner.Core.Run
             bool shattered)
         {
             if (shattered || weight <= 0) return 0.0;
-            double gross = Math.Max(0.0, force) * (1.0 - GateMath.Factor(GateOp.Subtract, weight, depth));
+            double from = Math.Max(0.0, force);
+            if (from <= 0.0) return 0.0;
+
+            // THROUGH ApplyGate, not through Factor. Computing the gross straight off the
+            // factor was how a pack skipped the floor that a red gate gets — the two are the
+            // same threat wearing different clothes, and a pack that costs 0.13 of a man in
+            // front of an army of five is the same bug the "+1" gate had.
+            double gross = from - GateMath.ApplyGate(from, GateOp.Subtract, weight, depth);
             double kept = 1.0 - Math.Min(0.85f, Math.Max(0f, resist));
-            return Math.Max(0.0, gross * kept);
+            double bite = gross * kept;
+
+            // Resist mitigates down toward one man but never through it. Zero is reserved
+            // for a SHATTERED pack, which is the whole fantasy of that talent — a pack that
+            // silently cost nothing because the resist stat rounded it away would read as
+            // the shatter firing, and the player would learn the wrong rule.
+            if (bite < 1.0) bite = 1.0;
+            return Math.Min(from, bite);
         }
 
         /// <summary>
