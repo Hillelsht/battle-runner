@@ -195,6 +195,11 @@ namespace BattleRunner.Gameplay
             // needs the crowd (for where the army's front rank is) and the ally material.
             ctx.TrackController.AttachSquadRenderer(ctx.Crowd, crowdMaterial);
 
+            // The boss arena, on the track object because it is part of the ground: it is
+            // hidden until a boss fight opens it, and it costs nothing while hidden.
+            ctx.Arena = trackGo.AddComponent<Track.BossArena>();
+            ctx.Arena.Initialize(ctx.CrowdMaterial);
+
             // On the same object as the track, and after the crowd: the prop field needs the
             // crowd to know which slice of the verge is worth drawing.
             ctx.Props = trackGo.AddComponent<Track.SceneryField>();

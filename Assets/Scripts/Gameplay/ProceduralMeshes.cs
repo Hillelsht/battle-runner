@@ -1099,6 +1099,85 @@ namespace BattleRunner.Gameplay
             return mesh;
         }
 
+        private static Mesh _arenaFloor;
+        private static Mesh _standingStone;
+
+        /// <summary>
+        /// The boss arena's floor: a 24-sided slab of unit radius, so the caller scales it to
+        /// whatever the encounter needs.
+        ///
+        /// A DISC AND NOT A WIDER ROAD, because the shape is the whole point. "The difference
+        /// in graphics between before the boss and after is minimal" is true of a road that
+        /// keeps being a road while something large stands on it; a circle is the one outline
+        /// that cannot be mistaken for more track.
+        /// </summary>
+        public static Mesh ArenaFloor
+        {
+            get
+            {
+                if (_arenaFloor == null) _arenaFloor = BuildArenaFloor(24);
+                return _arenaFloor;
+            }
+        }
+
+        /// <summary>One stone of the ring. About 1 unit tall, leaning slightly outward.</summary>
+        public static Mesh StandingStone
+        {
+            get
+            {
+                if (_standingStone == null) _standingStone = BuildStandingStone();
+                return _standingStone;
+            }
+        }
+
+        private static Mesh BuildArenaFloor(int sides)
+        {
+            var v = new List<Vector3>();
+            var t = new List<int>();
+            const float Thickness = 0.10f;
+
+            // Rim first, then the cap, so the slab has a real edge. A flat fan would give
+            // RecalculateBounds a zero-extent Y and the camera, which sits 5.5 m up and looks
+            // along the road, would see the arena nearly edge-on as a line — the same fault
+            // the shockwave ring had before it became a wall.
+            for (int i = 0; i < sides; i++)
+            {
+                float a0 = i * 2f * Mathf.PI / sides;
+                float a1 = (i + 1) * 2f * Mathf.PI / sides;
+                var p0 = new Vector3(Mathf.Cos(a0), 0f, Mathf.Sin(a0));
+                var p1 = new Vector3(Mathf.Cos(a1), 0f, Mathf.Sin(a1));
+                // The rim quad, wound outward.
+                int b = v.Count;
+                v.Add(p0 * 0.99f); v.Add(p1 * 0.99f);
+                v.Add(p1 * 0.99f + Vector3.up * Thickness); v.Add(p0 * 0.99f + Vector3.up * Thickness);
+                t.Add(b); t.Add(b + 2); t.Add(b + 1);
+                t.Add(b); t.Add(b + 3); t.Add(b + 2);
+                // The cap triangle.
+                b = v.Count;
+                v.Add(Vector3.up * Thickness);
+                v.Add(p0 * 0.99f + Vector3.up * Thickness);
+                v.Add(p1 * 0.99f + Vector3.up * Thickness);
+                t.Add(b); t.Add(b + 1); t.Add(b + 2);
+            }
+            return Finish(v, t, "ArenaFloor");
+        }
+
+        /// <summary>
+        /// A standing stone. Two segments with a kink and a lean, because a single straight
+        /// taper reads as a fence post: what makes a menhir a menhir is that it is not
+        /// vertical and not the same width all the way up.
+        /// </summary>
+        private static Mesh BuildStandingStone()
+        {
+            var v = new List<Vector3>();
+            var t = new List<int>();
+            AddPrism(v, t, new Vector3(0f, 0f, 0f), new Vector2(0.46f, 0.30f),
+                           new Vector3(0.05f, 0.62f, 0.02f), new Vector2(0.38f, 0.26f));
+            AddPrism(v, t, new Vector3(0.05f, 0.62f, 0.02f), new Vector2(0.38f, 0.26f),
+                           new Vector3(0.14f, 1.12f, 0.05f), new Vector2(0.24f, 0.20f));
+            return Finish(v, t, "StandingStone");
+        }
+
         public static Mesh BuildBox(Vector3 center, Vector3 size)
         {
             var vertices = new List<Vector3>();

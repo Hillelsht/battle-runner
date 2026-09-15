@@ -95,6 +95,15 @@ namespace BattleRunner.Gameplay.States
             // spans a gap the eye reads as contact.
             _bossPosition = new Vector3(0f, 0f, _ctx.Crowd.CenterZ + ArenaMetres);
             _ctx.BossView.Show(_boss, _bossPosition, _affix);
+
+            // AND THE ROAD STOPS BEING A ROAD. Until now the only thing an encounter changed
+            // about the place was that it stopped scrolling — same cobbles, same lane lines,
+            // same two rails running to the same horizon, with something large standing on
+            // them. The arena opens between the army and the boss and the rails end at it.
+            _ctx.Arena?.Show(
+                BattleRunner.Core.World.WorldThemes.For(RoundPlan.For(_ctx.Profile.CurrentLevelIndex)),
+                _ctx.Crowd.CenterZ, _bossPosition.z);
+            _ctx.TrackController?.SetRoadFurnitureVisible(false);
             _ctx.Audio.SetCombat(true);
             _ctx.Hud.ShowBossBar(BossAffixes.Decorate(_affix, _boss.DisplayName),
                 fillTint: BossThreatState.AffixTint(_affix));
@@ -131,6 +140,9 @@ namespace BattleRunner.Gameplay.States
 
             _ctx.Tutorial.Unsubscribe();
             _ctx.Tutorial.EndPhase();
+
+            _ctx.Arena?.Hide();
+            _ctx.TrackController?.SetRoadFurnitureVisible(true);
 
             _ctx.BossView.Hide();
             _ctx.Hud.HideBossBar();

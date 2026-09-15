@@ -53,6 +53,9 @@ namespace BattleRunner.Gameplay
 
         /// <summary>What stands beside the road. Dressed per round from the act's world.</summary>
         public Track.SceneryField Props;
+
+        /// <summary>The place a boss fight happens in, which is not the road.</summary>
+        public Track.BossArena Arena;
         public BossView BossView;
         public CameraRig CameraRig;
         public Vfx.ShieldWard Ward;

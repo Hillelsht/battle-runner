@@ -792,3 +792,64 @@ should not look like that.
 must still read, or the player loses the confirmation that their own army is landing blows. Two
 tests pin both halves — a strike must still drive the body forward and close the distance while a
 flinch is live, and a flinch must still snap the body back when no strike is running.
+
+---
+
+# The road stops being a road
+
+> *"the difference in graphics between before the boss and after is minimal - pretty much only
+> color - turns to green from the blue. Fix it."*
+
+## What a boss encounter actually changed
+
+`BossEncounterState.Enter` showed a mesh, added a HUD bar and switched the music. Reading it
+against the frame, that is the complete list of what changes when a boss arrives:
+
+| | during the run | during the fight |
+|---|---|---|
+| road surface | the world's cobbles | the same cobbles |
+| lane markings | four lines | the same four lines |
+| rails | two, to the horizon | the same two |
+| scenery | streaming past | the same, stationary |
+| motion | 10 m/s | 0 |
+
+A boss fight was a **still frame of whatever road the round happened to end on**, with
+something large standing on it. The only thing that changed was that it stopped moving — and
+the tint, which is what the report names.
+
+## A disc, and the shape is the whole idea
+
+`Gameplay/Track/BossArena.cs`. When the fight opens, a 13.5 m floor rises between the army and
+the boss, ringed by twelve standing stones, and the rails end.
+
+**A wider road would not have worked.** A player who has run down a 6.6 m strip for forty
+seconds reads more width as more track; they read a **circle** as somewhere they have arrived.
+The ring does the same job from the other side: the boundary changes from two parallel lines
+running to the horizon into a closed one, so the eye stops being led forward.
+
+- **Centred on the midpoint, not on the boss.** A disc centred on the boss puts the army's
+  front rank on its rim — standing on the old road, looking in at somewhere it has not got to.
+  The fight happens in the gap, so the arena is the gap.
+- **The floor's top lands at y = 0.02, and that number is load-bearing.** The road surface is
+  exactly y = 0 and every unit in the game stands on it. The mesh is 0.10 thick, so the object
+  sits at −0.08 and only 2 cm of it is above the road: enough to cover the 1.5 cm lane
+  markings, not enough to bury the army and the boss to the ankles. The first draft put it at
+  +0.03 and would have sunk everyone 13 cm into the floor.
+- **The rails and the finish line go.** The lane markings stay — the player is still steering
+  during a boss fight, so lanes are still information; rails never were. A finish line lying
+  inside the arena would be the game still promising somewhere to run to.
+- **It rises over 0.55 s**, and the stones only appear once the floor is a third of the way up.
+  Arriving whole on one frame reads as pop-in; stones standing around nothing for half a second
+  read as the floor having failed to draw.
+
+## Four draw calls, and only because the ring is instanced
+
+The floor, the threshold kerb, the stones in one batch and the beacons in another. Doc 04
+budgets under 60 on the lowest tier and the whole road costs four, so four more while a boss is
+on screen is affordable — but it is affordable *because* the ring is instanced. Twelve separate
+stone objects would have been twelve draw calls for one decoration.
+
+The arena takes its colours from the world it stands in rather than authoring a set per world:
+the floor is the world's own `RoadStone` at 0.72, the stones its `PropStone`, and the beacons
+its `Accent` with a flat emission term so they read as lights rather than as outlined rocks.
+Deriving it is what stops a world added later from arriving with a grey courtyard in it.

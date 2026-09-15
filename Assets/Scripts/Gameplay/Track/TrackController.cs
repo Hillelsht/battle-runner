@@ -532,6 +532,28 @@ namespace BattleRunner.Gameplay.Track
         /// lines and rungs are 2 cm tall and their shadows would be noise on the surface
         /// they are painted on. The rails have real height and earn one.
         /// </summary>
+        /// <summary>
+        /// Show or hide the road's furniture — the rails and the finish line.
+        ///
+        /// Two parallel rails running to the horizon are the strongest "this is a road" cue in
+        /// the frame, and a boss fight is not a road: it is a place the road arrives at. The
+        /// arena's ring of stones takes over as the boundary, which is the point — the shape
+        /// of the edge changes from two lines to a closed one. The finish line goes with them
+        /// because the round is over, and a finish line lying inside the arena would be the
+        /// game still promising somewhere to run to.
+        ///
+        /// The lane markings STAY. The player is still steering during a boss fight, so the
+        /// lanes are still information; the rails never were.
+        /// </summary>
+        public void SetRoadFurnitureVisible(bool visible)
+        {
+            foreach (GameObject strip in _groundStrips)
+            {
+                if (strip == null) continue;
+                if (strip.name == "Rail" || strip.name == "FinishLine") strip.SetActive(visible);
+            }
+        }
+
         private void SpawnStatic(string name, Vector3 position, Vector3 size, Material material,
             bool castsShadow = false)
         {
