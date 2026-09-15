@@ -180,6 +180,24 @@ namespace BattleRunner.Gameplay.Crowd
             _enemyMesh = ProceduralMeshes.Soldier(ProceduralMeshes.SoldierKind.Axe);
             _fighterMesh = ProceduralMeshes.Soldier(ProceduralMeshes.SoldierKind.Shield);
 
+            // A CHAMPION IS A BANNER-BEARER, and that is the one silhouette in the set that
+            // breaks the skyline — which is the only thing that reads at this distance (see
+            // ProceduralMeshes.Soldier: at 0.47 scale and 26 m a unit is about ten pixels
+            // tall, so anything at chest height is invisible). Bigger AND a different outline,
+            // so a champion is never mistaken for a squad that happens to be close.
+            _championMesh = ProceduralMeshes.Soldier(ProceduralMeshes.SoldierKind.Banner);
+            if (enemyMaterial != null)
+            {
+                _championMaterial = ShaderSafety.CreateMaterial(enemyMaterial);
+                // Hotter than a squad, and no bob: it is posed by DrawChampion rather than
+                // marched by the shader, and a walk cycle decoded from a 1.45 scale would be
+                // nonsense anyway.
+                _championMaterial.SetColorSafe("_BaseColor", new Color(0.42f, 0.10f, 0.12f));
+                _championMaterial.SetColorSafe("_EmissionColor", new Color(1.70f, 0.42f, 0.24f));
+                _championMaterial.SetFloatSafe("_BobAmount", 0f);
+                _championMaterial.SetFloatSafe("_EmissionFlat", 0.05f);
+            }
+
             if (_enemyMaterial != null && !_enemyMaterial.enableInstancing)
                 _enemyMaterial.enableInstancing = true;
             if (_enemyMaterial != null)
@@ -243,6 +261,15 @@ namespace BattleRunner.Gameplay.Crowd
             for (int s = 0; s < _squads.Count; s++)
             {
                 EnemyPackBehaviour squad = _squads[s];
+
+                // A CHAMPION IS ONE BODY AND IT GETS ITS OWN DRAW. Uniform scale is the
+                // animation bus here — CrowdInstanced decodes the walk phase out of the
+                // 0.44-0.50 window, because the matrix is the only per-instance channel there
+                // is — so a body at 1.5x would decode a nonsense stride. One extra
+                // RenderMesh against the four instanced draws the whole road costs today, and
+                // a ceiling of a hundred and twenty, is not a budget question.
+                if (squad != null && squad.IsElite) { DrawChampion(squad, now); continue; }
+
                 if (squad == null || squad.DisplayedCount <= 0) continue;
 
                 Vector3 origin = squad.transform.position;
@@ -429,6 +456,58 @@ namespace BattleRunner.Gameplay.Crowd
             if (fighterCount > 0) Submit(_fighters, fighterCount, _fighterMesh,
                 _allyMaterial != null ? _allyMaterial : _enemyMaterial);
         }
+
+        /// <summary>
+        /// One champion, drawn on its own so it can be bigger than the walk-cycle window
+        /// allows, and posed rather than marched.
+        ///
+        /// It leans back as it winds up and drives forward as it swings — the same grammar
+        /// the boss uses, on purpose: the player has already learned what a rearing body
+        /// means, and a champion that telegraphed differently would have to teach it again
+        /// during a moment when they are also steering.
+        /// </summary>
+        private void DrawChampion(EnemyPackBehaviour squad, float now)
+        {
+            if (_championMesh == null || _championMaterial == null) return;
+
+            Vector3 foot = squad.transform.position;
+            float lean = 0f;
+            float rise = 0f;
+
+            if (squad.Fighting)
+            {
+                // TelegraphPhase runs 0 at the first warning to 1 as the blow lands, so the
+                // body is furthest back exactly when the warning is loudest.
+                float wind = squad.Champion.TelegraphPhase();
+                lean = -16f * wind;
+                rise = 0.10f * wind;
+                _championMaterial.SetFloatSafe("_EmissionFlat", 0.05f + 0.55f * wind);
+            }
+            else
+            {
+                _championMaterial.SetFloatSafe("_EmissionFlat", 0.05f);
+            }
+
+            // Never still. A champion standing perfectly rigid in the road is a prop.
+            float idle = Mathf.Sin(now * 1.15f + squad.Depth) * 2.2f;
+            var rot = Quaternion.Euler(lean, 180f + idle, 0f);
+            var trs = Matrix4x4.TRS(foot + Vector3.up * rise, rot, Vector3.one * ChampionScale);
+
+            Graphics.RenderMesh(
+                new RenderParams(_championMaterial) { receiveShadows = true },
+                _championMesh, 0, trs);
+        }
+
+        /// <summary>
+        /// How much larger than a soldier a champion stands.
+        ///
+        /// Outside the 0.44-0.50 scale window the crowd shader animates from, which is
+        /// exactly why it cannot share the instanced bucket.
+        /// </summary>
+        private const float ChampionScale = 1.45f;
+
+        private Mesh _championMesh;
+        private Material _championMaterial;
 
         private void Submit(Matrix4x4[] matrices, int count, Mesh mesh, Material material)
         {

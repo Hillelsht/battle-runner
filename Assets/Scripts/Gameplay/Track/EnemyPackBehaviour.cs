@@ -51,6 +51,19 @@ namespace BattleRunner.Gameplay.Track
         /// <summary>Passed the crowd's plane, scored or not. See GateBehaviour.Resolved.</summary>
         public bool Resolved { get; private set; }
 
+        /// <summary>
+        /// A CHAMPION rather than a squad: it has health, it winds up, and it swings.
+        ///
+        /// A flag on the squad rather than a second pooled type. The pool is prewarmed from
+        /// RoundPlan.MaxChunkCount * ChunkLayouts.MaxPacksPerChunk and ObjectPool.Get silently
+        /// instantiates on an empty pool — which doc 04 bans mid-run — so a second pool means
+        /// a second prewarm number that goes stale the next time a shape is added.
+        /// </summary>
+        public bool IsElite { get; private set; }
+
+        /// <summary>The champion's own fight. Meaningless unless <see cref="IsElite"/>.</summary>
+        public Elite Champion;
+
         /// <summary>Non-zero while this squad is being fought. Drives the whole clash.</summary>
         public float FightElapsed { get; private set; }
         public bool Fighting { get; private set; }
@@ -62,6 +75,15 @@ namespace BattleRunner.Gameplay.Track
         private TextMesh _label;
         private MeshRenderer _labelRenderer;
         private Transform _labelPivot;
+        private Transform _healthBack;
+        private Transform _healthFill;
+
+        /// <summary>Metres. Wide enough to read at the distance a champion is first seen.</summary>
+        private const float BarWidth = 1.5f;
+        private const float BarHeight = 0.16f;
+
+        private static Material _barBack;
+        private static Material _barFill;
 
         /// <summary>
         /// The scale the player's own soldiers are drawn at: CrowdRenderer's ScaleMin plus
@@ -96,14 +118,84 @@ namespace BattleRunner.Gameplay.Track
             squad._labelRenderer = squad._label.GetComponent<MeshRenderer>();
             squad._labelRenderer.sharedMaterial = font.material;
             squad._labelRenderer.sortingOrder = 1;
+
+            // A WORLD-SPACE BAR, not HudScreen's boss bar. That one is a screen-space
+            // singleton: two champions on the road at once would fight over it, and a thing
+            // that does not stop the run should not claim the frame's one reserved slot.
+            // Hung under the pivot that already billboards, so it turns to face the camera
+            // for free.
+            squad._healthBack = BuildBar(pivot.transform, new Color(0.10f, 0.05f, 0.06f), 0f);
+            squad._healthFill = BuildBar(pivot.transform, new Color(1.55f, 0.28f, 0.22f), 0.004f);
+            squad.SetHealthBarVisible(false);
             return squad;
         }
 
-        public void Setup(int weight, int lane, int depth, Vector3 worldPosition)
+        /// <summary>
+        /// One quad of the champion's health bar.
+        ///
+        /// On the project's own Vfx shader, which is unlit, HDR-tinted and — the reason it is
+        /// this one rather than a `Shader.Find("Unlit/Color")` — lives in Resources and is
+        /// therefore guaranteed into the build. A shader resolved by name can be stripped on
+        /// device and come back magenta, which this project has already shipped once.
+        /// `_Band = 0` draws the surface flat, which is what the motes already use it for.
+        ///
+        /// Returns null when Vfx.mat is unusable, exactly as VfxSystem does: the champion then
+        /// has no bar and the count over its head carries its state. A missing bar is a worse
+        /// champion; a magenta one is a broken game.
+        /// </summary>
+        private static Transform BuildBar(Transform parent, Color colour, float forward)
+        {
+            Material shared = BarMaterial(colour);
+            if (shared == null) return null;
+
+            var go = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            go.name = "EliteBar";
+            Destroy(go.GetComponent<Collider>());
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = new Vector3(0f, 1.62f, -forward);
+            go.transform.localScale = new Vector3(BarWidth, BarHeight, 1f);
+
+            var r = go.GetComponent<MeshRenderer>();
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            r.receiveShadows = false;
+            r.sharedMaterial = shared;
+            return go.transform;
+        }
+
+        /// <summary>
+        /// The two bar materials, made once and shared by every champion on the road.
+        ///
+        /// Shared rather than per-instance because the colours never vary: two materials for
+        /// the whole game instead of two per pooled squad, and the pool is prewarmed to
+        /// dozens.
+        /// </summary>
+        private static Material BarMaterial(Color colour)
+        {
+            bool back = colour.r < 0.5f;
+            if (back && _barBack != null) return _barBack;
+            if (!back && _barFill != null) return _barFill;
+
+            var template = Resources.Load<Material>("Vfx");
+            if (template == null || template.shader == null || !template.shader.isSupported)
+                return null;
+
+            var made = new Material(template);
+            made.SetColorSafe("_TintColor", colour);
+            made.SetFloatSafe("_Fade", 1f);
+            made.SetFloatSafe("_Band", 0f);
+            if (back) _barBack = made; else _barFill = made;
+            return made;
+        }
+
+        public void Setup(int weight, int lane, int depth, Vector3 worldPosition,
+            bool elite = false)
         {
             Weight = Mathf.Max(0, weight);
             Depth = Mathf.Max(0, depth);
             Lane = lane;
+            IsElite = elite;
+            Champion = default;
+            _championStarted = false;
             Defeated = false;
             Resolved = false;
             Fighting = false;
@@ -113,6 +205,26 @@ namespace BattleRunner.Gameplay.Track
             _countedFor = double.NaN;
             RefreshCount(BattleRunner.Core.Run.StandingArmy.Seed);
             SetLabelVisible(true);
+            SetHealthBarVisible(false);
+        }
+
+        /// <summary>Show or hide the champion's bar. A squad never has one.</summary>
+        public void SetHealthBarVisible(bool visible)
+        {
+            if (_healthBack != null) _healthBack.gameObject.SetActive(visible);
+            if (_healthFill != null) _healthFill.gameObject.SetActive(visible);
+        }
+
+        /// <summary>
+        /// Drive the bar from the champion's health, scaling from the left edge so it drains
+        /// the way a health bar is read rather than shrinking toward its own centre.
+        /// </summary>
+        private void PaintHealthBar()
+        {
+            if (_healthFill == null) return;
+            float h = Mathf.Clamp01(Champion.Health);
+            _healthFill.localScale = new Vector3(BarWidth * h, BarHeight, 1f);
+            _healthFill.localPosition = new Vector3(-BarWidth * 0.5f * (1f - h), 1.62f, -0.004f);
         }
 
         private double _countedFor = double.NaN;
@@ -144,6 +256,23 @@ namespace BattleRunner.Gameplay.Track
         /// </summary>
         public void BeginFight(double armyForce)
         {
+            if (IsElite)
+            {
+                EnsureChampion(armyForce);
+                // A CHAMPION IS NOT A CLASH WITH A LONGER TIMER. Melee fixes its outcome at
+                // construction — SurvivingAllies is pure arithmetic over two readonly fields
+                // — which is right for a squad the army rolls over and cannot represent a
+                // fight whose result depends on whether the player raises a shield three
+                // quarters of a second from now. Elite is a separate mutable struct beside
+                // it rather than an edit to it, because Melee's termination and conservation
+                // properties are pinned by tests that have nothing to do with champions.
+                Fighting = true;
+                FightElapsed = 0f;
+                SetHealthBarVisible(true);
+                PaintHealthBar();
+                return;
+            }
+
             long allies = armyForce >= long.MaxValue ? long.MaxValue
                 : armyForce <= 0.0 ? 0L : (long)armyForce;
             Clash = new Melee(allies, Headcount);
@@ -156,6 +285,19 @@ namespace BattleRunner.Gameplay.Track
         {
             if (!Fighting) return false;
             FightElapsed += dt;
+
+            if (IsElite)
+            {
+                bool died = Champion.Grind(dt);
+                PaintHealthBar();
+                if (!died) return false;
+                Fighting = false;
+                Defeated = true;
+                SetLabelVisible(false);
+                SetHealthBarVisible(false);
+                return true;
+            }
+
             Clash.At(FightElapsed, out _, out long enemies);
             DisplayedCount = (int)Mathf.Min(enemies, DisplayCap);
             _label.text = BattleRunner.Core.Stats.StatFormat.Army(enemies);
@@ -165,6 +307,58 @@ namespace BattleRunner.Gameplay.Track
             SetLabelVisible(false);
             return true;
         }
+
+        /// <summary>
+        /// A champion the spell hit. It is HURT rather than deleted.
+        ///
+        /// ClearAmbushesAhead releases any unresolved pack it finds with no filter, so a
+        /// champion reusing this behaviour would be one-shot by a flick for free. That had to
+        /// be a deliberate choice rather than an accident of reuse: deleting it makes the
+        /// spell strictly better than fighting and removes the decision the champion exists
+        /// to pose. Taking half its health keeps the spell a real answer — it turns a fight
+        /// you might lose into one you will win — without making the champion a formality.
+        ///
+        /// Returns true when the spell finished it off, so the caller still pays the bounty.
+        /// </summary>
+        public bool TakeSpell()
+        {
+            if (!IsElite || Defeated) return false;
+
+            // DOES NOT START THE FIGHT. A spell can land on a champion the army has not
+            // reached yet, and setting Fighting there would pin it to the army's front and
+            // let it start swinging from forty metres away — a champion attacking from
+            // outside the road the player is on.
+            EnsureChampion(_countedFor > 0.0 ? _countedFor : StandingArmy.Seed);
+            SetHealthBarVisible(true);
+
+            bool died = Champion.Grind(Champion.FightSeconds * SpellShare);
+            PaintHealthBar();
+            if (!died) return false;
+            Fighting = false;
+            Defeated = true;
+            SetLabelVisible(false);
+            SetHealthBarVisible(false);
+            return true;
+        }
+
+        /// <summary>
+        /// Build the champion's fight once, and only once.
+        ///
+        /// A spell landing before the army arrives must not be undone by the army then
+        /// arriving and resetting its health — which is exactly what a second Elite.Begin
+        /// would do, and it would read as the spell having done nothing.
+        /// </summary>
+        private void EnsureChampion(double army)
+        {
+            if (_championStarted) return;
+            Champion = Elite.Begin(army, Weight);
+            _championStarted = true;
+        }
+
+        private bool _championStarted;
+
+        /// <summary>How much of a champion's fight one spell is worth.</summary>
+        private const float SpellShare = 0.5f;
 
         public void Resolve() => Resolved = true;
 

@@ -593,3 +593,91 @@ campaign walk in `StandingArmyTests` is unchanged.
 straight off `Factor` and so skipped what a red gate gets, and a pack and a red gate are the same
 threat wearing different clothes. Resist mitigates down toward one man but never through it —
 **zero is reserved for a shattered pack**, which is the whole fantasy of that talent.
+
+
+---
+
+# Champions on the road
+
+> *"can we add smaller bosses — semibosses to be found during levels — periodically are met and
+> fought against. This should also make the game a little bit more complicated."*
+
+A champion blocks one lane. The army grinds it down while it winds up and swings, and **the road
+never stops** — that comes free, because `TrackController` already pins a fighting squad at
+`frontZ + EngageGap` while the road scrolls underneath it.
+
+## Why it is a third type and not one of the two that exist
+
+- **`Melee` fixes its outcome at construction.** `Allies` and `Enemies` are readonly and
+  `SurvivingAllies` is pure arithmetic, so the whole clash is decided before the first frame of it
+  is drawn. That is right for a squad the army rolls over, and *impossible* for a fight whose
+  result depends on whether the player raises a shield three quarters of a second from now.
+  Editing `Melee` to carry mutable health would put a decision inside a struct whose termination
+  and conservation properties are pinned by tests that have nothing to do with champions.
+- **`BossSim` is the other end of the scale**: an act-long HP curve, affixes, archetypes and a
+  six-hundred-line state machine, for something on screen for four seconds.
+
+So `Core/Run/Elite` sits *beside* `Melee` rather than inside it — the same separation
+`BossAffixes` keeps from `BossSim`, for the same reason.
+
+## Two answers, and they pay the same
+
+A swing is answerable by the **shield** or by **not being in its lane** — the lane is re-read every
+frame, so leaving mid-fight genuinely works. Both answers cost exactly nothing. A champion with two
+answers that cost the same as an ambush gate with none would be a chore rather than a threat, and
+an answer that only half works teaches the player not to bother finding it.
+
+| | |
+|---|---|
+| wind-up to the first swing | 1.05 s |
+| between swings | 1.45 s |
+| readable window | **0.55 s** |
+| a landed swing | 11% of the army per weight |
+| killing it | 16% per weight |
+
+The readable window is **wider than a boss's telegraph, not narrower**. A boss fight is the only
+thing on screen and the player is looking straight at it; a champion arrives while the road is
+still moving, gates are still coming and the player is steering. The warning has to survive that.
+
+Swings are taken from a **closed form over elapsed time** rather than a countdown that resets, so a
+dropped frame can neither skip a swing nor fire one twice — there is a test for exactly that, with
+one enormous hitch.
+
+## The spell hurts it; it does not delete it
+
+`ClearAmbushesAhead` releases any unresolved pack it finds with no filter, so a champion reusing
+`EnemyPackBehaviour` would have been **one-shot by a flick for free**. That had to be a decision
+rather than an accident of reuse: deleting it makes the spell strictly better than fighting and
+removes the decision the champion exists to pose. A spell takes half its health — a real answer,
+turning a fight you might lose into one you will win, without making the champion a formality.
+
+A spell can also land *before* the army arrives, and that must not start the fight: a champion
+pinned to the army's front from forty metres away would be swinging at a player who has not reached
+it. `EnsureChampion` builds its fight exactly once, so an early spell is not undone by the army
+then arriving and resetting its health.
+
+## One extra draw call, deliberately
+
+Uniform scale is the animation bus: `CrowdInstanced` decodes the walk phase out of the 0.44–0.50
+window, because the matrix is the only per-instance channel there is. A champion at 1.45× would
+decode a nonsense stride. It gets its own `Graphics.RenderMesh` — **one draw** against the four
+instanced draws the whole road costs and a ceiling of 120.
+
+It is drawn as the **banner** silhouette, the one shape in the set that breaks the skyline, because
+at 26 m a soldier is about ten pixels tall and anything at chest height is invisible. Bigger *and* a
+different outline, so a champion is never mistaken for a squad that happens to be close. It leans
+back as it winds up and drives forward as it swings — the same grammar the boss uses, on purpose:
+the player has already learned what a rearing body means.
+
+## The generator, and the silent failure it nearly had
+
+`ChunkShape.Champion` is the ninth shape. `SequenceFor` picked with a bare `% 8u`, so a ninth shape
+would have been authored, wired, tested and then **never generated in a single round**, with every
+existing test still green. It is now `% ChunkShapes.Count`, and two tests hold it: one that a
+champion appears within two hundred rounds, and one that *every* member of the enum can be
+generated — so the next shape added cannot repeat the bug.
+
+A champion chunk holds one champion and nothing inside the reaction gap either side of it. The
+recruit gate it does carry sits 16 m earlier and in a different lane, which gives the player
+somewhere to be if they choose to dodge — so the dodge is a decision with a payoff rather than a
+hole in the round.

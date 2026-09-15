@@ -22,7 +22,21 @@ namespace BattleRunner.Core.Run
         /// <summary>Sparse and wide. Recovery, and it is what makes the rest read.</summary>
         Breather = 6,
         /// <summary>Packs alternating outer lanes, fast.</summary>
-        Crossfire = 7
+        Crossfire = 7,
+        /// <summary>A champion blocking one lane. Grind it down, dodge it, or eat its swing.</summary>
+        Champion = 8
+    }
+
+    /// <summary>
+    /// How many shapes the generator picks from.
+    ///
+    /// NAMED, because it was a bare `% 8u` inside SequenceFor and a ninth shape would have
+    /// been authored, wired, tested and then never generated — the quietest possible failure,
+    /// since every test that builds a round would still pass.
+    /// </summary>
+    public static class ChunkShapes
+    {
+        public const int Count = (int)ChunkShape.Champion + 1;
     }
 
     /// <summary>A gate the generator decided on, before Unity turns it into an object.</summary>
@@ -49,11 +63,22 @@ namespace BattleRunner.Core.Run
         public int Lane { get; }
         public float Position { get; }
 
-        public PlannedPack(int forceCost, int lane, float position)
+        /// <summary>
+        /// A champion rather than a squad: it has health, it winds up, and it swings.
+        ///
+        /// A flag on the existing struct rather than a second planned type, because the whole
+        /// pipeline downstream — the pool, the prewarm derived from MaxPacksPerChunk, and the
+        /// par estimate that walks every lane — is already correct for a pack and would need
+        /// parallel versions of all three for a type that differs by one bool.
+        /// </summary>
+        public bool Elite { get; }
+
+        public PlannedPack(int forceCost, int lane, float position, bool elite = false)
         {
             ForceCost = forceCost;
             Lane = lane;
             Position = position;
+            Elite = elite;
         }
     }
 
@@ -197,6 +222,20 @@ namespace BattleRunner.Core.Run
                     layout.Gates.Add(new PlannedGate(GateOp.Add, add + 1, lane, 22f));
                     break;
 
+                case ChunkShape.Champion:
+                    // ONE THING, ALONE, WITH ROOM EITHER SIDE OF IT. A champion is the only
+                    // decision in its chunk: it blocks a lane, it takes seconds rather than a
+                    // frame to resolve, and it swings while the road is still moving. Putting
+                    // a gate beside it would ask the player to read two things during the one
+                    // event in the round that needs their whole attention.
+                    //
+                    // The recruit gate at 10 m is deliberately BEFORE it and in another lane:
+                    // it gives the player somewhere to be if they choose to dodge, so the
+                    // dodge is a decision with a payoff rather than a hole in the round.
+                    layout.Gates.Add(new PlannedGate(GateOp.Add, add + 1, Shift(lane, 1), 10f));
+                    layout.Packs.Add(new PlannedPack(cost + 1, lane, 26f, elite: true));
+                    break;
+
                 default: // Crossfire
                     layout.Packs.Add(new PlannedPack(cost, Shift(lane, 1), 12f));
                     layout.Gates.Add(new PlannedGate(GateOp.Add, add + 1, lane, 26f));
@@ -326,7 +365,7 @@ namespace BattleRunner.Core.Run
                 int guard = 0;
                 do
                 {
-                    pick = (ChunkShape)(NextUInt(ref rng) % 8u);
+                    pick = (ChunkShape)(NextUInt(ref rng) % (uint)ChunkShapes.Count);
                     guard++;
                 } while (guard < 16 && (pick == shapes[i - 1] || (i < 3 && IsHarsh(pick))));
 
@@ -339,7 +378,8 @@ namespace BattleRunner.Core.Run
 
         /// <summary>Shapes that only take. Fine later, cruel as an introduction.</summary>
         private static bool IsHarsh(ChunkShape shape) =>
-            shape == ChunkShape.Gauntlet || shape == ChunkShape.Toll || shape == ChunkShape.Minefield;
+            shape == ChunkShape.Gauntlet || shape == ChunkShape.Toll
+            || shape == ChunkShape.Minefield || shape == ChunkShape.Champion;
 
         private static void EnsureBreatherLate(ChunkShape[] shapes, ref uint rng)
         {

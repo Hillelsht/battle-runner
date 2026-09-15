@@ -21,6 +21,20 @@ namespace BattleRunner.Gameplay.Track
         // does not land on its cause reads as an unrelated flash.
         public event Action<GateOp, int, int, Vector3> GateApplied;
         public event Action<int, int, Vector3> EnemyContact;
+
+        /// <summary>
+        /// A champion's swing has landed. The handler decides what it costs: the shield and
+        /// the lane are both answers, and neither is known here.
+        ///
+        /// Separate from EnemyContact because contact and the blow are different moments —
+        /// contact is when the army arrives, and the swing comes a second later and then
+        /// every 1.45 s after that. Raising the same event twice would have made the shield
+        /// answer the wrong one.
+        /// </summary>
+        public event Action<int, int, bool, Vector3> EliteSwing;
+
+        /// <summary>A champion is dead. The handler pays the bounty.</summary>
+        public event Action<int, int, Vector3> EliteDefeated;
         public event Action FinishReached;
 
         private ObjectPool<GateBehaviour> _gatePool;
@@ -435,7 +449,8 @@ namespace BattleRunner.Gameplay.Track
             {
                 EnemyPackBehaviour pack = _enemyPool.Get(_trackRoot);
                 pack.Setup(spec.ForceCost, spec.Lane, chunkIndex,
-                    new Vector3(spec.Lane * _laneWidth, 0f, startZ + spec.Position));
+                    new Vector3(spec.Lane * _laneWidth, 0f, startZ + spec.Position),
+                    spec.Elite);
                 _activeEnemies.Add(pack);
             }
         }
@@ -678,10 +693,30 @@ namespace BattleRunner.Gameplay.Track
                 }
 
                 // A squad mid-clash is pinned to the army's front so the two lines stay in
-                // contact while they fight; the road is still moving under both of them.
+                // contact while they fight; the road is still moving under both of them. That
+                // pinning is also exactly why a champion does not stop the run — it comes for
+                // free, and the road scrolls under the fight.
                 if (pack.Fighting)
                 {
-                    pack.TickFight(Time.deltaTime);
+                    // CAPTURED, not discarded. TickFight has always returned true on exactly
+                    // the frame a fight finishes and the value was thrown away at this call
+                    // site; it is the natural once-only hook for paying a bounty.
+                    bool finished = pack.TickFight(Time.deltaTime);
+
+                    // The swing, resolved against BOTH answers. A champion is answerable by
+                    // the shield or by not being in its lane, and the lane is re-read every
+                    // frame so leaving mid-fight genuinely works.
+                    if (pack.IsElite && !finished)
+                    {
+                        bool inLane = pack.Lane == crowdLane;
+                        if (pack.Champion.TakeSwingIfDue())
+                            EliteSwing?.Invoke(pack.Weight, pack.Depth, inLane,
+                                pack.transform.position);
+                    }
+
+                    if (finished && pack.IsElite)
+                        EliteDefeated?.Invoke(pack.Weight, pack.Depth, pack.transform.position);
+
                     Vector3 held = pack.transform.position;
                     held.z = frontZ + EngageGap;
                     pack.transform.position = held;
@@ -763,10 +798,26 @@ namespace BattleRunner.Gameplay.Track
             {
                 EnemyPackBehaviour pack = _activeEnemies[i];
                 // A pack the crowd already passed lingers in the list until it is behind the
-                // camera; a spell must not reach back and pop it.
-                if (pack.Resolved) continue;
+                // camera; a spell must not reach back and pop it. A champion mid-fight is the
+                // exception: it IS resolved, and hitting it is the whole point.
+                if (pack.Resolved && !(pack.IsElite && pack.Fighting)) continue;
                 float z = pack.transform.position.z;
                 if (z < fromZ || z > fromZ + rangeMeters) continue;
+
+                // A CHAMPION IS HURT, NOT DELETED, and that is a decision rather than an
+                // accident of reuse. This loop releases anything it finds with no filter, so
+                // a champion would have been one-shot by a flick for free — which makes the
+                // spell strictly better than fighting and removes the decision the champion
+                // exists to pose. Half its health keeps the spell a real answer without
+                // making the champion a formality.
+                if (pack.IsElite)
+                {
+                    if (pack.TakeSpell())
+                        EliteDefeated?.Invoke(pack.Weight, pack.Depth, pack.transform.position);
+                    cleared++;
+                    continue;
+                }
+
                 _activeEnemies.RemoveAt(i);
                 _enemyPool.Release(pack);
                 cleared++;

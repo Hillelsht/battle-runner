@@ -47,6 +47,8 @@ namespace BattleRunner.Gameplay.States
 
             _ctx.TrackController.GateApplied += OnGateApplied;
             _ctx.TrackController.EnemyContact += OnEnemyContact;
+            _ctx.TrackController.EliteSwing += OnEliteSwing;
+            _ctx.TrackController.EliteDefeated += OnEliteDefeated;
             _ctx.TrackController.FinishReached += OnFinishReached;
 
             _ctx.Tutorial.Subscribe();
@@ -61,6 +63,8 @@ namespace BattleRunner.Gameplay.States
 
             _ctx.TrackController.GateApplied -= OnGateApplied;
             _ctx.TrackController.EnemyContact -= OnEnemyContact;
+            _ctx.TrackController.EliteSwing -= OnEliteSwing;
+            _ctx.TrackController.EliteDefeated -= OnEliteDefeated;
             _ctx.TrackController.FinishReached -= OnFinishReached;
 
             _ctx.Tutorial.Unsubscribe();
@@ -284,6 +288,60 @@ namespace BattleRunner.Gameplay.States
             _ctx.Effects.Burst(where, LossTint, 6 + Mathf.RoundToInt(14f * loss), 3.8f, 0.55f);
 
             if (run.ForceCount <= 0) OnForceDepleted();
+        }
+
+        /// <summary>
+        /// A champion's swing. Two answers, and they pay the same.
+        ///
+        /// The shield and the lane are deliberately worth exactly as much as each other. A
+        /// champion with two answers that costs the same as an ambush gate with none would be
+        /// a chore rather than a threat, and an answer that only half works teaches the player
+        /// not to bother finding it.
+        /// </summary>
+        private void OnEliteSwing(int weight, int depth, bool inLane, Vector3 where)
+        {
+            bool blocked = _ctx.Shield.IsActive;
+            bool dodged = !inLane;
+            double cost = Elite.SwingCost(_ctx.Run.ForceCount, weight, blocked, dodged);
+
+            if (cost <= 0.0)
+            {
+                _ctx.Audio.Play(dodged && !blocked ? AudioCue.SpellCast : AudioCue.ShieldBlock, 0.85f);
+                _ctx.Effects.Shock(where, ShatterTint, 0.5f, 6.0f, 0.45f);
+                _ctx.Effects.Burst(where, ShatterTint, 16, 5.4f, 0.55f);
+                return;
+            }
+
+            RunState run = _ctx.Run;
+            double before = run.ForceCount;
+            run.SetForce(System.Math.Max(0.0, before - cost));
+            _ctx.Crowd.SetForce(run.ForceCount);
+            _ctx.Hud.SetForce(run.ForceCount);
+
+            // From the champion TO the army, for the same reason the boss's blow now is: an
+            // impact at the player's feet with nothing having arrived reads as the game
+            // taking something rather than as a thing that hit them.
+            var front = new Vector3(_ctx.Crowd.CenterX, 0f, _ctx.Crowd.FrontZ);
+            _ctx.Effects.Bolt(where + Vector3.up * 1.1f, front, LossTint, 42f);
+            _ctx.CameraRig.Apply(CameraFeel.ForLoss(before, run.ForceCount));
+            _ctx.Audio.Play(AudioCue.BossBlow, 0.8f);
+
+            if (run.ForceCount <= 0) OnForceDepleted();
+        }
+
+        /// <summary>A champion is down. It pays, and the payment has to be seen.</summary>
+        private void OnEliteDefeated(int weight, int depth, Vector3 where)
+        {
+            RunState run = _ctx.Run;
+            double bounty = Elite.Bounty(run.ForceCount, weight);
+            run.SetForce(run.ForceCount + bounty);
+            _ctx.Crowd.SetForce(run.ForceCount);
+            _ctx.Hud.SetForce(run.ForceCount);
+
+            _ctx.Audio.Play(AudioCue.LootReveal, 0.9f);
+            _ctx.Effects.Shock(where, CritTint, 0.5f, 8.5f, 0.6f);
+            _ctx.Effects.Burst(where, CritTint, 24, 6.2f, 0.75f);
+            _ctx.CameraRig.PunchFov(3.0f);
         }
 
         private void OnForceDepleted()
