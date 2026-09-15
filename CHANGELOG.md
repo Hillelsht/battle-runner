@@ -8,15 +8,16 @@ Releases: <https://github.com/Hillelsht/battle-runner/releases>
 
 ## Current status
 
-**Stage:** playable greybox MVP. The full loop runs on device: menu → 3-lane run
-through `+` `×` `−` gates → telegraphed boss fight → loot with Auto-Equip → stat
+**Stage:** playable greybox MVP. The full loop runs on device: menu → **pick one of four
+characters** → 3-lane run through `+` `×` `−` gates, **under the world's arches and past its
+champions** → boss fight **in an arena the road opens into** → loot with Auto-Equip → stat
 points → save → next level.
 
 | Area | State |
 |---|---|
 | Game loop | Complete end to end |
-| Content | 8 worlds (one of them in daylight), 6 levels, 6 bosses (6 archetypes) x 5 champion affixes = 30 fights, 15 gear items, 4 rarities, ~60 talents + endless paragon |
-| Art | Procedural meshes and code-built uGUI, 119 CC0 Kenney models in one 563 KB pack, and 8 generated ground surfaces with normal maps |
+| Content | **4 playable characters**, 8 worlds (one in daylight, each with its own arch over the road), 6 levels, 6 bosses (6 archetypes) x 5 champion affixes = 30 fights, inline champions, 15 gear items, 4 rarities, ~60 talents + endless paragon |
+| Art | Procedural meshes and code-built uGUI, 119 CC0 Kenney models in one 563 KB pack, 8 generated ground surfaces with normal maps, a boss arena that opens out of the road, and one winged pony |
 | Tests | 470, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
