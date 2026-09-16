@@ -75,6 +75,9 @@ namespace BattleRunner.Gameplay
         public ResurrectPrompt Resurrect;
         public SlotSelectScreen SlotScreen;
         public HeroSelectScreen HeroScreen;
+
+        /// <summary>The lit plinth the character-select screen shows a hero on.</summary>
+        public Menu.HeroStage HeroStage;
         public TutorialOverlay TutorialOverlay;
         public TutorialCoach Tutorial;
 

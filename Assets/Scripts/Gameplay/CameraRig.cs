@@ -164,6 +164,34 @@ namespace BattleRunner.Gameplay
             if (_camera != null) _camera.fieldOfView = BaseFieldOfView;
         }
 
+        /// <summary>
+        /// Hold the rig at a fixed pose until <see cref="Release"/>, ignoring the crowd.
+        ///
+        /// FOR THE SELECT STAGE, and it exists because the follow never stops on its own: the
+        /// crowd component lives on a disabled GameObject during the menus, so `_crowd` is not
+        /// null and LateUpdate happily keeps easing toward a frozen army thirty metres away.
+        /// A stage placed anywhere else would have been looked at from the wrong angle, and
+        /// the juice — shake, kick, lead yaw — would still have been playing over it.
+        /// </summary>
+        public void Park(Vector3 eye, Vector3 aim)
+        {
+            ResetJuice();
+            _parked = true;
+            _basePosition = eye;
+            _baseRotation = Quaternion.LookRotation(aim - eye);
+            transform.SetPositionAndRotation(_basePosition, _baseRotation);
+            if (_camera != null) _camera.fieldOfView = BaseFieldOfView;
+        }
+
+        /// <summary>Hand the rig back to the crowd, snapping rather than easing to it.</summary>
+        public void Release()
+        {
+            _parked = false;
+            SnapToCrowd();
+        }
+
+        private bool _parked;
+
         public void SnapToCrowd()
         {
             if (_crowd == null) return;
@@ -176,7 +204,7 @@ namespace BattleRunner.Gameplay
 
         private void LateUpdate()
         {
-            if (_crowd == null) return;
+            if (_parked || _crowd == null) return;
             float dt = Time.deltaTime;
             if (dt <= 0f) return;
 

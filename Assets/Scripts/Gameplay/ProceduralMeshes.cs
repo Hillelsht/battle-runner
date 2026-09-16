@@ -199,6 +199,80 @@ namespace BattleRunner.Gameplay
         private static Mesh BuildUnit() => BuildSoldier(SoldierKind.Spear);
 
         private static readonly Mesh[] _heroes = new Mesh[HeroRoster.Count];
+        private static readonly HeroBuild[] _heroParts = new HeroBuild[HeroRoster.Count];
+
+        /// <summary>
+        /// A hero in the three pieces that can move independently: the figure, what is in its
+        /// main hand, and what is in its off hand.
+        ///
+        /// SPLIT FOR THE SELECT SCREEN AND NOT FOR THE RUN. In the run the hero is one mesh and
+        /// one draw and should stay that way — <see cref="Hero"/> still returns it, and returns
+        /// it built out of these same pieces at their rest transforms, so there is one source
+        /// of truth for what a Warden looks like rather than two that drift.
+        ///
+        /// WHAT IS CARRIED IS AUTHORED ABOUT ITS GRIP, which is the whole point: a mace whose
+        /// vertices sit at absolute positions can only be moved by moving the hero, and a
+        /// weapon that cannot swing without the body swinging with it is not an animation, it
+        /// is a statue on a turntable. Each carried piece has its origin at the hand, and the
+        /// grip is where that hand is.
+        ///
+        /// WORN GEAR IS NOT CARRIED. Hoods, robes, crests, ribs, crowns, mantles and horns all
+        /// belong to the body and move with it; only the four hafted things and the Warden's
+        /// shield come away.
+        /// </summary>
+        public readonly struct HeroBuild
+        {
+            public readonly Mesh Body;
+            /// <summary>What the right hand holds. Null for a hero who carries nothing.</summary>
+            public readonly Mesh MainHand;
+            /// <summary>What the left hand holds. Only the Warden has one.</summary>
+            public readonly Mesh OffHand;
+            /// <summary>Where the right hand is, in the hero's own space.</summary>
+            public readonly Vector3 MainGrip;
+            /// <summary>Where the left hand is.</summary>
+            public readonly Vector3 OffGrip;
+
+            public HeroBuild(Mesh body, Mesh mainHand, Mesh offHand, Vector3 mainGrip, Vector3 offGrip)
+            {
+                Body = body;
+                MainHand = mainHand;
+                OffHand = offHand;
+                MainGrip = mainGrip;
+                OffGrip = offGrip;
+            }
+        }
+
+        /// <summary>The hero split into movable pieces. See <see cref="HeroBuild"/>.</summary>
+        public static HeroBuild HeroInParts(HeroClass hero)
+        {
+            int i = (int)hero;
+            if (i < 0 || i >= _heroParts.Length) i = (int)HeroRoster.Default;
+            if (_heroParts[i].Body == null) _heroParts[i] = BuildHeroParts((HeroClass)i);
+            return _heroParts[i];
+        }
+
+        /// <summary>
+        /// Somewhere to put vertices while a hero is being built: the body, and the two hands,
+        /// each with its own origin.
+        /// </summary>
+        private sealed class HeroCarry
+        {
+            public readonly List<Vector3> BodyV = new List<Vector3>();
+            public readonly List<int> BodyT = new List<int>();
+            public readonly List<Vector3> MainV = new List<Vector3>();
+            public readonly List<int> MainT = new List<int>();
+            public readonly List<Vector3> OffV = new List<Vector3>();
+            public readonly List<int> OffT = new List<int>();
+            public Vector3 MainGrip;
+            public Vector3 OffGrip;
+
+            /// <summary>Move everything written into a hand so its grip sits at the origin.</summary>
+            public void Centre()
+            {
+                for (int i = 0; i < MainV.Count; i++) MainV[i] -= MainGrip;
+                for (int i = 0; i < OffV.Count; i++) OffV[i] -= OffGrip;
+            }
+        }
 
         /// <summary>
         /// The player's own figure, one mesh per hero class.
@@ -219,12 +293,40 @@ namespace BattleRunner.Gameplay
         /// |x| &lt; 0.18; everything carried stays outside that band, or the haft would bend
         /// at the hip the way a spear butt once did.
         /// </summary>
+        /// <summary>
+        /// The hero as ONE mesh, which is what the run wants: one object, one draw, one shadow.
+        ///
+        /// Welded back together out of <see cref="HeroInParts"/> at the rest pose, so the two
+        /// cannot describe different figures. The weld is `(p - grip) + grip`, which returns
+        /// exactly the vertices the single-mesh builder used to emit.
+        /// </summary>
         public static Mesh Hero(HeroClass hero)
         {
             int i = (int)hero;
             if (i < 0 || i >= _heroes.Length) i = (int)HeroRoster.Default;
-            if (_heroes[i] == null) _heroes[i] = BuildHero((HeroClass)i);
+            if (_heroes[i] == null) _heroes[i] = WeldHero((HeroClass)i);
             return _heroes[i];
+        }
+
+        private static Mesh WeldHero(HeroClass hero)
+        {
+            HeroBuild parts = HeroInParts(hero);
+            var v = new List<Vector3>();
+            var t = new List<int>();
+            Append(v, t, parts.Body, Vector3.zero);
+            Append(v, t, parts.MainHand, parts.MainGrip);
+            Append(v, t, parts.OffHand, parts.OffGrip);
+            return Finish(v, t, $"Hero{hero}");
+        }
+
+        private static void Append(List<Vector3> v, List<int> t, Mesh mesh, Vector3 offset)
+        {
+            if (mesh == null) return;
+            int at = v.Count;
+            Vector3[] mv = mesh.vertices;
+            int[] mt = mesh.triangles;
+            for (int i = 0; i < mv.Length; i++) v.Add(mv[i] + offset);
+            for (int i = 0; i < mt.Length; i++) t.Add(mt[i] + at);
         }
 
         private const float HeroHip = HeroSilhouette.HipLine;
@@ -247,11 +349,12 @@ namespace BattleRunner.Gameplay
         private static Quaternion HeroTilt(float stoop, float roll) =>
             Quaternion.Euler(-stoop, 0f, 0f) * Quaternion.Euler(0f, 0f, roll);
 
-        private static Mesh BuildHero(HeroClass hero)
+        private static HeroBuild BuildHeroParts(HeroClass hero)
         {
             HeroSilhouette s = HeroRoster.For(hero).Silhouette;
-            var v = new List<Vector3>();
-            var t = new List<int>();
+            var carry = new HeroCarry();
+            List<Vector3> v = carry.BodyV;
+            List<int> t = carry.BodyT;
 
             float k = s.Height;
             float lean = s.Stoop;
@@ -290,26 +393,35 @@ namespace BattleRunner.Gameplay
             switch (hero)
             {
                 case HeroClass.Warden:
-                    BuildWardenGear(v, t, s, k, lean);
+                    BuildWardenGear(carry, s, k, lean);
                     break;
                 case HeroClass.Ashcaller:
-                    BuildAshcallerGear(v, t, s, k, lean);
+                    BuildAshcallerGear(carry, s, k, lean);
                     break;
                 case HeroClass.Houndmaster:
-                    BuildHoundmasterGear(v, t, s, k, lean);
+                    BuildHoundmasterGear(carry, s, k, lean);
                     break;
                 default:
-                    BuildRevenantGear(v, t, s, k, lean);
+                    BuildRevenantGear(carry, s, k, lean);
                     break;
             }
 
+            // THE HOUNDS STAY WITH THE BODY. They are companions rather than equipment: a hound
+            // that swung with the spear would be a hound on a stick, and one animated on its own
+            // would need a fourth part and a fourth set of poses for the one hero that has any.
+            // They sway with the Houndmaster instead, which at his 1.55 sway is plenty.
             for (int i = 0; i < s.Companions; i++)
             {
                 float side = (i & 1) == 0 ? -1f : 1f;
                 AddHound(v, t, side * (0.36f + 0.05f * (i >> 1)), 0.12f + 0.20f * (i >> 1), side);
             }
 
-            return Finish(v, t, $"Hero{hero}");
+            carry.Centre();
+            return new HeroBuild(
+                Finish(carry.BodyV, carry.BodyT, $"Hero{hero}Body"),
+                carry.MainV.Count > 0 ? Finish(carry.MainV, carry.MainT, $"Hero{hero}Main") : null,
+                carry.OffV.Count > 0 ? Finish(carry.OffV, carry.OffT, $"Hero{hero}Off") : null,
+                carry.MainGrip, carry.OffGrip);
         }
 
         /// <summary>
@@ -337,19 +449,24 @@ namespace BattleRunner.Gameplay
         /// flat slab in the set and it doubles the hero's apparent width on one side, which
         /// is what "broad" looks like at forty pixels.
         /// </summary>
-        private static void BuildWardenGear(List<Vector3> v, List<int> t, HeroSilhouette s,
-            float k, float lean)
+        private static void BuildWardenGear(HeroCarry c, HeroSilhouette s, float k, float lean)
         {
+            List<Vector3> v = c.BodyV;
+            List<int> t = c.BodyT;
             // Held at x = -0.37, NOT -0.32, and the 5 cm matters: a 0.30-wide shield centred
             // at -0.32 reaches in to x = -0.17, and its bottom edge sits at y = 0.16. That
             // is inside the shader's leg band (|x| < 0.18, below the hip), so the two inner
             // bottom corners would have been swung with the left leg every stride while the
             // rest of the slab held still — a shield that visibly tears in half at a walk.
             Quaternion face = HeroTilt(lean, 3f);
-            AddOrientedBox(v, t, HeroAbove(-0.37f, 0.50f, -0.09f, k, lean),
+            // CARRIED, so it goes in the off hand and comes away from the body. The grip is the
+            // shield's own centre rather than the fist, because a tower shield is braced against
+            // the forearm across its middle and raising it pivots about that, not about a wrist.
+            c.OffGrip = HeroAbove(-0.37f, 0.50f, -0.09f, k, lean);
+            AddOrientedBox(c.OffV, c.OffT, c.OffGrip,
                 new Vector3(0.30f, 0.66f * k, 0.07f), face);
             // A boss on the shield face, so the slab has a centre instead of reading as a door.
-            AddOrientedBox(v, t, HeroAbove(-0.37f, 0.52f, -0.15f, k, lean),
+            AddOrientedBox(c.OffV, c.OffT, HeroAbove(-0.37f, 0.52f, -0.15f, k, lean),
                 new Vector3(0.13f, 0.15f, 0.05f), face);
 
             // Mace: short haft, heavy head, held at x = 0.27 — outside the leg band, so the
@@ -357,8 +474,11 @@ namespace BattleRunner.Gameplay
             Quaternion swing = HeroTilt(lean, -12f);
             var butt = new Vector3(0.27f, 0.26f, 0.02f);
             float haft = s.Haft * 0.52f;
-            AddShaft(v, t, butt, 0.05f, haft, swing);
-            AddOrientedBox(v, t, OnShaft(butt, swing, haft + 0.07f),
+            // THE GRIP IS THE BUTT OF THE HAFT, which is where the hand actually is. Pivoting a
+            // mace about its head would swing the handle through the hero's chest.
+            c.MainGrip = butt;
+            AddShaft(c.MainV, c.MainT, butt, 0.05f, haft, swing);
+            AddOrientedBox(c.MainV, c.MainT, OnShaft(butt, swing, haft + 0.07f),
                 new Vector3(0.17f, 0.19f, 0.17f), swing);
 
             // Helm crest: a fin along the skull, front to back. Low and wide — the opposite
@@ -372,18 +492,24 @@ namespace BattleRunner.Gameplay
         /// tallest thing on any of the four and the only element that breaks the skyline,
         /// which is the same trick the spear soldier already uses in the crowd.
         /// </summary>
-        private static void BuildAshcallerGear(List<Vector3> v, List<int> t, HeroSilhouette s,
-            float k, float lean)
+        private static void BuildAshcallerGear(HeroCarry c, HeroSilhouette s, float k, float lean)
         {
+            List<Vector3> v = c.BodyV;
+            List<int> t = c.BodyT;
+
             Quaternion tilt = HeroTilt(lean, -5f);
             var butt = new Vector3(0.26f, 0.04f, 0.02f);
-            AddShaft(v, t, butt, 0.045f, s.Haft, tilt);
+            // Gripped ABOVE THE BUTT, not at it. A staff is held around chest height with its
+            // foot near the ground, so the hand is a third of the way up; pivoting at the foot
+            // would sweep the orb in an arc twice as wide as the hero is tall.
+            c.MainGrip = OnShaft(butt, tilt, s.Haft * 0.34f);
+            AddShaft(c.MainV, c.MainT, butt, 0.045f, s.Haft, tilt);
 
             // The orb, and a cage crossed at 45 degrees over it: the highest point on the
             // mesh gets a shape rather than a blob.
             Vector3 orb = OnShaft(butt, tilt, s.Haft - 0.09f);
-            AddOrientedBox(v, t, orb, new Vector3(0.15f, 0.15f, 0.15f), tilt);
-            AddOrientedBox(v, t, orb, new Vector3(0.11f, 0.22f, 0.11f),
+            AddOrientedBox(c.MainV, c.MainT, orb, new Vector3(0.15f, 0.15f, 0.15f), tilt);
+            AddOrientedBox(c.MainV, c.MainT, orb, new Vector3(0.11f, 0.22f, 0.11f),
                 tilt * Quaternion.Euler(0f, 45f, 0f));
 
             // Hood: pulled over the head and coming to a point behind it.
@@ -400,9 +526,10 @@ namespace BattleRunner.Gameplay
         /// heavier than the body under it: a low wide mass over a short figure is the cheapest
         /// way to say "hunter" in an outline, and it pairs with the 12-degree stoop.
         /// </summary>
-        private static void BuildHoundmasterGear(List<Vector3> v, List<int> t, HeroSilhouette s,
-            float k, float lean)
+        private static void BuildHoundmasterGear(HeroCarry c, HeroSilhouette s, float k, float lean)
         {
+            List<Vector3> v = c.BodyV;
+            List<int> t = c.BodyT;
             // Fur mantle over the shoulders, widening upward — the inverse taper of the torso.
             AddPrism(v, t, HeroAbove(0f, 0.48f, 0f, k, lean), new Vector2(0.30f, 0.26f),
                            HeroAbove(0f, 0.70f, 0.01f, k, lean), new Vector2(0.46f, 0.34f));
@@ -413,11 +540,15 @@ namespace BattleRunner.Gameplay
 
             // A short spear carried the way you carry one walking rather than fighting: low,
             // angled, and nowhere near the skyline.
-            Quaternion carry = HeroTilt(lean, 14f);
+            Quaternion held = HeroTilt(lean, 14f);
             var butt = new Vector3(0.31f, 0.20f, 0.08f);
-            AddShaft(v, t, butt, 0.04f, s.Haft, carry);
-            AddOrientedBox(v, t, OnShaft(butt, carry, s.Haft + 0.05f),
-                new Vector3(0.05f, 0.14f, 0.03f), carry);
+            // Gripped at the balance point, which for a short spear carried at the walk is
+            // about the middle — it is the one weapon here that is held rather than swung from
+            // one end, and a mid grip is what lets it come level to thrust.
+            c.MainGrip = OnShaft(butt, held, s.Haft * 0.46f);
+            AddShaft(c.MainV, c.MainT, butt, 0.04f, s.Haft, held);
+            AddOrientedBox(c.MainV, c.MainT, OnShaft(butt, held, s.Haft + 0.05f),
+                new Vector3(0.05f, 0.14f, 0.03f), held);
 
             // Cowl: barely anything, which is the point — this is the only hero whose skyline
             // is flat, so the two hounds beside him are what the eye finds instead.
@@ -430,9 +561,10 @@ namespace BattleRunner.Gameplay
         /// different heights, because a symmetric crown reads as a helmet: the whole identity
         /// of this one is that it is DAMAGED.
         /// </summary>
-        private static void BuildRevenantGear(List<Vector3> v, List<int> t, HeroSilhouette s,
-            float k, float lean)
+        private static void BuildRevenantGear(HeroCarry c, HeroSilhouette s, float k, float lean)
         {
+            List<Vector3> v = c.BodyV;
+            List<int> t = c.BodyT;
             // Ribs: three bars across the chest, thinning upward.
             for (int rib = 0; rib < 3; rib++)
             {
@@ -455,12 +587,15 @@ namespace BattleRunner.Gameplay
             // outline is ragged rather than a rectangle.
             Quaternion pole = HeroTilt(lean, -6f);
             var butt = new Vector3(0.25f, 0.12f, 0.03f);
-            AddShaft(v, t, butt, 0.035f, s.Haft, pole);
+            // Low on the pole: a standard is planted and leaned rather than swung, so the hand
+            // stays near the ground and the banner describes a wide, slow arc above it.
+            c.MainGrip = OnShaft(butt, pole, s.Haft * 0.26f);
+            AddShaft(c.MainV, c.MainT, butt, 0.035f, s.Haft, pole);
             Vector3 upper = OnShaft(butt, pole, s.Haft - 0.18f);
-            AddOrientedBox(v, t, upper + new Vector3(0.08f, 0f, 0f),
+            AddOrientedBox(c.MainV, c.MainT, upper + new Vector3(0.08f, 0f, 0f),
                 new Vector3(0.20f, 0.26f, 0.02f), pole);
             Vector3 lower = OnShaft(butt, pole, s.Haft - 0.58f);
-            AddOrientedBox(v, t, lower + new Vector3(0.06f, 0f, 0f),
+            AddOrientedBox(c.MainV, c.MainT, lower + new Vector3(0.06f, 0f, 0f),
                 new Vector3(0.13f, 0.14f, 0.02f), pole);
         }
 

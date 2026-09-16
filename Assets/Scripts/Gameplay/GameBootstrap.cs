@@ -256,6 +256,13 @@ namespace BattleRunner.Gameplay
             ctx.Ward = cameraGo.AddComponent<Vfx.ShieldWard>();
             ctx.Ward.Initialize(ctx.Shield, crowdMaterial, heroMaterial);
 
+            // NOT under ArenaRoot, which is disabled for the whole of the menus — and the
+            // select screen is a menu. It takes heroMaterial as a TEMPLATE and instances its
+            // own, because HeroVisual.Wear mutates that material in place.
+            var stageGo = new GameObject("HeroStage");
+            ctx.HeroStage = stageGo.AddComponent<Menu.HeroStage>();
+            ctx.HeroStage.Initialize(heroMaterial, ctx.CrowdMaterial);
+
             var vfxGo = new GameObject("Vfx");
             vfxGo.transform.SetParent(ctx.ArenaRoot.transform, false);
             ctx.Effects = vfxGo.AddComponent<Vfx.VfxSystem>();

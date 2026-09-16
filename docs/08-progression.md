@@ -1009,6 +1009,72 @@ degrees, and the bar is set against the bug rather than against a feeling: the m
 tight enough to call 26% a jump would forbid a fast character from moving fast, which is most of
 what makes four heroes read as four people.
 
+## The screen it happens on
+
+**One hero at a time, large, on a lit plinth**, with four name chips to switch between them.
+
+### No second camera and no render texture
+
+The obvious reading of "3D inside a UI screen" is that you need both. You do not. The canvas is
+`ScreenSpaceOverlay`, which composites the UI over the finished frame — so **wherever the UI is
+transparent, whatever the camera rendered shows through**. And during the menus `ArenaRoot` is
+disabled, so what the camera renders is nothing at all: an empty world and a sky.
+
+So `HeroSelectScreen` builds its backdrop out of a **top band and a bottom band with a window
+between them**, and `Gameplay/Menu/HeroStage` stands a figure in the window. `UiFactory.FullscreenPanel`
+cannot be used at all here: it is opaque by construction, and an opaque backdrop is exactly the
+thing that would hide the feature.
+
+What that buys beyond the machinery it avoids: the hero is lit by the world's own key light and
+graded by the world's own post stack, so the bloom on an Ashcaller's orb is the bloom it will have
+in the run. A render texture would have had to reproduce all of that, and would have drifted from
+it.
+
+The stage stands **300 m behind the start** of the track. Not superstition: the road is built from
+`z = 0` upward and the despawn plane is computed from a constant, so anywhere in front of the origin
+is somewhere a chunk could one day be. Behind it, nothing is ever built.
+
+The rig is **parked** while the screen is up, because the follow never stops on its own — the crowd
+component lives on a disabled GameObject during the menus, so it is not null and `LateUpdate` would
+happily keep easing toward a frozen army, with shake and lead-yaw still playing over the stage.
+
+### The hero comes apart into three pieces
+
+`ProceduralMeshes.HeroInParts` returns body, main hand and off hand. **What is carried is authored
+about its grip**, which is the whole point: a mace whose vertices sit at absolute positions can only
+be moved by moving the hero, and a weapon that cannot swing without the body swinging with it is not
+an animation, it is a statue on a turntable.
+
+| hero | main hand | gripped at | off hand |
+|---|---|---|---|
+| Warden | mace | the butt of the haft | tower shield, at its own centre |
+| Ashcaller | staff | a third of the way up | — |
+| Houndmaster | short spear | the balance point | — |
+| Revenant | standard | low on the pole | — |
+
+Each grip is where the hand actually is, and getting it wrong is visible: pivoting a mace about its
+head swings the handle through the hero's chest, and pivoting a staff at its foot sweeps the orb in
+an arc twice as wide as the figure is tall.
+
+**Worn gear is not carried.** Hoods, robes, crests, ribs, crowns, mantles and horns belong to the
+body. So do the hounds — a hound that swung with the spear would be a hound on a stick, and one
+animated on its own would need a fourth part and a fourth set of poses for the one hero that has
+any. They sway with the Houndmaster instead, which at his 1.55 sway is plenty.
+
+**The run still gets one mesh.** `ProceduralMeshes.Hero` welds the parts back together at the rest
+pose — `(p − grip) + grip`, which returns exactly the vertices the single-mesh builder used to emit
+— so one object, one draw, one shadow, and one source of truth for what a Warden looks like rather
+than two that drift.
+
+The stage material is an **instance**, not the shared hero material: `HeroVisual.Wear` mutates that
+one in place, so a stage sharing it would repaint the in-run hero every time the player looked at a
+different chip.
+
+**SHOW ME sits beside BEGIN** rather than behind a long-press, because *"and fight"* is a thing the
+player asked to see and an unlabelled gesture is a thing nobody finds. Selecting a hero plays the
+greeting — including re-selecting one, so a repeat tap replays it rather than reading as the screen
+having stopped responding — and the attack is the one act that will not play on its own.
+
 ## Where the choice lives
 
 `PlayerProfile` gains `HeroId` **and** `HeroChosen`, and the second field exists because "chose the
