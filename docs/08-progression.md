@@ -952,6 +952,63 @@ the leader is one figure among a few hundred, and at 0.47 scale the crowd is wha
 reads. The hero's kind takes over the **majority share** of the archetype mix rather than replacing
 all four — an army of one shape is the photocopy the four soldier meshes exist to prevent.
 
+## How the four move
+
+> *"when I choose the main character this page has only cells with text, make it visuals, make all
+> characters appear so I could see who do I choose with animation of them how they stay and greet
+> and fight. Main characters should look differently and have different animation. Like in Diablo
+> when you choose a character."*
+
+The four already look different — measured, the closest pair of silhouettes differ by 72 pixels
+sampled across twelve height bands. What they have never had is a way of moving.
+
+**Every channel of a pose is a rigid transform, because every one of them has to be.** The hero
+mesh is a single combined mesh with no skeleton, and the crowd shader that animates the army reads
+its walk phase out of the uniform scale — so there is no skinning to borrow and no spare
+per-instance channel to invent one with. `Core/Heroes/HeroPose` is therefore a small fixed set of
+angles and offsets, and the animation is carried by timing and weight rather than by articulation.
+
+That is less limiting than it sounds. A Diablo select screen is mostly whole-body: the figure
+plants, leans, twists, dips and rises, and the weapon travels with it.
+
+**One shape per act, driven by four per-hero numbers**, rather than four hand-authored animations:
+
+| | Warden | Ashcaller | Houndmaster | Revenant |
+|---|---|---|---|---|
+| `Tempo` — how fast | 0.80 | 1.25 | 1.15 | 0.95 |
+| `Commit` — how far in | 1.20 | 0.70 | 1.05 | 0.90 |
+| `Recover` — how it comes back | 0.85 | 1.35 | 1.55 | **0.45** |
+| `Sway` — doing nothing | 0.70 | 1.30 | 1.55 | 0.95 |
+
+Four numbers rather than four animations because **the acts have to agree with each other**: a
+greeting and an attack authored separately would settle to different resting poses and the hero
+would jump between them. Everything starts and ends at `HeroPose.Rest`, which is a test rather than
+a convention — the screen cuts between acts with no blend.
+
+`Recover` is where the most character is: above 1 it overshoots and springs, below 1 it drags, and
+the Revenant's 0.45 makes it arrive in steps rather than in a curve — a thing that came back from
+the dead moving like one.
+
+### Three things the tests caught, all of which were real
+
+- **The idle did not loop.** The first version used a golden-ratio frequency so the loop would never
+  visibly repeat — and a ratio that never repeats is a ratio that does not close, so the last frame
+  sat 3.7° of yaw from the first and the idle ticked once per cycle. Every frequency is a whole
+  number now. A seam in the one animation that plays forever is worse than a shape that rhymes.
+- **The blow teleported.** The wind-up ran to −1 and the recovery started from +1, so the weapon
+  crossed its entire arc between two frames — 38° of body pitch in one step. There is a **sweep**
+  phase between them now: 42% of the act gathers, 16% swings, 42% recovers. A blow has to be seen
+  travelling or there is nothing to flinch from.
+- **The feet went through the plinth.** `Settle` overshoots on a springy hero, which is right for
+  everything that rotates and wrong for the one channel that is a height. A rigid figure has no
+  knees, so a negative rise is feet through the floor rather than a crouch.
+
+The smoothness test measures a frame's travel as a **fraction of the channel's own range**, not in
+degrees, and the bar is set against the bug rather than against a feeling: the missing sweep put
+100% of the pitch into one frame, and the fastest hero's genuine strike puts 26% into one. Anything
+tight enough to call 26% a jump would forbid a fast character from moving fast, which is most of
+what makes four heroes read as four people.
+
 ## Where the choice lives
 
 `PlayerProfile` gains `HeroId` **and** `HeroChosen`, and the second field exists because "chose the
