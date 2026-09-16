@@ -99,6 +99,14 @@ namespace BattleRunner.Tests
         /// <summary>
         /// Play one generated round, steering at <paramref name="quality"/> between the
         /// worst lane and the best at every decision. 1.0 is perfect lane choice.
+        ///
+        /// THE REVEAL LAG IS MODELLED, because it moves the curve and the curve is what this
+        /// file is for. A gate or a pack commits to a headcount when it comes within
+        /// Reveal.LineMeters of the army's front and takes or gives THAT many men when the
+        /// army arrives — so its effect is a share of the army as it was 34 m earlier, not of
+        /// the army standing in front of it. At 45 m chunks that is up to six gates of lag,
+        /// and it is not a rounding error: it turns a x(1+s) into a x(1 + s*F_reveal/F_contact)
+        /// on both signs at once.
         /// </summary>
         private static (double peak, double final) PlayRound(int roundIndex, double start,
             double quality)
@@ -107,33 +115,61 @@ namespace BattleRunner.Tests
             double force = Math.Max(1.0, start);
             double peak = force;
 
+            var events = new List<(double z, int lane, GateOp op, int weight, bool blocks, int chunk)>();
             for (int chunk = 0; chunk < layouts.Length; chunk++)
             {
-                var events = new List<(float z, int lane, GateOp op, int weight)>();
+                double baseZ = chunk * (double)ChunkLayouts.ChunkMeters;
                 foreach (PlannedGate g in layouts[chunk].Gates)
-                    events.Add((g.Position, g.Lane, g.Op, g.Value));
+                    events.Add((baseZ + g.Position, g.Lane, g.Op, g.Value, false, chunk));
                 foreach (PlannedPack p in layouts[chunk].Packs)
-                    events.Add((p.Position, p.Lane, GateOp.Subtract, p.ForceCost));
-
-                foreach (var group in events.GroupBy(e => (float)Math.Round(e.z, 1))
-                                            .OrderBy(g => g.Key))
-                {
-                    double best = double.MinValue, worst = double.MaxValue;
-                    // -1 to 1, which is the range the generator actually authors into. This
-                    // walked 0 to 2 and so shared EstimateParForce's blind spot: a free
-                    // imaginary lane on the right and an unread one on the left.
-                    for (int lane = ChunkLayouts.LaneMin; lane <= ChunkLayouts.LaneMax; lane++)
-                    {
-                        double factor = 1.0;
-                        foreach (var e in group)
-                            if (e.lane == lane) factor *= GateMath.Factor(e.op, e.weight, chunk);
-                        if (factor > best) best = factor;
-                        if (factor < worst) worst = factor;
-                    }
-                    force *= worst + (best - worst) * quality;
-                    if (force > peak) peak = force;
-                }
+                    events.Add((baseZ + p.Position, p.Lane, GateOp.Subtract, p.ForceCost,
+                        p.BlocksAllLanes, chunk));
             }
+
+            // Where the army was, so a gate can be priced against the army that saw it. Seeded
+            // with the start so anything revealed before the army has moved is priced off that.
+            var history = new List<(double z, double force)> { (double.MinValue, force) };
+            double RevealedAgainst(double z)
+            {
+                double at = z - RevealLine;
+                double seen = history[0].force;
+                for (int i = 0; i < history.Count && history[i].z <= at; i++) seen = history[i].force;
+                return seen;
+            }
+
+            foreach (var group in events.GroupBy(e => Math.Round(e.z, 1)).OrderBy(g => g.Key))
+            {
+                double atReveal = RevealedAgainst(group.Key);
+                double best = double.MinValue, worst = double.MaxValue;
+                // -1 to 1, which is the range the generator actually authors into. This
+                // walked 0 to 2 and so shared EstimateParForce's blind spot: a free
+                // imaginary lane on the right and an unread one on the left.
+                for (int lane = ChunkLayouts.LaneMin; lane <= ChunkLayouts.LaneMax; lane++)
+                {
+                    double factor = 1.0;
+                    foreach (var e in group)
+                    {
+                        if (e.blocks) { factor *= Elite.UnshieldedFactor(e.weight); continue; }
+                        if (e.lane != lane) continue;
+                        if (e.op == GateOp.Multiply)
+                        {
+                            // A rally's sign is a factor, so it never pops and never latches.
+                            factor *= GateMath.Factor(e.op, e.weight, e.chunk);
+                            continue;
+                        }
+                        // The men it committed to, against the army that will actually meet them.
+                        double men = GateMath.Headcount(atReveal, e.op, e.weight, e.chunk);
+                        factor *= 1.0 + men / Math.Max(1.0, force);
+                    }
+                    if (factor > best) best = factor;
+                    if (factor < worst) worst = factor;
+                }
+                force *= Math.Max(0.0, worst + (best - worst) * quality);
+                if (force < 1.0) force = 1.0;
+                if (force > peak) peak = force;
+                history.Add((group.Key, force));
+            }
+
             return (peak, force);
         }
 
@@ -149,6 +185,12 @@ namespace BattleRunner.Tests
             }
             return (banked, StandingArmy.Floor(best), StandingArmy.Rank(banked));
         }
+
+        internal static (double banked, double floor, int rank) ProbeCampaign(double q, int rounds)
+            => Campaign(q, rounds);
+
+        /// <summary>The reveal line, in metres. See Core/Run/Reveal.</summary>
+        private const double RevealLine = BattleRunner.Core.Run.Reveal.LineMeters;
 
         /// <summary>Rounds in the sixteen authored acts — the whole campaign.</summary>
         private const int CampaignRounds = 62;

@@ -59,8 +59,31 @@ namespace BattleRunner.Core.Run
         /// </summary>
         public const double RallyShare = 0.150;
 
-        /// <summary>Share an ambush (-) gate takes OFF, per point of weight.</summary>
-        public const double AmbushShare = 0.125;
+        /// <summary>
+        /// Share an ambush (-) gate takes OFF, per point of weight.
+        ///
+        /// RAISED FROM 0.125 WHEN THE REVEAL LINE LANDED, and the direction of that is the
+        /// part worth writing down, because the obvious guess is the wrong one. A gate now
+        /// commits to a headcount 34 m out and takes THAT many men when the army arrives, so
+        /// its effect is a share of the army as it was rather than of the army it meets. That
+        /// reads like a nerf to the green side and it is — but it is the same nerf on the red
+        /// side, and the red side was where the compounding lived. Measured over the 62-round
+        /// campaign the latch came out a BUFF of roughly four and a half times at every skill
+        /// level, because pricing a loss against a smaller army is worth more than pricing a
+        /// gain against one.
+        ///
+        /// 0.132 is what puts the competent player (0.85 lane quality) back where the
+        /// barricade left them — 2.84e10 against 3.27e10 — and it was found by sweeping this
+        /// number through the campaign simulation in StandingArmyTests, which models the lag
+        /// explicitly.
+        ///
+        /// The top of the curve does NOT come back, and that is structural rather than
+        /// untuned: a rally's sign is a factor, so it never popped and is not latched, so it
+        /// keeps its full strength while the two gates that count men lose a little of theirs.
+        /// Near-perfect play is rally-chaining, so near-perfect play gains. It stays finite —
+        /// 3.7e39 at flawless lane choice, against a double's 1.8e308.
+        /// </summary>
+        public const double AmbushShare = 0.132;
 
         /// <summary>
         /// Extra ambush share per chunk into the round.

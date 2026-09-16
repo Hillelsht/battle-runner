@@ -74,10 +74,17 @@ namespace BattleRunner.Core.Run
         };
 
         /// <summary>
-        /// What a pack actually costs: a SHARE of the army it meets, on the same curve a
-        /// red gate uses, so a pack is a real threat at every scale instead of a rounding
-        /// error the moment the army passes a few hundred. Resist shaves that share; a
-        /// shattered pack costs nothing at all, which is the whole fantasy.
+        /// What a pack costs an army it is revealed to and meets at the same moment: a SHARE
+        /// of that army, on the same curve a red gate uses, so a pack is a real threat at
+        /// every scale instead of a rounding error the moment the army passes a few hundred.
+        /// Resist shaves the share; a shattered pack costs nothing at all.
+        ///
+        /// THE RUN NO LONGER GOES THROUGH HERE, and that is the point of the forwarding. A
+        /// pack commits to its headcount at the reveal line and takes THAT number when the
+        /// army arrives a few seconds later — see Core/Run/Reveal. Two implementations of
+        /// "what a pack takes", agreeing everywhere except in the gap this change opened, is
+        /// precisely the shape of bug the reveal line exists to close, so there is one:
+        /// this is a pack revealed and met at once, which is what it always meant.
         /// </summary>
         public static double PackBite(double force, int weight, int depth, float resist,
             bool shattered)
@@ -85,21 +92,7 @@ namespace BattleRunner.Core.Run
             if (shattered || weight <= 0) return 0.0;
             double from = Math.Max(0.0, force);
             if (from <= 0.0) return 0.0;
-
-            // THROUGH ApplyGate, not through Factor. Computing the gross straight off the
-            // factor was how a pack skipped the floor that a red gate gets — the two are the
-            // same threat wearing different clothes, and a pack that costs 0.13 of a man in
-            // front of an army of five is the same bug the "+1" gate had.
-            double gross = from - GateMath.ApplyGate(from, GateOp.Subtract, weight, depth);
-            double kept = 1.0 - Math.Min(0.85f, Math.Max(0f, resist));
-            double bite = gross * kept;
-
-            // Resist mitigates down toward one man but never through it. Zero is reserved
-            // for a SHATTERED pack, which is the whole fantasy of that talent — a pack that
-            // silently cost nothing because the resist stat rounded it away would read as
-            // the shatter firing, and the player would learn the wrong rule.
-            if (bite < 1.0) bite = 1.0;
-            return Math.Min(from, bite);
+            return Reveal.At(from, GateOp.Subtract, weight, depth).Loss(from, resist, shattered);
         }
 
         /// <summary>

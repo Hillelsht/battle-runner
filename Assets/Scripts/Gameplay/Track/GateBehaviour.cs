@@ -16,7 +16,7 @@ namespace BattleRunner.Gameplay.Track
         /// <summary>
         /// The gate's WEIGHT, not a headcount. See GateMath: a gate takes a share of the
         /// army that meets it, and this is how many shares. What the sign shows is that
-        /// share resolved against the army actually approaching — see <see cref="RefreshSign"/>.
+        /// share resolved ONCE against the army approaching — see <see cref="RevealOnce"/>.
         /// </summary>
         public int Weight { get; private set; }
 
@@ -242,34 +242,47 @@ namespace BattleRunner.Gameplay.Track
 
             _labelTint = frame.GetColorSafe("_EmissionColor", Color.white);
             _label.color = _labelTint;
-            _signedFor = double.NaN;
-            RefreshSign(BattleRunner.Core.Run.StandingArmy.Seed);
+            // NOT SIGNED HERE. This used to write a sign against StandingArmy.Seed — five men
+            // — on the frame the gate was pooled, eighty metres up the road, and then rewrite
+            // it as the army came into range. That is the pop the player reported, and it was
+            // worse than they described: the first number was not merely stale, it was for an
+            // army of five. Nothing is written until RevealOnce.
+            Reveal = BattleRunner.Core.Run.Reveal.Hidden;
+            SinceRevealed = 0f;
+            if (_label != null) _label.text = string.Empty;
         }
 
         private Color _labelTint = Color.white;
-        private double _signedFor = double.NaN;
 
         /// <summary>
-        /// Write this gate's sign for the army currently approaching it.
-        ///
-        /// A gate is a share now, so there is no number to bake in at spawn: the same gate
-        /// is worth eleven men in front of an army of four hundred and eleven million in
-        /// front of four hundred million. The share is the mechanic and the headcount is
-        /// the display, which is what keeps the road reading exactly as it did — "+340",
-        /// "-1.3K" — while the arithmetic underneath it stopped being absolute.
-        ///
-        /// Guarded on the army it was last written for, because this is called whenever the
-        /// force changes and building a string for ten gates on every gate hit is real
-        /// garbage on a phone. The guard is a ratio rather than an equality: below a 2%
-        /// change the three significant figures on the sign cannot move, so the string
-        /// would be identical anyway.
+        /// The one number this gate committed to when it crossed the reveal line. The sign,
+        /// the crowd of men drawn under it and the delta applied on contact are all this.
         /// </summary>
-        public void RefreshSign(double army)
+        public BattleRunner.Core.Run.Reveal Reveal { get; private set; }
+
+        /// <summary>Seconds since it committed, for the grow-in.</summary>
+        public float SinceRevealed { get; private set; }
+
+        /// <summary>
+        /// Commit this gate's number, once, against the army approaching it. Every later call
+        /// is a no-op — that is the entire feature.
+        ///
+        /// A gate is a share, which is what makes the late game work: the same recruit gate is
+        /// eleven men in front of an army of four hundred and eleven million in front of four
+        /// hundred million. But a share has to become men to be written on a sign, and this
+        /// method used to do that conversion again every time the army moved, guarded only by
+        /// a 2% ratio. So the sign twenty metres up the road ticked upward while the player
+        /// watched — *"it changes right in front of my eyes"*. The guard was never the fix,
+        /// because at any growth rate the game actually has, 2% is crossed constantly.
+        ///
+        /// See Core/Run/Reveal: the latched headcount is the DELTA as well as the label, so
+        /// latching one cannot make them disagree.
+        /// </summary>
+        public void RevealOnce(double army)
         {
-            if (_label == null) return;
-            if (!double.IsNaN(_signedFor) && _signedFor > 0.0
-                && Math.Abs(army - _signedFor) < _signedFor * SignRefreshFraction) return;
-            _signedFor = army;
+            if (Reveal.Committed || _label == null) return;
+            Reveal = BattleRunner.Core.Run.Reveal.At(army, Op, Weight, Depth);
+            SinceRevealed = 0f;
 
             if (Op == GateOp.Multiply)
             {
@@ -281,12 +294,15 @@ namespace BattleRunner.Gameplay.Track
                 return;
             }
 
-            _label.text = BattleRunner.Core.Stats.StatFormat.Headcount(
-                GateMath.Headcount(army, Op, Weight, Depth));
+            _label.text = BattleRunner.Core.Stats.StatFormat.Headcount(Reveal.Men);
         }
 
-        /// <summary>How far the army must move before a sign is worth rewriting.</summary>
-        private const double SignRefreshFraction = 0.02;
+        /// <summary>Advance the grow-in. Cheap enough to call on every gate every frame.</summary>
+        public void TickReveal(float deltaSeconds)
+        {
+            if (Reveal.Committed && SinceRevealed < BattleRunner.Core.Run.Reveal.GrowSeconds)
+                SinceRevealed += deltaSeconds;
+        }
 
         /// <summary>
         /// A spell has destroyed this gate. Only an ambush gate can be destroyed — a player

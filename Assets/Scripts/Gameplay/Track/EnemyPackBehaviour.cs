@@ -218,8 +218,16 @@ namespace BattleRunner.Gameplay.Track
             FightElapsed = 0f;
             Clash = default;
             transform.position = worldPosition;
-            _countedFor = double.NaN;
-            RefreshCount(BattleRunner.Core.Run.StandingArmy.Seed);
+            // NOT COUNTED HERE. This used to resolve against StandingArmy.Seed — five men —
+            // on the frame the pack was pooled, eighty metres up the road, and there is no
+            // distance cull in SquadRenderer, so a pack drew ONE BODY at that size until it
+            // crossed the reveal line and jumped to its real one. That is a second pop, older
+            // and larger than the one the player reported, and it was hiding behind it.
+            Reveal = BattleRunner.Core.Run.Reveal.Hidden;
+            SinceRevealed = 0f;
+            Headcount = 0L;
+            DisplayedCount = 0;
+            if (_label != null) _label.text = string.Empty;
             SetLabelVisible(true);
             SetHealthBarVisible(false);
         }
@@ -243,27 +251,45 @@ namespace BattleRunner.Gameplay.Track
             _healthFill.localPosition = new Vector3(-BarWidth * 0.5f * (1f - h), 1.62f, -0.004f);
         }
 
-        private double _countedFor = double.NaN;
+        /// <summary>
+        /// The one number this pack committed to when it crossed the reveal line. Its bodies,
+        /// its label and the bite it takes on contact are all this.
+        /// </summary>
+        public BattleRunner.Core.Run.Reveal Reveal { get; private set; }
+
+        /// <summary>Seconds since it committed, for the grow-in.</summary>
+        public float SinceRevealed { get; private set; }
+
+        /// <summary>Committed and fully out. Until then SquadRenderer draws nothing for it.</summary>
+        public bool IsRevealed => Reveal.Committed;
 
         /// <summary>
-        /// Resolve this pack's share against the army approaching it, and show that count.
+        /// Commit this pack's size, once, against the army approaching it. Every later call is
+        /// a no-op — that is the entire feature.
         ///
         /// The squad size and the label are written from the same number so they can never
-        /// disagree — the bug this replaced said "-26" over five drawn men. Guarded on the
-        /// army it was last counted for, for the same reason a gate's sign is.
+        /// disagree; the bug that replaced said "-26" over five drawn men. Now the bite takes
+        /// that number too, so all three are one commit.
         /// </summary>
-        public void RefreshCount(double army)
+        public void RevealOnce(double army)
         {
-            if (!double.IsNaN(_countedFor) && _countedFor > 0.0
-                && Mathf.Abs((float)(army - _countedFor)) < (float)(_countedFor * 0.02)) return;
-            _countedFor = army;
-
-            double bite = -BattleRunner.Core.Run.GateMath.Headcount(
+            if (Reveal.Committed) return;
+            Reveal = BattleRunner.Core.Run.Reveal.At(
                 army, BattleRunner.Core.Run.GateOp.Subtract, Weight, Depth);
-            Headcount = bite <= 0.0 ? 1L : (bite >= long.MaxValue ? long.MaxValue : (long)bite);
+            SinceRevealed = 0f;
+
+            long men = Reveal.Men < 0L ? -Reveal.Men : Reveal.Men;
+            Headcount = men < 1L ? 1L : men;
             DisplayedCount = (int)Mathf.Min(Headcount, DisplayCap);
             if (_label != null)
                 _label.text = BattleRunner.Core.Stats.StatFormat.Army(Headcount);
+        }
+
+        /// <summary>Advance the grow-in. Cheap enough to call on every pack every frame.</summary>
+        public void TickReveal(float deltaSeconds)
+        {
+            if (Reveal.Committed && SinceRevealed < BattleRunner.Core.Run.Reveal.GrowSeconds)
+                SinceRevealed += deltaSeconds;
         }
 
         /// <summary>
@@ -344,7 +370,10 @@ namespace BattleRunner.Gameplay.Track
             // reached yet, and setting Fighting there would pin it to the army's front and
             // let it start swinging from forty metres away — a champion attacking from
             // outside the road the player is on.
-            EnsureChampion(_countedFor > 0.0 ? _countedFor : StandingArmy.Seed);
+            // Against the army it committed to, not the seed. A champion reached by a spell
+            // before the reveal line has no committed count yet, and the fall-back of five men
+            // would have made its fight the longest one in the game.
+            EnsureChampion(Headcount > 0L ? Headcount : StandingArmy.Seed);
             SetHealthBarVisible(true);
 
             bool died = Champion.Grind(Champion.FightSeconds * SpellShare);

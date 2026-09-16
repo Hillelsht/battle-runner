@@ -210,7 +210,22 @@ namespace BattleRunner.Gameplay.States
         private readonly System.Collections.Generic.List<Vector3> _spellHits =
             new System.Collections.Generic.List<Vector3>(8);
 
-        private void OnGateApplied(GateOp op, int weight, int depth, Vector3 where)
+        /// <summary>
+        /// A gate landed. THE NUMBER ON IT IS THE NUMBER APPLIED.
+        ///
+        /// This used to recompute the effect through `Talents.ApplyGate(live force, …)` while
+        /// the sign had been written against whatever the army was when it was last refreshed.
+        /// The two agreed closely enough to hide, because the sign was rewritten on every 2%
+        /// move — and that rewriting is exactly what the player complained about. Latching the
+        /// sign alone would have made them disagree openly, which is how last round's "+1 that
+        /// adds nothing" was built. So the latch carries the delta: `reveal.Gain` and
+        /// `reveal.Loss` in Core are the only arithmetic here now.
+        ///
+        /// A RALLY IS THE EXCEPTION AND DOES NOT NEED THE LATCH. Its sign is "x2.00" — a
+        /// factor, which cannot pop however the army moves — so it keeps applying a share of
+        /// the live army, which is precisely what that sign promises.
+        /// </summary>
+        private void OnGateApplied(GateOp op, int weight, int depth, Reveal reveal, Vector3 where)
         {
             RunState run = _ctx.Run;
             double before = run.ForceCount;
@@ -230,7 +245,10 @@ namespace BattleRunner.Gameplay.States
                 // What the block SAVED, priced through the same function that would have
                 // taken it, so the Warden's conversion can never disagree with the loss it
                 // is converting.
-                ConvertBlock(before - GateMath.ApplyGate(before, GateOp.Subtract, weight, depth), where);
+                // What the block SAVED is what the gate was about to take, which is the
+                // number on its sign — so the Warden's conversion cannot disagree with the
+                // loss it converts even now that the loss is latched.
+                ConvertBlock(reveal.Loss(before, 0f, false), where);
                 return;
             }
 
@@ -247,7 +265,23 @@ namespace BattleRunner.Gameplay.States
             float gateYield = _ctx.CurrentStats.Get(StatIds.GateYield);
             if (op == GateOp.Add) gateYield += (float)HeroRoster.RecruitBonus(_hero);
 
-            run.SetForce(Talents.ApplyGate(run.ForceCount, op, weight, depth, gateYield, chain, crit));
+            if (op == GateOp.Multiply)
+            {
+                run.SetForce(Talents.ApplyGate(run.ForceCount, op, weight, depth,
+                    gateYield, chain, crit));
+            }
+            else
+            {
+                // The latched men, then the same yield rule a factor-based gate got: yield
+                // scales the GAIN, never the loss, so a recruit worth 30 men at 20% yield
+                // gives 36 and an ambush is untouched by it.
+                float yield = Mathf.Max(0f, gateYield) + Mathf.Max(0f, chain);
+                if (crit) yield = yield * 2f + 1f;
+                double moved = op == GateOp.Add
+                    ? reveal.Gain(yield)
+                    : -reveal.Loss(run.ForceCount, 0f, false);
+                run.SetForce(System.Math.Max(0.0, run.ForceCount + moved));
+            }
             run.MultiplyChain = op == GateOp.Multiply ? run.MultiplyChain + 1 : 0;
             run.GatesHit++;
             _ctx.Crowd.SetForce(run.ForceCount);
@@ -285,7 +319,7 @@ namespace BattleRunner.Gameplay.States
             if (run.ForceCount <= 0) OnForceDepleted();
         }
 
-        private void OnEnemyContact(int weight, int depth, Vector3 where)
+        private void OnEnemyContact(int weight, int depth, Reveal reveal, Vector3 where)
         {
             if (_ctx.Shield.IsActive)
             {
@@ -297,7 +331,7 @@ namespace BattleRunner.Gameplay.States
                 _ctx.Audio.Play(AudioCue.ShieldBlock, 0.85f);
                 _ctx.Effects.Shock(where, ShatterTint, 0.5f, 6.5f, 0.5f);
                 _ctx.Effects.Burst(where, ShatterTint, 20, 5.8f, 0.6f);
-                ConvertBlock(Talents.PackBite(_ctx.Run.ForceCount, weight, depth,
+                ConvertBlock(reveal.Loss(_ctx.Run.ForceCount,
                     _ctx.CurrentStats.Get(StatIds.EnemyResist), false), where);
                 return;
             }
@@ -305,7 +339,10 @@ namespace BattleRunner.Gameplay.States
             RunState run = _ctx.Run;
             // Resist shrugs off part of the bite; a shattered pack costs nothing at all.
             bool shattered = Talents.Rolls(_ctx.CurrentStats.Get(StatIds.PackShatter), Random.value);
-            double bite = Talents.PackBite(run.ForceCount, weight, depth,
+            // The men drawn in the road, taken from the army. Not a fresh share of it — the
+            // squad standing there committed to a count when it came into view, and taking a
+            // different number than the one the player counted is the bug, not the feature.
+            double bite = reveal.Loss(run.ForceCount,
                 _ctx.CurrentStats.Get(StatIds.EnemyResist), shattered);
             double beforeBite = run.ForceCount;
             run.SetForce(System.Math.Max(0.0, run.ForceCount - bite));

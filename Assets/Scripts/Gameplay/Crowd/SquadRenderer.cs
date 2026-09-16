@@ -167,6 +167,20 @@ namespace BattleRunner.Gameplay.Crowd
         /// </summary>
         private const int AllyDisplayCap = 28;
 
+        /// <summary>
+        /// How many of a committed crowd's bodies are out yet.
+        ///
+        /// Always at least one once it has committed, so a crowd never flickers between
+        /// nothing and something at the reveal line; the ramp is the rest of them arriving.
+        /// </summary>
+        private static int Grown(int full, float sinceRevealed)
+        {
+            if (full <= 0) return 0;
+            float g = BattleRunner.Core.Run.Reveal.Grow(sinceRevealed);
+            int out_ = Mathf.RoundToInt(full * g);
+            return out_ < 1 ? 1 : (out_ > full ? full : out_);
+        }
+
         public void Initialize(CrowdController crowd, Material enemyMaterial, Material allyMaterial,
             List<EnemyPackBehaviour> squads, List<GateBehaviour> gates)
         {
@@ -272,13 +286,26 @@ namespace BattleRunner.Gameplay.Crowd
                 // a ceiling of a hundred and twenty, is not a budget question.
                 if (squad != null && squad.IsElite) { DrawChampion(squad, now); continue; }
 
-                if (squad == null || squad.DisplayedCount <= 0) continue;
+                // NOTHING IS DRAWN BEFORE IT HAS COMMITTED. There was no distance cull here
+                // at all: a pack was counted against StandingArmy.Seed when it was pooled, so
+                // one lone man stood eighty metres up the road and then became forty on the
+                // frame the reveal line crossed him. That is a second pop, older and larger
+                // than the one the player reported, and it was hiding behind it.
+                if (squad == null || !squad.IsRevealed || squad.DisplayedCount <= 0) continue;
 
                 Vector3 origin = squad.transform.position;
                 // A squad in a clash goes into the brawl bucket, which is the one with legs.
                 Matrix4x4[] bucket = squad.Fighting ? _brawlers : _enemies;
                 int already = squad.Fighting ? brawlCount : enemyCount;
-                int bodies = Mathf.Min(squad.DisplayedCount, MaxInstances - already);
+                // GROWS IN BY COUNT, NOT BY SCALE, and that is forced rather than chosen:
+                // uniform scale is the only per-instance channel there is and CrowdInstanced
+                // decodes the walk phase out of the 0.44-0.50 window, so a body scaled up from
+                // nothing would walk nonsense on its way in. Filling the ranks reads better
+                // anyway — men arriving rather than one man inflating.
+                int bodies = Grown(squad.DisplayedCount, squad.SinceRevealed);
+                if (bodies <= 0) continue;
+                bodies = Mathf.Min(bodies, MaxInstances - already);
+                if (bodies <= 0) continue;
 
                 // While fighting, the two lines press into each other. A squad that stands
                 // still while the army arrives reads as scenery being deleted, not as a fight.
@@ -364,14 +391,15 @@ namespace BattleRunner.Gameplay.Crowd
                     else if (gate.SinceConsumed >= 0f) { bucket = _brawlers; already = brawlCount; }
                     else { bucket = _enemies; already = enemyCount; }
 
-                    // FROM THE HEADCOUNT, NOT THE WEIGHT. A gate's authored number is how many
-                    // SHARES it is worth now, so drawing `Value` men would put one or two
-                    // soldiers in the road in front of an army of a billion. The resolved
-                    // headcount is what the sign says, so it is what the crowd must be.
-                    long men = BattleRunner.Core.Run.GateMath.Headcount(
-                        _crowd.ForceCount, gate.Op, gate.Weight, gate.Depth);
-                    if (men == 0L) continue;
-                    int bodies = (int)Mathf.Min(Mathf.Abs(men), AllyDisplayCap);
+                    // FROM THE GATE'S COMMITTED HEADCOUNT. A gate's authored number is how
+                    // many SHARES it is worth, so drawing `Value` men would put one or two
+                    // soldiers in front of an army of a billion — but this recomputed the
+                    // headcount from the LIVE army every single frame with no guard at all,
+                    // which is the worst offender in the whole complaint: the crowd under a
+                    // gate grew smoothly and continuously as the player's army did, in plain
+                    // sight. It is the committed number now, the same one on the sign.
+                    if (!gate.Reveal.Committed) continue;
+                    int bodies = Grown(gate.Reveal.Bodies(AllyDisplayCap), gate.SinceRevealed);
                     if (bodies <= 0) continue;
                     bodies = Mathf.Min(bodies, MaxInstances - already);
                     if (bodies <= 0) continue;

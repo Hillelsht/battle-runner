@@ -1,3 +1,4 @@
+using System;
 using BattleRunner.Core.Crowd;
 using BattleRunner.Core.Run;
 using BattleRunner.Core.Stats;
@@ -175,11 +176,20 @@ namespace BattleRunner.Tests
             Assert.AreEqual(full * 0.5, Talents.PackBite(400.0, 2, 0, 0.5f, false), 1e-9);
             Assert.AreEqual(full * 0.15, Talents.PackBite(400.0, 2, 0, 0.99f, false), full * 1e-6,
                 "resist caps at 85%");
-            // A pack is a SHARE now, so it scales with the army instead of rounding away:
-            // the old floor of one man existed because an absolute cost of three against an
-            // army of four hundred had already stopped meaning anything.
-            Assert.AreEqual(full * 1000.0, Talents.PackBite(400_000.0, 2, 0, 0f, false),
-                full * 1000.0 * 1e-9);
+            // A pack is a SHARE, so it scales with the army instead of rounding away: the
+            // old floor of one man existed because an absolute cost of three against an army
+            // of four hundred had already stopped meaning anything.
+            //
+            // MEASURED BETWEEN TWO LARGE ARMIES, not from the small one, because a bite is a
+            // whole number of men — 400 men lose 105.6, which is 106 of them. That rounding
+            // is the right behaviour and it is 0.4% at four hundred, so scaling up from there
+            // carries 0.4% with it. Between four hundred thousand and four hundred million
+            // there is nothing left to round.
+            double big = Talents.PackBite(400_000.0, 2, 0, 0f, false);
+            Assert.AreEqual(big * 1000.0, Talents.PackBite(400_000_000.0, 2, 0, 0f, false),
+                big * 1000.0 * 1e-9);
+            Assert.AreEqual(Math.Round(400.0 * GateMath.AmbushShare * 2), full, 1e-9,
+                "a small pack's bite is its share of the army, rounded to whole men");
         }
 
         // --- overflow ----------------------------------------------------------

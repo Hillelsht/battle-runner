@@ -19,8 +19,14 @@ namespace BattleRunner.Gameplay.Track
         // to put a shockwave where the gate was rather than where the crowd is: at 10 m/s
         // the two are metres apart by the time the event is handled, and an effect that
         // does not land on its cause reads as an unrelated flash.
-        public event Action<GateOp, int, int, Vector3> GateApplied;
-        public event Action<int, int, Vector3> EnemyContact;
+        /// <remarks>
+        /// The Reveal travels with the event because it IS the delta, not a label. The handler
+        /// used to recompute the effect from a share of the live army while the sign said
+        /// something else; latching one without the other is how a "+1" that adds nothing gets
+        /// built. See Core/Run/Reveal.
+        /// </remarks>
+        public event Action<GateOp, int, int, Reveal, Vector3> GateApplied;
+        public event Action<int, int, Reveal, Vector3> EnemyContact;
 
         /// <summary>
         /// A champion's swing has landed. The handler decides what it costs: the shield and
@@ -100,8 +106,14 @@ namespace BattleRunner.Gameplay.Track
         }
         private readonly List<GameObject> _groundStrips = new List<GameObject>();
 
-        /// <summary>Gates beyond this hide their label; 45 m chunks put the next decision well inside it.</summary>
-        private const float LabelVisibleMeters = 34f;
+        /// <summary>
+        /// Gates beyond this hide their label; 45 m chunks put the next decision well inside
+        /// it. It is ALSO the reveal line — the distance at which a gate or a pack commits to
+        /// its headcount and starts drawing bodies. One constant governing the sign, the
+        /// bodies and the commit is what stops the three drifting apart, which is why it is
+        /// asserted equal to Reveal.LineMeters rather than merely set from it.
+        /// </summary>
+        private const float LabelVisibleMeters = BattleRunner.Core.Run.Reveal.LineMeters;
 
         /// <summary>Extra clearance past the camera before a passed gate is recycled.</summary>
         private const float DespawnMarginMeters = 4f;
@@ -649,11 +661,12 @@ namespace BattleRunner.Gameplay.Track
                     // Every gate in the level exists from BuildLevel onward and its label
                     // draws through all geometry, so without this the far ones stack into
                     // an unreadable pile on the horizon.
-                    gate.SetLabelVisible(z - frontZ <= LabelVisibleMeters);
-                    // The sign says what this gate is worth to the army CURRENTLY walking at
-                    // it, so it has to be rewritten as that army changes. Only gates near
-                    // enough to read are refreshed; the rest are re-signed as they approach.
-                    if (z - frontZ <= LabelVisibleMeters) gate.RefreshSign(crowd.ForceCount);
+                    bool inRange = z - frontZ <= LabelVisibleMeters;
+                    gate.SetLabelVisible(inRange);
+                    // ONCE. The sign used to be rewritten every time the army changed, which
+                    // is what the player saw: *"it changes right in front of my eyes."*
+                    if (inRange) gate.RevealOnce(crowd.ForceCount);
+                    gate.TickReveal(Time.deltaTime);
                     continue;
                 }
 
@@ -669,7 +682,8 @@ namespace BattleRunner.Gameplay.Track
                     if (reaches)
                     {
                         gate.Consume();
-                        GateApplied?.Invoke(gate.Op, gate.Weight, gate.Depth, gate.transform.position);
+                        GateApplied?.Invoke(gate.Op, gate.Weight, gate.Depth, gate.Reveal,
+                            gate.transform.position);
                     }
                 }
 
@@ -693,8 +707,10 @@ namespace BattleRunner.Gameplay.Track
 
                 if (!pack.Resolved && z > frontZ)
                 {
-                    pack.SetLabelVisible(z - frontZ <= LabelVisibleMeters);
-                    if (z - frontZ <= LabelVisibleMeters) pack.RefreshCount(crowd.ForceCount);
+                    bool inRange = z - frontZ <= LabelVisibleMeters;
+                    pack.SetLabelVisible(inRange);
+                    if (inRange) pack.RevealOnce(crowd.ForceCount);
+                    pack.TickReveal(Time.deltaTime);
                     pack.FaceCamera(camera);
                     continue;
                 }
@@ -709,9 +725,15 @@ namespace BattleRunner.Gameplay.Track
                         // the game depends on that — but the squad now stands and fights while
                         // its count drains, instead of being deleted on the frame it is
                         // touched. See Core/Run/Melee and SquadRenderer.
-                        pack.RefreshCount(crowd.ForceCount);
+                        //
+                        // RevealOnce, not a recount: a pack reached before the reveal line —
+                        // which the crowd's leading plane can do when a big recruit gate
+                        // lengthens the formation in one frame — commits here instead, and a
+                        // pack that already committed keeps the number it showed.
+                        pack.RevealOnce(crowd.ForceCount);
                         pack.BeginFight(crowd.ForceCount);
-                        EnemyContact?.Invoke(pack.Weight, pack.Depth, pack.transform.position);
+                        EnemyContact?.Invoke(pack.Weight, pack.Depth, pack.Reveal,
+                            pack.transform.position);
                     }
                     else
                     {

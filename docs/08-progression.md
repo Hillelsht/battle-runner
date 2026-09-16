@@ -349,6 +349,67 @@ else the player does is detectable. Skill expression and the `×2` arch are the 
 and the arch lost. It is a ×1.30 now — still worth nearly seven recruit gates, still the
 gate you steer for, still an arch rather than a crowd.
 
+## One reveal line: nothing changes size under your eyes
+
+> *"I like that the crowds blue or red become bigger the moment I become bigger. The problem is
+> that... I see it immediately that the next crowd turns bigger, that is strange that it changes
+> right in front of my eyes... let the next one become bigger, not the one right in front of my
+> eyes."*
+
+A share has to become men to be drawn, and the code did that conversion again every time the army
+moved. So the crowd twenty metres up the road grew while the player watched. The objection is not
+to the scaling — they say so — it is to seeing it happen.
+
+**The rule is one commit and no second thoughts.** A gate or a pack resolves its headcount exactly
+once, when it first comes within `Reveal.LineMeters` of the army's front, and nothing about it
+changes afterwards. Nothing is drawn before it has committed, so nothing appears at the wrong size
+first either.
+
+**The hard part is that the sign must equal the effect.** `OnGateApplied` used to recompute through
+`Talents.ApplyGate(live force, …)` while the sign had been written against whatever the army was
+when it was last refreshed; the two agreed closely enough to hide, precisely because the sign was
+rewritten every 2%. Latching the sign alone would have made them disagree openly — which is how
+last round's *"+1 that adds nothing"* was built. So the latched headcount is not a label, it **is
+the delta**: `Core/Run/Reveal` holds the one number that the sign, the bodies and the applied
+effect all read.
+
+**A rally is the exception and does not need latching.** Its sign is `×2.00` — a factor, which
+cannot pop however the army moves — so it keeps applying a share of the live army, which is exactly
+what that sign promises. The pop was only ever in the two gates that count men.
+
+**There were two pops, not one.** The re-resolve is the one the player described. But packs were
+also seeded against `StandingArmy.Seed` — *five men* — on the frame they were pooled, and
+`SquadRenderer` had no distance cull at all, so one lone soldier stood eighty metres up the road
+and became forty on the frame the reveal line crossed him. Gate crowds were worse still:
+`SquadRenderer` recomputed their headcount inline **every frame with no guard**, so the crowd under
+a gate grew smoothly and continuously with the army, in plain sight.
+
+The reveal distance is **34 m**, reusing `LabelVisibleMeters` — the constant that already decided
+when a sign appears — so one number governs sign visibility, body visibility and the commit and
+they cannot drift apart. A further-out line was considered and rejected: fog starts between 35 m
+and 100 m depending on the world, so no distance is universally hidden by weather.
+
+Bodies **grow in by count, not by scale**, and that is forced rather than chosen: uniform scale is
+the only per-instance channel the crowd has and `CrowdInstanced` decodes the walk phase out of the
+0.44–0.50 window, so a body scaled up from nothing would walk nonsense on its way in. Ranks filling
+reads better anyway.
+
+### What it cost, and the direction is the surprise
+
+Pricing a gate against the army as it was 34 m ago turns `×(1+s)` into `×(1 + s·F_reveal/F_contact)`.
+That reads like a nerf to the green side, and it is — but it is **the same nerf on the red side**,
+and the red side is where the compounding lived. Measured over the 62-round campaign the latch came
+out a **buff of roughly four and a half times at every skill level**, because pricing a loss against
+a smaller army is worth more than pricing a gain against one.
+
+`AmbushShare` goes **0.125 → 0.132**, found by sweeping it through the campaign simulation. That is
+what puts the competent player back where the barricade left them — 2.84e10 against 3.27e10.
+
+The top of the curve does not come back, and that is structural rather than untuned: the rally is
+not latched, so it keeps its full strength while the two gates that count men lose a little of
+theirs, and near-perfect play is rally-chaining. It stays finite — 3.7e39 at flawless lane choice,
+against a double's 1.8e308.
+
 ## Two numbers, and the difference between them is the design
 
 `StandingArmy` holds the whole promise:
@@ -374,16 +435,20 @@ steering at a fixed quality between the worst lane and the best at every decisio
 
 | lane quality | round 30 | round 62 | permanent floor | rank |
 |---|---|---|---|---|
-| 1.00 | 1.2×10²¹ | 3.6×10⁵⁸ | 2.0×10⁵⁸ | 153 |
-| 0.90 | 8.27T | 6.5×10²⁰ | 3.6×10²⁰ | 77 |
-| **0.85** | **574M** | **20.1T** | 11.1T | 42 |
-| 0.80 | 134K | 662K | 396K | 18 |
-| 0.72 | 25 | 38 | 78 | 3 |
-| 0.65 | 0.9 | 1.3 | 6.9 | 1 |
+| 1.00 | 1.1×10²² | 3.7×10³⁹ | 2.0×10³⁹ | 130 |
+| 0.90 | 1.2×10¹³ | 6.3×10¹⁸ | 3.5×10¹⁸ | 61 |
+| **0.85** | **417M** | **28.4B** | 24.3B | 33 |
+| 0.80 | 308K | 1.45M | 2.06M | 19 |
+| 0.72 | 59 | 323 | 1.09K | 7 |
+| 0.65 | 3.4 | 17 | 64 | 2 |
 
-**Break-even sits at about 0.72.** Below it the army does not grow, and the floor is what
-stops that from being a spiral — a player at 0.65 holds rank 1 rather than being ruined, and
-one at 0.80 holds rank 18 for twenty rounds until they play better or buy stats. That is the
+Re-measured after the barricade and the reveal line, both of which moved it. The simulation
+models the **reveal lag** explicitly — a gate priced against the army as it was 34 m earlier —
+because that is what the game does now, and at 45 m chunks it is up to six gates of lag.
+
+**Break-even sits at about 0.72.** Below it the army barely grows, and the floor is what stops
+that from being a spiral — a player at 0.65 holds rank 2 rather than being ruined, and one at
+0.80 holds rank 19 for twenty rounds until they play better or buy stats. That is the
 difficulty, arriving where it was aimed: the ambush weight and the depth ramp both climb
 while the recruit share does not, so an average line stops being enough.
 
