@@ -55,8 +55,9 @@ does. It is ×1.30.
 **BestEver** is a high-water mark that only rises, and the floor is 55% of it. A disastrous
 round costs up to 45% of a career; no sequence of them can put the player back at the
 beginning. Measured across all 62 rounds of the campaign from the shipped code, break-even
-sits at lane quality **0.72** — below it the army does not grow and the floor is what stops
-that being a spiral; at 0.85 it reaches **574M by round 30 and 20.1T by round 62**.
+sits at lane quality **0.72** — below it the army barely grows and the floor is what stops
+that being a spiral; at 0.85 it reaches **417M by round 30 and 28.4B by round 62**, re-measured
+after the barricade and the reveal line moved it.
 
 **The boss is re-priced against the army that actually walks in**, through the same
 `CrowdFactor` its damage is multiplied by, so the two cancel exactly: the fight lasts about as
