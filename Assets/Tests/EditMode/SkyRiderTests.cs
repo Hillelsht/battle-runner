@@ -1,4 +1,5 @@
 using System;
+using BattleRunner.Core.Feel;
 using BattleRunner.Core.World;
 using NUnit.Framework;
 
@@ -139,15 +140,25 @@ namespace BattleRunner.Tests
             // degrees above the horizontal against a frame top of 18.7 — in view for 36% of
             // its lap. A flier nobody can see for two thirds of the time is not scenery, it is
             // an intermittent glitch at the top of the screen.
-            foreach (SkyRiderKind kind in Enum.GetValues(typeof(SkyRiderKind)))
+            //
+            // CHECKED AT BOTH ENDS OF THE CAMERA LIFT, because the camera is no longer one
+            // pose. As the rig rises the top of the frame comes DOWN toward the horizon, which
+            // is the direction that would push a flier out of view — so proving it at the
+            // shipped framing alone proves nothing about the army sizes where it matters most.
+            foreach (float lift in new[] { 0f, 0.5f, 1f })
             {
-                if (kind == SkyRiderKind.None) continue;
-                float share = SkyRiders.VisibleShare(SkyRiders.For(kind));
-                Assert.Greater(share, 0.65f,
-                    $"{kind} is on screen for {share:P0} of its lap");
-                // And NOT all of it: something permanently parked in the frame stops being a
-                // thing that flies over and becomes part of the HUD.
-                Assert.Less(share, 0.97f, $"{kind} never leaves the frame");
+                CameraFrame frame = CameraFraming.At(lift);
+                foreach (SkyRiderKind kind in Enum.GetValues(typeof(SkyRiderKind)))
+                {
+                    if (kind == SkyRiderKind.None) continue;
+                    float share = SkyRiders.VisibleShare(SkyRiders.For(kind), frame);
+                    Assert.Greater(share, 0.65f,
+                        $"{kind} is on screen for {share:P0} of its lap at camera lift {lift:0.0}");
+                    // And NOT all of it: something permanently parked in the frame stops being
+                    // a thing that flies over and becomes part of the HUD.
+                    Assert.Less(share, 0.97f,
+                        $"{kind} never leaves the frame at camera lift {lift:0.0}");
+                }
             }
         }
 
@@ -156,8 +167,8 @@ namespace BattleRunner.Tests
         {
             // z is measured from the crowd and the camera sits ten metres behind it, so a
             // sample at -20 is behind the lens. Atan2 would happily return an angle for it.
-            Assert.IsFalse(SkyRiders.InFrame(0f, 15f, -20f));
-            Assert.IsFalse(SkyRiders.InFrame(0f, 15f, -10f));
+            Assert.IsFalse(SkyRiders.InFrame(CameraFraming.At(0f), 0f, 15f, -20f));
+            Assert.IsFalse(SkyRiders.InFrame(CameraFraming.At(0f), 0f, 15f, -10f));
         }
 
         [Test]

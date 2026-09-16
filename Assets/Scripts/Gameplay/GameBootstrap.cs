@@ -221,7 +221,7 @@ namespace BattleRunner.Gameplay
 
             var cameraGo = new GameObject("GameCamera");
             ctx.CameraRig = cameraGo.AddComponent<CameraRig>();
-            ctx.CameraRig.Initialize(ctx.Crowd);
+            ctx.CameraRig.Initialize(ctx.Crowd, ctx.TierCap);
             EnvironmentLook.AttachPostProcessing(ctx.CameraRig.Camera);
 
             // The listener goes on the CAMERA, which is where the player's ears are, and

@@ -1,4 +1,5 @@
 using BattleRunner.Gameplay.Crowd;
+using BattleRunner.Core.Feel;
 using UnityEngine;
 
 namespace BattleRunner.Gameplay
@@ -55,10 +56,13 @@ namespace BattleRunner.Gameplay
         private const float FovPunchStiffness = 14f;
         private const float FovPunchImpulse = FovPunchStiffness * 2.71828183f;
 
-        // Framing drift is OFF. v0.4.0's framing was verified on a real device, and a
-        // depth-proportional widen would pull the frame open by more than half a degree
-        // even at run start, shrinking every body. Turn it on only with a fresh pass.
-        private const float FramingFovPerMeterOfDepth = 0f;
+        // FramingFovPerMeterOfDepth is GONE, and the note it carried is worth keeping: it sat
+        // at 0 with "turn it on only with a fresh pass", because a depth-proportional widen
+        // pulls the frame open by more than half a degree even at run start and shrinks every
+        // body. That was right, and the fresh pass agreed with it — crowd depth was the wrong
+        // input. The frame now widens with the camera's LIFT instead, which is zero until the
+        // army passes the tier cap, so run start is untouched and the widening arrives exactly
+        // when the rig is rising to look over a hero that has become enormous.
         private const float TelegraphFovLeanIn = -2.5f;
         private const float FramingRate = 1.4f;
 
@@ -85,6 +89,7 @@ namespace BattleRunner.Gameplay
         private float _fovPunch;
         private float _fovPunchVelocity;
         private float _framingBias;
+        private int _tierCap = 200;
         private float _telegraph;
         private float _lastCenterX;
         private float _lateralSpeed;
@@ -96,9 +101,10 @@ namespace BattleRunner.Gameplay
         /// <summary>Current trauma, 0-1. Shake amplitude is its square.</summary>
         public float Trauma => _trauma;
 
-        public void Initialize(CrowdController crowd)
+        public void Initialize(CrowdController crowd, int tierCap)
         {
             _crowd = crowd;
+            _tierCap = tierCap;
             _camera = gameObject.AddComponent<UnityEngine.Camera>();
             _camera.fieldOfView = BaseFieldOfView;
             _camera.nearClipPlane = 0.3f;
@@ -226,20 +232,40 @@ namespace BattleRunner.Gameplay
             _fovPunch = (_fovPunch + a * dt) * e;
             _fovPunchVelocity = (_fovPunchVelocity - FovPunchStiffness * a * dt) * e;
 
-            float crowdDepth = _crowd.FrontZ - _crowd.CenterZ;
-            float wanted = crowdDepth * FramingFovPerMeterOfDepth + _telegraph * TelegraphFovLeanIn;
+            // THE DEAD KNOB, FINALLY TURNED — and turned by the framing rather than by crowd
+            // depth. FramingFovPerMeterOfDepth sat at 0 with a comment saying "turn it on only
+            // with a fresh pass"; this is that pass, and the pass concluded that depth was the
+            // wrong input. The frame widens with the LIFT, so the two move together and the
+            // sky margin the framing tests assert is the margin the camera actually has.
+            float wanted = (Frame().FieldOfView - BaseFieldOfView) + _telegraph * TelegraphFovLeanIn;
             _framingBias = Mathf.Lerp(_framingBias, wanted, 1f - Mathf.Exp(-FramingRate * dt));
 
             _camera.fieldOfView = Mathf.Clamp(BaseFieldOfView + _fovPunch + _framingBias,
                 MinFieldOfView, MaxFieldOfView);
         }
 
-        // Portrait chase framing: ~11 degrees of pitch. Unchanged from v0.4.0, which was
-        // verified on a device — the juice layer is added around it, not instead of it.
-        private Vector3 TargetPosition() =>
-            new Vector3(_crowd.CenterX * 0.85f, 5.5f, _crowd.CenterZ - SetbackMeters);
+        /// <summary>
+        /// The rig for the army currently on the road.
+        ///
+        /// Portrait chase framing at ~11 degrees of pitch while the army is at or under the
+        /// tier cap — unchanged from v0.4.0, which was verified on a device, and the juice
+        /// layer is still added around it rather than instead of it. Above the cap it lifts
+        /// toward 12.5 m and 29 degrees, because a hero drawn at a million men hides 25.9 m
+        /// of road from the shipped pose. See Core/Feel/CameraFraming.
+        /// </summary>
+        private CameraFrame Frame() =>
+            CameraFraming.For(_crowd != null ? _crowd.ForceCount : 0.0, _tierCap);
 
-        private Vector3 LookTarget() =>
-            new Vector3(_crowd.CenterX * 0.85f, 1.5f, _crowd.CenterZ + 10f);
+        private Vector3 TargetPosition()
+        {
+            CameraFrame f = Frame();
+            return new Vector3(_crowd.CenterX * 0.85f, f.Height, _crowd.CenterZ - f.Setback);
+        }
+
+        private Vector3 LookTarget()
+        {
+            CameraFrame f = Frame();
+            return new Vector3(_crowd.CenterX * 0.85f, f.LookHeight, _crowd.CenterZ + f.LookAhead);
+        }
     }
 }

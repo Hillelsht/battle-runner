@@ -180,7 +180,12 @@ namespace BattleRunner.Core.Crowd
         {
             if (forceCount <= tierCap || tierCap <= 0) return 1f;
             double ratio = (double)forceCount / tierCap;
-            return 1f + 0.35f * (float)Math.Log10(ratio + 1.0);
+            // log10(ratio), NOT log10(ratio + 1). The `+ 1` made this DISCONTINUOUS at the
+            // cap: it returns exactly 1.0 at the cap and 1 + 0.35*log10(2) = 1.106 one man
+            // past it, so the hero visibly jumped a tenth of its size for a single recruit.
+            // Dropping the term removes the jump and changes almost nothing above it — the
+            // two forms agree to within 0.015 past ten times the cap, and converge from there.
+            return 1f + 0.35f * (float)Math.Log10(ratio);
         }
     }
 }

@@ -1,4 +1,5 @@
 using System;
+using BattleRunner.Core.Feel;
 
 namespace BattleRunner.Core.World
 {
@@ -69,20 +70,20 @@ namespace BattleRunner.Core.World
         /// <summary>How much daylight a flier must leave over the tallest span.</summary>
         public const float ArchMargin = 4.0f;
 
-        // THE CAMERA, DUPLICATED, and unlike RoadArches.RoadHalfWidth this one cannot be
-        // cross-checked: CameraRig lives in Gameplay and Core cannot see it. So it is written
-        // out with its source rather than left as three bare numbers — CameraRig.cs:239-244
-        // puts the camera at y = 5.5 ten metres behind the crowd, aims it at y = 1.5 ten
-        // metres ahead, and runs a 60-degree VERTICAL field of view.
+        // THE CAMERA IS NO LONGER DUPLICATED HERE. These five constants used to be hand-copied
+        // out of CameraRig with a note saying Core could not see it to cross-check them — and
+        // then the camera learned to lift, and every one of them silently became a description
+        // of a pose the game only holds while the army is under the tier cap. The framing lives
+        // in Core/Feel/CameraFraming now, so "can the player see it" is asked of the rig the
+        // player actually has.
         //
-        // They are here because "can the player see it" is the property that decides whether
-        // a flier is worth drawing at all, and it is pure trigonometry.
-        public const float CameraHeight = 5.5f;
-        public const float CameraSetback = 10.0f;
-        public const float CameraPitchDegrees = -11.3f;
-        public const float CameraHalfFovDegrees = 30.0f;
-        /// <summary>Portrait, so the horizontal field is far narrower than the vertical.</summary>
-        public const float CameraHalfFovHorizontalDegrees = 15.0f;
+        // Portrait: the horizontal field is far narrower than the vertical, and it is the one
+        // that decides whether a wide orbit leaves the frame at its sides.
+        public const float PortraitAspect = 1080f / 2400f;
+
+        public static float HalfFovHorizontalDegrees(CameraFrame frame) =>
+            (float)(Math.Atan(Math.Tan(frame.FieldOfView * 0.5 * Math.PI / 180.0) * PortraitAspect)
+                    * 180.0 / Math.PI);
 
         /// <summary>
         /// Whether a sample would be inside the frame, taken from the crowd's own position.
@@ -90,18 +91,21 @@ namespace BattleRunner.Core.World
         /// it is the difference between a flier that circles in and out of view and one that
         /// spends most of its lap above the top of the screen.
         /// </summary>
-        public static bool InFrame(float x, float y, float z)
+        public static bool InFrame(CameraFrame frame, float x, float y, float z)
         {
-            double dz = z + CameraSetback;
+            double dz = z + frame.Setback;
             if (dz <= 0.0) return false;
-            double elevation = Math.Atan2(y - CameraHeight, dz) * 180.0 / Math.PI;
+            double elevation = Math.Atan2(y - frame.Height, dz) * 180.0 / Math.PI;
             double azimuth = Math.Abs(Math.Atan2(x, dz) * 180.0 / Math.PI);
-            return elevation <= CameraPitchDegrees + CameraHalfFovDegrees
-                   && azimuth <= CameraHalfFovHorizontalDegrees;
+            // The rig is pitched DOWN, so the top of the frame sits at half-fov minus pitch
+            // above horizontal. As the camera lifts, that ceiling comes down — which is
+            // exactly why this had to stop being a constant.
+            return elevation <= frame.FieldOfView * 0.5 - frame.PitchDegrees
+                   && azimuth <= HalfFovHorizontalDegrees(frame);
         }
 
         /// <summary>What fraction of a lap the flier is actually on screen for.</summary>
-        public static float VisibleShare(SkyPath path, int samples = 180)
+        public static float VisibleShare(SkyPath path, CameraFrame frame, int samples = 180)
         {
             if (path.LapsPerSecond <= 0f || samples <= 0) return 0f;
             float lap = 1f / path.LapsPerSecond;
@@ -109,7 +113,7 @@ namespace BattleRunner.Core.World
             for (int i = 0; i < samples; i++)
             {
                 SampleAt(path, lap * i / samples, out float x, out float y, out float z, out _, out _);
-                if (InFrame(x, y, path.Ahead + z)) seen++;
+                if (InFrame(frame, x, y, path.Ahead + z)) seen++;
             }
             return seen / (float)samples;
         }

@@ -853,3 +853,81 @@ The arena takes its colours from the world it stands in rather than authoring a 
 the floor is the world's own `RoadStone` at 0.72, the stones its `PropStone`, and the beacons
 its `Accent` with a flat emission term so they read as lights rather than as outlined rocks.
 Deriving it is what stops a world added later from arriving with a grey courtyard in it.
+
+---
+
+# The camera lifts, because the hero grew past it
+
+> *"when my army and my main character are too big, they become super big. And I like it. Change
+> the camera. When the character becomes super big, show everything from above so I could still see
+> the road and what's on it. Otherwise I don't see anything, the character hides it."*
+
+## Measured first, and the obvious reading was wrong twice
+
+The hero hides **25.9 m of road** at a million men — about two and a half seconds of running. But
+it is a **width** problem, not a height one. Portrait gives a 60° vertical field and only **29°
+horizontally**, so the Warden at that size is 52% of the frame's *width* while being 17% of its
+*height*. And it gets worse than the screenshot: at a hundred million men the shipped rig hides
+**64.5 m**, six seconds of road.
+
+## What the rig may and may not do
+
+`CameraRig.SetbackMeters` is a `public const` that `TrackController` uses to place the despawn
+plane. So the rig may **rise and close in, but never move back** — drifting backwards would start
+deleting track inside the frame. Closing in is free: things simply despawn further behind the lens
+than they need to.
+
+## Why it stops at 12.5 m
+
+Two constraints meet there, and both are now tests.
+
+**The horizon must stay in frame.** Past about 13 m the top-of-frame ray drops below horizontal and
+the sky goes — taking the arches, the castles and the skyline with it, at exactly the moment the
+player has the biggest army to look at them with. And **the margin is not measured against zero**:
+shake adds up to 1.5° of pitch and a boss telegraph narrows the field by 2.5°, dropping the top
+edge another 1.25°. A frame that only just keeps the sky when nothing is happening loses it exactly
+when a boss is winding up. The static margin has to be **4°**.
+
+At the 15 m I first proposed, the static margin is already **−1.02°** — the sky is gone before any
+juice is applied.
+
+**The army's tail must stay in frame.** At 12.5 m the bottom of the frame meets the ground at
+z = −2.30 against a tail reaching −2.47: about one body clipped, at the very bottom edge, only at
+forces a thousand times the cap. At 15 m it eats 1.33 m of a 2.47 m tail to buy 1.3 m less hidden
+road — a bad trade, and a test now refuses it.
+
+## What it buys
+
+| force | lift | camera y | pitch | sky margin | road hidden — **lifted** | road hidden — shipped |
+|---:|---:|---:|---:|---:|---:|---:|
+| 200 (cap) | 0.00 | 5.5 | 11.3° | 18.7° | 5.8 m | 5.8 m |
+| 20,000 | 0.50 | 9.0 | 20.6° | 10.9° | **6.1 m** | 13.5 m |
+| 1,000,000 | 0.92 | 12.0 | 27.6° | 5.1° | **6.1 m** | 25.9 m |
+| 100,000,000 | 1.00 | 12.5 | 28.8° | 4.2° | **8.6 m** | 64.5 m |
+
+The result is better than "less occlusion": **the hidden road stays roughly constant** as the army
+grows, because the rig rises at about the rate the figure does. It only starts losing ground past a
+hundred million, where the lift has saturated and the hero has not. That property is the test.
+
+## Two things found on the way
+
+**`CrowdMath.HeroScaleFor` was discontinuous at the tier cap.** It returned exactly 1.0 at the cap
+and `1 + 0.35·log10(ratio + 1)` above it — which is **1.106 one man past it**. The hero jumped a
+tenth of its size for a single recruit. Dropping the `+ 1` removes the jump and changes almost
+nothing above it: the two forms agree to within 0.015 past ten times the cap and converge from
+there. A camera driven off that input would have inherited the same hop, which is why the framing
+takes its lift from `log10(force/cap)` — exactly zero at the cap — and why one of the tests checks
+precisely that.
+
+**`FramingFovPerMeterOfDepth` is gone.** It sat at `0f` with a note saying *"turn it on only with a
+fresh pass"*. This was that pass, and it agreed with the note: crowd depth was the wrong input — a
+depth-proportional widen pulls the frame open at run start and shrinks every body. The frame now
+widens with the **lift**, which is zero until the army passes the tier cap, so run start is
+untouched and the widening arrives exactly when the rig is rising.
+
+`SkyRiders` also stops hand-copying the camera constants. They were five numbers transcribed out of
+`CameraRig` with a note that Core could not see it to cross-check them — and the moment the camera
+learned to lift, every one of them silently became a description of a pose the game only holds
+below the tier cap. The pony's visibility is now asserted at **both ends of the lift**, because as
+the rig rises the top of the frame comes *down*, which is the direction that would push a flier out
+of view.
