@@ -450,3 +450,59 @@ is the worse one rather than shipping quietly, which is the same rule the beds a
 while its own docstring said D minor and its SoundFont branch played D minor. Corrected to
 587.33 / 698.46 / 880.0 / 1174.66. It only ever runs with no network, which is presumably why
 nobody heard it.
+
+---
+
+# The two cues with nothing underneath them
+
+> *"the sound of hitting a crowd or hitting the multiplication door is bad, make more profound"*
+
+Two cues named out of fifteen. An FFT of the shipped files says why, and it is the same answer for
+both — **energy below 80 Hz**:
+
+| clip | sub 20–80 | low 80–250 | mid 250–2k | high 2k+ | peak |
+|---|---|---|---|---|---|
+| `sfx_enemy_bite` | **0.3%** | 58.7% | 14.3% | 26.3% | 132 Hz |
+| `sfx_gate_multiply` | **0.0%** | 27.6% | 72.4% | 0.0% | 293 Hz |
+| `sfx_gate_subtract` | 9.6% | 69.3% | 16.2% | 2.8% | 95 Hz |
+| `sfx_boss_blow` | 14.8% | 80.9% | 1.0% | 3.4% | 99 Hz |
+
+**The two the player called out are exactly the two with no bottom octave, and the two they did not
+mention are the two that have one.** Two armies colliding was a 132 Hz tick; the multiply gate was a
+pure midrange tinkle with its peak at 293 Hz and literally nothing below 80 or above 2k.
+
+## What each one got
+
+**`enemy_bite`** keeps its 0.22 s and keeps `room()` off — it fires up to six times a second and
+doubles as the boss's maul, and a long low tail is the fastest way to turn that into mud. The sub
+goes in as a third sweep, 96→46 Hz, decaying in **55 ms**: about two cycles at its landing pitch,
+long enough to feel and too short to smear into the next one.
+
+**`gate_multiply`** keeps its rising harp run and gains a floor under it — a pitch drop for the
+weight and a lowpassed knock for the wood. This cue *can* afford a tail: a multiply is rare, its
+`MinInterval` is 90 ms, and the bursts that justify short tails are the gate-add and the bite.
+
+## Two mistakes worth recording, because both were only visible in the measurement
+
+**The bite overshot to 55% sub on the first render** — a kick drum, not a crowd, with its transient
+crushed from 26% to 9%. Sub energy goes as the *square* of the gain, so solving the measured share
+for a 12% target gave 0.31 rather than the 0.95 first tried.
+
+**The multiply's floor did not arrive at all** — 0.0% below 80 Hz, completely unchanged. The sweep
+was built across the cue's full 0.72 s but enveloped to 80 ms, so it was still at **102 Hz** when
+its envelope closed. A sweep has to be given a length it can actually traverse. Even once fixed it
+measured 0.5%, because at 75 ms it carried about 2% of the cue's energy — energy is amplitude
+squared times *duration*, so the decay is what buys presence, not the gain.
+
+## Where they land
+
+| clip | sub, shipped → now | peak | note |
+|---|---|---|---|
+| `sfx_enemy_bite` | 0.3% → **11.1%** | 133 Hz | between the two reference impacts; transient intact at 22% |
+| `sfx_gate_multiply` | 0.0% → **14.3%** | 293 Hz | harp still leads; mid drops 72% → 57% |
+
+Only the four intended files changed in the render — the other seventeen clips are byte-identical,
+which is the check that nothing else moved.
+
+**Still open:** there is no sustained clash cue. After the single contact bite, a melee of dozens of
+men is silent for the rest of the fight. That is a separate cue, not a fix to these two.

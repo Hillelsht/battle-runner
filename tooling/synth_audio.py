@@ -445,8 +445,19 @@ def gate_add(seed=0):
 
 def gate_multiply():
     """
-    A rising harp run. Multiplying is the best thing that happens in a run, so it goes UP, and
-    it takes longer than an add so the difference is legible at a glance rather than by ear.
+    A rising harp run over a struck floor. Multiplying is the best thing that happens in a run,
+    so it goes UP, and it takes longer than an add so the difference is legible at a glance
+    rather than by ear.
+
+    THE HARP ALONE HAD NOTHING UNDER IT. Measured on the shipped file: 0.0% of its energy below
+    80 Hz, 0.0% above 2 kHz, and 72.4% packed into the midrange with its peak at 293 Hz. It was
+    a pure mid-band tinkle, which is why the player described running into a "multiplication
+    door" and hearing nothing land.
+
+    So the run keeps its shape and gains a floor: a low struck body that arrives with the first
+    note and is gone before the third. Unlike the bite, this cue CAN afford a tail -- a multiply
+    is rare, its MinInterval is 90 ms, and the bursts that justify short tails are the gate-add
+    and the crowd hit, not this one.
     """
     sf = bank()
     n = int(0.72 * SR)
@@ -469,7 +480,26 @@ def gate_multiply():
         at = int(i * 0.048 * rate)
         v = play(sf, GM_HARP, TONIC_KEY + degree, 0.6, gain=0.85 - i * 0.06)
         out[at:at + len(v)] += v
-    return oneshot(room(decimate(out)[:n], 0.18), 0.90)
+    run = decimate(out)[:n]
+
+    # The floor. Synthesised rather than the GM timpani that round_start uses: a sampled drum
+    # brings its own ring, and at 0.72 s a ring under a rising run turns the whole cue to
+    # porridge. Two short layers instead -- a pitch drop for the weight and a lowpassed knock
+    # for the wood -- both finished inside 120 ms, so what LASTS is still the harp.
+    # THE FLOOR GETS ITS OWN SHORT WINDOW, and that is the whole trick. Built across the
+    # cue's full 0.72 s the sweep is still at 102 Hz when its 80 ms envelope closes -- it
+    # never reaches the bottom at all, which is exactly what the first render measured: 0.0%
+    # below 80 Hz, unchanged. A sweep has to be given a length it can actually traverse.
+    # And it needs a length as well as a window. At 75 ms the floor carried about 2% of the
+    # cue's energy -- a thud under a run seven times longer than itself, which measured as
+    # 0.5% below 80 Hz and sounded like nothing. Energy goes as amplitude squared times
+    # duration, so the decay is what buys presence here, not the gain. 0.16 s of it against
+    # the harp's 0.6 lands the bottom octave at about a tenth of the cue, which is where
+    # gate_subtract and boss_blow already sit.
+    m = int(0.34 * SR)
+    door = sweep(150, 44, m, 0.6) * env(m, 0.0015, 0.155)
+    knock = lowpass(noise(m, 41), 950, 170) * env(m, 0.0007, 0.048)
+    return oneshot(room(layer(n, (run, 1.0), (door, 1.05), (knock, 0.34)), 0.18), 0.90)
 
 
 def gate_subtract():
@@ -496,12 +526,36 @@ def enemy_bite(seed=0):
 
     Variation is in the noise seed and a small pitch offset, so a burst of bites is a burst
     of different bites rather than one sample played six times.
+
+    IT HAD NO BOTTOM OCTAVE AT ALL, and the FFT says so plainly. Measured on the shipped
+    file, the energy below 80 Hz:
+
+        enemy_bite      0.3%      <- "the sound of hitting a crowd is bad"
+        gate_multiply   0.0%      <- "...or hitting the multiplication door"
+        gate_subtract   9.6%
+        boss_blow      14.8%
+
+    The two cues the player called out are exactly the two with nothing underneath them,
+    and the two they did not mention are the two that have it. Two armies colliding was a
+    132 Hz tick.
+
+    The sub goes in as a THIRD SWEEP rather than by lengthening anything. The no-room rule
+    and the 0.22 s envelope are what keep six of these a second from turning into mud, and
+    a long low tail is the fastest way to undo both -- so this one decays in 55 ms, about
+    two cycles at its landing pitch. Long enough to feel in the chest, too short to smear
+    into the next one.
     """
-    n = int(0.22 * SR)
+    n = int(0.24 * SR)
     pitch = 1.0 + (seed - 1) * 0.05
     crack = lowpass(noise(n, 23 + seed * 7), 5200, 900) * 1.2 * env(n, 0.0008, 0.035)
     thump = sweep(240 * pitch, 80 * pitch, n, 0.5) * env(n, 0.001, 0.070)
-    return oneshot(layer(n, (crack, 1.0), (thump, 0.5)), 0.82)
+    body = sweep(96 * pitch, 46 * pitch, n, 0.35) * env(n, 0.0015, 0.055)
+    # 0.31, and the number was measured rather than picked. The first attempt used 0.95 and
+    # buried the cue: 55% of its energy below 80 Hz against the 9.6% and 14.8% of the two
+    # impacts nobody complained about, with the transient down from 26% to 9%. That is not a
+    # crowd being hit, it is a kick drum. Sub energy goes as the square of the gain, so
+    # solving the measured share for a 12% target gives 0.31.
+    return oneshot(layer(n, (crack, 1.0), (thump, 0.5), (body, 0.31)), 0.84)
 
 
 def spell_cast():
