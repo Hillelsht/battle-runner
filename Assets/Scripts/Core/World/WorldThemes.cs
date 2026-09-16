@@ -46,6 +46,8 @@ namespace BattleRunner.Core.World
                 SkyGlow = new Rgb(0.500f, 0.330f, 0.230f),
                 // The judged baseline: 0.40 / 0.35, left alone.
                 SkyStars = 1.6f, SkyGlowYaw = 0.0f,
+                // peak 0.055 x 5.5 — the shipped value, reproduced exactly.
+                AmbientLevel = 0.3025f,
                 Fog = new Rgb(0.440f, 0.300f, 0.230f), FogStart = 70f, FogEnd = 170f,
                 LightColor = new Rgb(0.750f, 0.780f, 0.950f),
                 LightIntensity = 1.10f, LightPitch = 32f, LightYaw = 250f,
@@ -127,9 +129,9 @@ namespace BattleRunner.Core.World
                 DisplayName = "Thistlewood",
                 // Warm dry flagstone, barely wet. Every other world's road is damp, which is
                 // a night-and-rain cue the eye reads before it reads hue.
-                RoadStone = new Rgb(0.620f, 0.575f, 0.495f),
-                RoadMortar = new Rgb(0.430f, 0.400f, 0.350f),
-                RoadDamp = new Rgb(0.640f, 0.620f, 0.560f),
+                RoadStone = new Rgb(0.560f, 0.520f, 0.450f),
+                RoadMortar = new Rgb(0.390f, 0.362f, 0.318f),
+                RoadDamp = new Rgb(0.580f, 0.560f, 0.505f),
                 RoadTiling = 1.45f, RoadWetness = 0.10f, RoadGloss = 22f, RoadStoneVariation = 0.55f, RoadGrimeContrast = 0.26f,
                 // PLANKS, and not because a boardwalk is storybook: it is the only surface of the
                 // eight not already carrying another world, and two worlds paved the same way
@@ -137,8 +139,13 @@ namespace BattleRunner.Core.World
                 RoadMortarWidth = 0.095f, Surface = RoadSurfaces.Planks,
                 // A real blue overhead and a pale warm band on the horizon.
                 SkyZenith = new Rgb(0.230f, 0.430f, 0.780f),
-                SkyHorizon = new Rgb(0.620f, 0.680f, 0.780f),
-                SkyGlow = new Rgb(0.260f, 0.200f, 0.105f),
+                // The horizon and its glow come down together. At the shipped values the sky
+                // along the road summed to (0.880, 0.880, 0.885) — a neutral near-white sitting
+                // ABOVE the 0.85 bloom knee, so the single largest area in the frame bloomed.
+                // DarkSky adds the glow unbounded and returns without a saturate, so nothing
+                // downstream was going to catch it.
+                SkyHorizon = new Rgb(0.560f, 0.615f, 0.700f),
+                SkyGlow = new Rgb(0.215f, 0.165f, 0.090f),
                 // A WIDE SOFT VAULT. pow(height, 1.70) keeps the horizon colour most of the
                 // way up, so the pastel gradient takes the whole frame instead of snapping to a
                 // zenith twenty degrees off the road. Storybook skies are big.
@@ -147,18 +154,30 @@ namespace BattleRunner.Core.World
                 // power 3 spreads the warm light right along the horizon like late afternoon
                 // instead of pointing at one spot the way a burning city does.
                 SkyStars = 0.0f, SkyGlowPower = 3f, SkyGlowHeight = 7f, SkyGlowYaw = -14.0f,
+                // AUTHORED DOWN from the 4.290 the old expression gave it. At 0.44 the lit road
+                // lands at 0.68 against the others' 0.18-0.53 — clearly the brightest world in
+                // the game and well under white — and the lit-to-shadowed contrast goes from
+                // 1.7x back to 4.5x, so shadows exist again.
+                AmbientLevel = 0.4400f,
+                // The one world that has to move its own bloom knee. Everything else in the
+                // game is dark enough that 0.85 catches only emissive accents; here the road,
+                // the ground and the sky all cleared it, and bloom became a white veil over the
+                // HUD. At 1.05 only the gates and the spell — authored at 1.4 and up — bloom.
+                BloomKnee = 1.05f,
                 // Haze, not fog, and it reaches almost to MaxFogEnd: seeing a castle on the
                 // horizon is half of what makes this world storybook rather than pretty.
                 // Fog is horizon + 0.70 x glow on red and green, to the fourth decimal. That
                 // relationship is what stops a seam where the road meets the sky, and a daylight
                 // world is where it would show worst — there is no darkness to hide it in.
-                Fog = new Rgb(0.802f, 0.820f, 0.884f), FogStart = 95f, FogEnd = 182f,
+                Fog = new Rgb(0.7105f, 0.7305f, 0.790f), FogStart = 95f, FogEnd = 182f,
                 LightColor = new Rgb(1.000f, 0.965f, 0.880f),
-                LightIntensity = 1.55f, LightPitch = 52f, LightYaw = 205f,
+                // 1.05, not 1.55. It was the highest in the table by a third, on top of an
+                // ambient term that was already fourteen times any other world's.
+                LightIntensity = 1.05f, LightPitch = 52f, LightYaw = 205f,
                 // Ground: meadow. The brightest ground in the game by a wide margin, and the
                 // only one that is a growing thing rather than what is left of one.
-                Ground = new Rgb(0.330f, 0.470f, 0.205f),
-                GroundAlt = new Rgb(0.455f, 0.590f, 0.270f),
+                Ground = new Rgb(0.300f, 0.428f, 0.187f),
+                GroundAlt = new Rgb(0.414f, 0.537f, 0.246f),
                 GroundPatchScale = 0.11f, GroundSpeckle = 0.20f,
                 GroundSurface = RoadSurfaces.Dirt, GroundSurfaceTiling = 0.34f,
                 GroundGloss = 6f, GradeTemperature = 9f, GradeTint = 5f,
@@ -249,6 +268,8 @@ namespace BattleRunner.Core.World
                 // several metres of stone.
                 SkyZenithFalloff = 0.16f, SkyGroundFalloff = 0.20f,
                 SkyStars = 0.15f, SkyGlowPower = 5f, SkyGlowYaw = -22.0f,
+                // reproduced exactly.
+                AmbientLevel = 0.2090f,
                 Fog = new Rgb(0.162f, 0.332f, 0.360f), FogStart = 35f, FogEnd = 105f,
                 LightColor = new Rgb(0.620f, 0.780f, 0.980f),
                 LightIntensity = 0.85f, LightPitch = 24f, LightYaw = 285f,
@@ -323,6 +344,8 @@ namespace BattleRunner.Core.World
                 // height and the column above it stays dirty rather than clearing to black.
                 SkyZenithFalloff = 0.55f, SkyGroundFalloff = 0.30f,
                 SkyStars = 0.30f, SkyGlowPower = 10f, SkyGlowHeight = 12f, SkyGlowYaw = 10.0f,
+                // reproduced exactly.
+                AmbientLevel = 0.2475f,
                 Fog = new Rgb(0.805f, 0.364f, 0.200f), FogStart = 55f, FogEnd = 150f,
                 LightColor = new Rgb(1.000f, 0.800f, 0.620f),
                 LightIntensity = 1.25f, LightPitch = 38f, LightYaw = 200f,
@@ -393,6 +416,8 @@ namespace BattleRunner.Core.World
                 // closing over. Paired with the widest scale spread of any world.
                 SkyZenithFalloff = 2.10f, SkyGroundFalloff = 0.70f,
                 SkyStars = 2.40f, SkyGlowPower = 6f, SkyGlowYaw = -34.0f,
+                // reproduced exactly.
+                AmbientLevel = 0.2640f,
                 Fog = new Rgb(0.409f, 0.352f, 0.300f), FogStart = 100f, FogEnd = 185f,
                 LightColor = new Rgb(0.880f, 0.860f, 0.920f),
                 LightIntensity = 1.15f, LightPitch = 40f, LightYaw = 265f,
@@ -471,6 +496,8 @@ namespace BattleRunner.Core.World
                 // aurora band something to sit against instead of glowing into more of itself.
                 SkyZenithFalloff = 0.30f, SkyGroundFalloff = 0.45f,
                 SkyStars = 2.80f, SkyGlowPower = 7f, SkyGlowHeight = 20f, SkyGlowYaw = 38.0f,
+                // reproduced exactly.
+                AmbientLevel = 0.3190f,
                 Fog = new Rgb(0.305f, 0.531f, 0.620f), FogStart = 60f, FogEnd = 155f,
                 LightColor = new Rgb(0.800f, 0.900f, 1.000f),
                 LightIntensity = 1.30f, LightPitch = 30f, LightYaw = 300f,
@@ -546,6 +573,8 @@ namespace BattleRunner.Core.World
                 // the marsh is a place with no horizon.
                 SkyZenithFalloff = 0.22f, SkyGroundFalloff = 0.25f,
                 SkyStars = 0.20f, SkyGlowPower = 9f, SkyGlowYaw = -12.0f,
+                // reproduced exactly.
+                AmbientLevel = 0.2090f,
                 Fog = new Rgb(0.629f, 0.160f, 0.160f), FogStart = 40f, FogEnd = 115f,
                 LightColor = new Rgb(0.950f, 0.680f, 0.680f),
                 LightIntensity = 1.05f, LightPitch = 22f, LightYaw = 230f,
@@ -620,6 +649,8 @@ namespace BattleRunner.Core.World
                 // above and monumental below; everything else picks one.
                 SkyZenithFalloff = 0.90f, SkyGroundFalloff = 0.40f,
                 SkyStars = 0.90f, SkyGlowPower = 9f, SkyGlowYaw = 30.0f,
+                // reproduced exactly.
+                AmbientLevel = 0.1980f,
                 Fog = new Rgb(0.350f, 0.209f, 0.420f), FogStart = 65f, FogEnd = 165f,
                 LightColor = new Rgb(0.820f, 0.760f, 1.000f),
                 LightIntensity = 1.05f, LightPitch = 34f, LightYaw = 245f,

@@ -504,3 +504,100 @@ zenith colour, so it is not a colour at all — it is how **closed** the sky is:
 
 Slot 0 keeps 0.40 / 0.35, as it keeps everything else: it is the one look that has been judged
 on a real screen.
+
+---
+
+# The daylight world came out white, and the light rig is why
+
+> *"round with pony amazing, only a little bit too bright"*
+
+Understated. On device the top half of the frame was solid white, the road was white, and the HUD
+text was a ghost over it. But the interesting part is not that it was bright — it is **why**, because
+the cause was a number that had been correct for a year.
+
+## One multiplier, tuned against a world that no longer exists
+
+```csharp
+public Rgb AmbientSky => SkyZenith.Scaled(5.5f);
+```
+
+That `×5.5` was authored when **every zenith in the game sat at about 0.02**. It was not really a
+multiplier; it was a *level* in disguise — peak × 5.5 landed all eight worlds between 0.20 and 0.32,
+and nobody had to think about it. Thistlewood's zenith is **0.78**, so the same expression handed it:
+
+```
+AmbientSky = (1.265, 2.365, 4.290)
+```
+
+Four times white, in every channel, written straight to `RenderSettings.ambientSkyColor` **with no
+clamp anywhere in the chain** — `ApplyTheme` floors the light intensity but never caps it, and
+`ThemePalette.HueRotate` clamps only the floor too, deliberately, so HDR survives the trip.
+
+## The failure is not brightness, it is that shadows stopped existing
+
+Every surface shader computes the same thing:
+
+```hlsl
+half3 color = albedo * (mainLight.color * lambert * shadow + ambient);
+```
+
+When `ambient` is larger than `mainLight.color`, the `shadow` term stops mattering. Measured on the
+shipped values, Thistlewood's road:
+
+| | lit | fully shadowed | contrast |
+|---|---|---|---|
+| Thistlewood, shipped | 2.13 | 1.26 | **1.7×** |
+| every other world | 0.18–0.53 | 0.03–0.09 | ~5.8× |
+
+A frame where a lit face and a shadowed face differ by 1.7× is a frame with no shading in it. That
+is the flat, even white in the screenshot — not exposure, *the absence of shading*.
+
+Three things compounded it: `bloom.threshold` was a fixed **0.85** for all eight worlds, documented
+as assuming *"the dark 90% of the frame stays crisp"* — an assumption exactly inverted here, where
+the road, the ground and the sky all cleared it and bloom became a full-screen veil. `DarkSky` adds
+its glow term unbounded and returns without a `saturate`, putting the horizon at (0.880, 0.880,
+0.885). And **no world could reduce its own exposure**: every per-theme grade property is derived
+through `TowardWhite(≥0.55)` or `MeanNormalized`, which are by construction incapable of darkening
+anything. There was no knob.
+
+## Splitting hue from level
+
+`AmbientSky` now takes its **colour** from the zenith and its **level** from an authored number:
+
+```csharp
+public float AmbientLevel = 0.30f;
+public Rgb AmbientSky => SkyZenith.Normalized.Scaled(AmbientLevel);
+```
+
+Every shipped world is reproduced **exactly** by `AmbientLevel = SkyZenith.Peak × 5.5`, which is how
+the table was re-authored — the seven dark worlds are byte-identical and none of them moved.
+Thistlewood's was authored down from the 4.29 it had been getting to **0.44**.
+
+The other two ambient terms were left alone, and that is a measurement rather than an oversight:
+across the table the equator term spans 0.227–0.418 and the ground term 0.056–0.132, with the
+daylight world at 0.93 and 0.185. High, but the right kind of high. **Only the sky term was an
+outlier, at fourteen times the brightest of the others.** Normalising all three would have changed
+seven worlds to fix one.
+
+`WorldTheme` also gains two trims for a world the shared stack cannot serve — `ExposureBias` and
+`BloomKnee` — and a test asserts **at most two worlds may use them**, because if most of the table
+is reaching for the escape valve then the stack's own defaults are what is wrong.
+
+## Where it lands
+
+| | ambient sky | lit road | shadowed | contrast |
+|---|---|---|---|---|
+| Thistlewood, shipped | 2.270 | 2.13 | 1.26 | 1.7× |
+| **Thistlewood, now** | **0.233** | **0.63** | **0.14** | **4.5×** |
+| Frozen Reach (next brightest) | 0.164 | 0.53 | 0.09 | 5.8× |
+| Sunken Crypt (darkest) | 0.110 | 0.18 | 0.03 | 5.3× |
+
+Still unmistakably the brightest world in the game, still the only one in daylight, and now with
+shadows in it. The light came down from 1.55 to 1.05, the road albedo from 0.620 to 0.560, and the
+horizon and its glow came down together so the sky along the road sits at 0.775 instead of 0.880 —
+under its own 1.05 bloom knee, so the largest area in the frame no longer blooms. Fog follows the
+sky by the rule it always did (`horizon + 0.70 × glow` on red and green), so it came down with it
+rather than staying a white wall at 95 m.
+
+**Two tests now hold this shut**: no world may light its own road above 1.0, and every world must
+keep a lit-to-shadowed contrast above 2.5×. Both would have failed on the shipped values.

@@ -242,15 +242,36 @@ namespace BattleRunner.Gameplay
         /// the props; a grade left un-shifted would drag every round of an act back toward
         /// the act's un-drifted colour, which is the same mistake at a smaller scale.
         /// </summary>
+        /// <summary>
+        /// The stack's own exposure, in EV. A world trims from here through
+        /// <see cref="WorldTheme.ExposureBias"/> rather than replacing it.
+        /// </summary>
+        public const float BaseExposure = 0.20f;
+
+        /// <summary>Where bloom starts for a world that does not say otherwise.</summary>
+        public const float DefaultBloomKnee = 0.85f;
+
         private static void ApplyGrade(WorldTheme theme, float hue)
         {
             if (_bloom != null)
+            {
                 _bloom.tint.value = ThemePalette.Shifted(theme.BloomTint, hue);
+                // PER WORLD NOW, and it had to become so. The stack's 0.85 is authored around
+                // "the dark 90% of the frame stays crisp", which is true of seven worlds and
+                // false of the one in daylight, where the road, the ground and the sky all
+                // cleared it and bloom turned into a full-screen veil over the HUD.
+                _bloom.threshold.value = Mathf.Clamp(theme.BloomKnee, 0.2f, 2f);
+            }
 
             if (_color != null)
             {
                 _color.saturation.value = Mathf.Clamp(theme.GradeSaturation, -20f, 40f);
                 _color.colorFilter.value = ThemePalette.Shifted(theme.GradeFilter, hue);
+                // THE ONLY WAY DOWN. Every other per-theme grade value is derived through
+                // TowardWhite or MeanNormalized and is mathematically incapable of reducing
+                // exposure, so a world that came out too bright had nothing to turn. Clamped
+                // hard: this is a trim, not a second lighting rig.
+                _color.postExposure.value = BaseExposure + Mathf.Clamp(theme.ExposureBias, -1.5f, 0.5f);
             }
 
             if (_grade != null)
@@ -321,7 +342,7 @@ namespace BattleRunner.Gameplay
             // emissive accents — gates, spell, rim light — bloom, and the dark 90% of the
             // frame stays crisp.
             var bloom = _bloom = profile.Add<Bloom>(true);
-            bloom.threshold.value = 0.85f;
+            bloom.threshold.value = DefaultBloomKnee;
             bloom.intensity.value = 1.15f;
             bloom.scatter.value = 0.72f;
             bloom.tint.value = new Color(1.0f, 0.86f, 0.72f);
@@ -333,7 +354,7 @@ namespace BattleRunner.Gameplay
             bloom.maxIterations.value = 5;
 
             var color = _color = profile.Add<ColorAdjustments>(true);
-            color.postExposure.value = 0.20f;
+            color.postExposure.value = BaseExposure;
             color.contrast.value = 22f;
             color.saturation.value = -4f;
             color.colorFilter.value = new Color(1.0f, 0.96f, 0.90f);

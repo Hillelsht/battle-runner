@@ -81,6 +81,82 @@ namespace BattleRunner.Tests
         }
 
         [Test]
+        public void NoWorldLightsItselfAboveWhite()
+        {
+            // THE BUG THIS EXISTS FOR. `AmbientSky` was `SkyZenith.Scaled(5.5f)`, tuned when
+            // every zenith in the game sat near 0.02. The daylight world's zenith is 0.78, so
+            // the same expression handed it an ambient of (1.265, 2.365, 4.290) — four times
+            // white — written straight to RenderSettings.ambientSkyColor with no clamp.
+            //
+            // The visible failure was not "bright". It was that ambient that large DWARFS the
+            // direct light, so `shadow` stops darkening anything and the frame goes flat: the
+            // lit road measured 2.13 and the fully shadowed road 1.26, a contrast of 1.7x
+            // where every other world runs about 5.8x.
+            //
+            // The surface shaders all compute `albedo * (light * lambert * shadow + ambient)`,
+            // so this predicts the brightest pixel a world's ROAD can produce. Anything over
+            // 1.0 is a pixel the tonemapper has already lost the top of.
+            foreach (WorldTheme t in All)
+            {
+                float lit = LitRoad(t);
+                Assert.Less(lit, 1.0f,
+                    $"{t.DisplayName} lights its own road to {lit:0.00} before any post-processing; "
+                    + "over 1.0 the shading is clipped and shadows stop reading");
+            }
+        }
+
+        [Test]
+        public void EveryWorldStillHasShadows()
+        {
+            // The other half of the same failure, and the one that actually shows on screen.
+            // A world whose ambient swamps its key light has no shading left: every face is
+            // the same value whichever way it points, which is what "flat and washed out"
+            // means. 2.5x is well under the 5.8x the dark worlds run and well over the 1.7x
+            // the daylight world shipped at.
+            foreach (WorldTheme t in All)
+            {
+                float ratio = LitRoad(t) / ShadowedRoad(t);
+                Assert.Greater(ratio, 2.5f,
+                    $"{t.DisplayName} has a lit-to-shadowed road contrast of only {ratio:0.0}x, "
+                    + "so its shadows have been swallowed by its own ambient light");
+            }
+        }
+
+        [Test]
+        public void OnlyAWorldThatNeedsItMovesTheGradeStack()
+        {
+            // ExposureBias and BloomKnee are a trim for a world the shared stack cannot serve,
+            // not a second lighting rig. If most of the table is reaching for them, the stack's
+            // own defaults are wrong and THAT is what should change.
+            int trimmed = 0;
+            foreach (WorldTheme t in All)
+            {
+                Assert.GreaterOrEqual(t.AmbientLevel, 0f, $"{t.DisplayName} has negative ambient");
+                Assert.Less(t.AmbientLevel, 1.0f,
+                    $"{t.DisplayName} asks for an ambient level of {t.AmbientLevel:0.00}, which is "
+                    + "the mistake that shipped: ambient is a fill light, not the key");
+                if (t.ExposureBias != 0f || t.BloomKnee != 0.85f) trimmed++;
+            }
+            Assert.LessOrEqual(trimmed, 2,
+                $"{trimmed} worlds override the grade stack; at that point the stack's defaults "
+                + "are what is wrong");
+        }
+
+        /// <summary>
+        /// The brightest a world's road can get, predicted the way the surface shaders compute
+        /// it: `albedo * (light * lambert * shadow + ambient)` with an up-facing normal in full
+        /// light, where Trilight makes the sky term the one that lands.
+        /// </summary>
+        private static float LitRoad(WorldTheme t) =>
+            Luminance(t.RoadStone) * (Luminance(t.LightColor) * t.LightIntensity
+                                      + 0.85f * Luminance(t.AmbientSky));
+
+        /// <summary>The same pixel fully in shadow — `lambert` at 0.4 and `shadow` at 0.18.</summary>
+        private static float ShadowedRoad(WorldTheme t) =>
+            Luminance(t.RoadStone) * (Luminance(t.LightColor) * t.LightIntensity * 0.4f * 0.18f
+                                      + 0.85f * Luminance(t.AmbientSky));
+
+        [Test]
         public void TheSkyIsNotTheSameInEveryWorld()
         {
             // THE MEASUREMENT THAT DROVE THIS. Before Thistlewood, every one of the eight

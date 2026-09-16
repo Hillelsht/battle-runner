@@ -226,9 +226,59 @@ namespace BattleRunner.Core.World
         public Rgb MarkingBase => RoadStone.Scaled(0.55f);
         public Rgb MarkingEmission => Rgb.Lerp(RoadStone.Scaled(1.5f), Accent, 0.25f);
 
-        public Rgb AmbientSky => SkyZenith.Scaled(5.5f);
+        /// <summary>
+        /// How much ambient light falls from the sky, as a level rather than a by-product.
+        ///
+        /// THIS USED TO BE `SkyZenith.Scaled(5.5f)`, AND THAT x5.5 IS WHY THE DAYLIGHT WORLD
+        /// SHIPPED WHITE. It was tuned when every zenith in the game sat at ~0.02, so the
+        /// multiplier was doing the job of a level: peak x 5.5 landed every world between 0.20
+        /// and 0.32. Thistlewood's zenith is 0.78, so the same expression produced an ambient
+        /// of (1.265, 2.365, 4.290) — four times white — which was written to
+        /// RenderSettings.ambientSkyColor unclamped.
+        ///
+        /// The consequence is worse than "too bright": ambient that large DWARFS the direct
+        /// light, so `shadow` stops darkening anything and the whole frame goes flat. Measured
+        /// on the shipped values, Thistlewood's lit road was 2.13 and its fully SHADOWED road
+        /// was 1.26 — a contrast ratio of 1.7x where every other world runs about 5.8x.
+        ///
+        /// Splitting hue from level fixes it without touching the other seven: the colour still
+        /// comes from the zenith, the LEVEL is now authored. Every world's shipped value is
+        /// reproduced exactly by `AmbientLevel = SkyZenith.Peak * 5.5`, which is how the table
+        /// was re-authored — the seven dark worlds are byte-identical.
+        /// </summary>
+        public float AmbientLevel = 0.30f;
+
+        public Rgb AmbientSky => SkyZenith.Normalized.Scaled(AmbientLevel);
+
+        // These two are LEFT ALONE, and that is a measurement rather than an oversight. Across
+        // the eight worlds the equator term spans 0.227-0.418 and the ground term 0.056-0.132,
+        // with the daylight world at 0.93 and 0.185 — high, but the right kind of high for a
+        // world in daylight. Only the sky term was an outlier, at fourteen times the brightest
+        // of the others. Normalising all three would have changed seven worlds to fix one.
         public Rgb AmbientEquator => Rgb.Lerp(SkyHorizon.Scaled(1.6f), Accent, 0.35f);
         public Rgb AmbientGround => RoadStone.Scaled(0.32f);
+
+        /// <summary>
+        /// Exposure this world asks for, in EV, on top of the stack's fixed +0.20.
+        ///
+        /// THE GRADE STACK HAD NO WAY DOWN. `ApplyGrade` can change bloom tint, saturation, the
+        /// colour filter, shadows/highlights, white balance and the vignette colour — and every
+        /// one of those is derived through `TowardWhite(&gt;= 0.55)` or `MeanNormalized`, which
+        /// are by construction incapable of reducing exposure. A world that came out too bright
+        /// had no knob to turn, which is why fixing Thistlewood meant reaching for its albedo
+        /// and its light instead.
+        /// </summary>
+        public float ExposureBias;
+
+        /// <summary>
+        /// Where bloom starts for this world.
+        ///
+        /// The stack's 0.85 is documented as assuming "the dark 90% of the frame stays crisp"
+        /// so that only the emissive accents — gates, spell, rim light — bloom. That assumption
+        /// is exactly inverted in a daylight world, where the road, the ground and the sky all
+        /// clear 0.85 and bloom becomes a full-screen veil that swallows the HUD text.
+        /// </summary>
+        public float BloomKnee = 0.85f;
 
         /// <summary>
         /// What the fog colour WOULD be if it followed the sky exactly.
