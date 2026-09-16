@@ -119,7 +119,10 @@ namespace BattleRunner.Tests
                                             .OrderBy(g => g.Key))
                 {
                     double best = double.MinValue, worst = double.MaxValue;
-                    for (int lane = 0; lane < ChunkLayouts.LaneCount; lane++)
+                    // -1 to 1, which is the range the generator actually authors into. This
+                    // walked 0 to 2 and so shared EstimateParForce's blind spot: a free
+                    // imaginary lane on the right and an unread one on the left.
+                    for (int lane = ChunkLayouts.LaneMin; lane <= ChunkLayouts.LaneMax; lane++)
                     {
                         double factor = 1.0;
                         foreach (var e in group)

@@ -77,30 +77,104 @@ namespace BattleRunner.Tests
         public void ABlockedOrDodgedSwingCostsExactlyNothing()
         {
             // Both answers pay the same, and that is deliberate: an answer the player found
-            // should feel like an answer, not like a discount.
-            Assert.AreEqual(0.0, Elite.SwingCost(1000.0, 2, blocked: true, dodged: false));
-            Assert.AreEqual(0.0, Elite.SwingCost(1000.0, 2, blocked: false, dodged: true));
-            Assert.Greater(Elite.SwingCost(1000.0, 2, blocked: false, dodged: false), 0.0);
+            // should feel like an answer, not like a discount. A barricade simply never
+            // arrives here with dodged true — there is nowhere to dodge to.
+            Assert.AreEqual(0.0, Elite.SwingCost(1000.0, 2, 3, blocked: true, dodged: false));
+            Assert.AreEqual(0.0, Elite.SwingCost(1000.0, 2, 3, blocked: false, dodged: true));
+            Assert.Greater(Elite.SwingCost(1000.0, 2, 3, blocked: false, dodged: false), 0.0);
         }
 
         [Test]
-        public void ASwingHurtsFarMoreThanAnAmbushGate()
+        public void AWholeBarricadeCostsTheSameHoweverManySwingsItGetsIn()
         {
-            // It has two answers where an ambush gate has one, so it must be worth answering.
-            double swing = Elite.SwingCost(1000.0, 1, false, false);
-            double ambush = 1000.0 - GateMath.ApplyGate(1000.0, GateOp.Subtract, 1, 0);
-            Assert.Greater(swing, ambush * 0.7,
-                "an elite's swing that costs less than a gate is a chore, not a threat");
+            // THE PROPERTY THE RE-PRICING EXISTS FOR. The shipped share was charged per swing
+            // against the LIVE army, so the bill compounded with the swing count — and the
+            // fight is longest against the smallest army, because FightLength shrinks with its
+            // square root. An unavoidable weight-4 champion took 98.3% of a hundred-man army
+            // and 68.6% of a million. Splitting one whole-fight share across the swings makes
+            // the number of them irrelevant, which is what lets the same wall be fair to both.
+            for (int w = 1; w <= 4; w++)
+            {
+                double whole = Elite.WholeFightShare(w);
+                for (int swings = 1; swings <= 3; swings++)
+                {
+                    double army = 10_000.0;
+                    for (int i = 0; i < swings; i++)
+                        army -= Elite.SwingCost(army, w, swings, false, false);
+                    Assert.AreEqual(10_000.0 * (1.0 - whole), army, 0.5,
+                        $"weight {w} over {swings} swings did not land on its whole-fight share");
+                }
+            }
+        }
+
+        [Test]
+        public void NoBarricadeCanEndARunOnItsOwn()
+        {
+            // The bound that the old numbers did not have. Whatever the weight and whatever the
+            // army, tanking every swing of one barricade leaves most of the army standing —
+            // and the smallest army must not be the worst case, which is where the old curve
+            // was upside down.
+            foreach (double army in new[] { 100.0, 2_000.0, 1e6, 1e9 })
+                for (int w = 1; w <= 4; w++)
+                {
+                    Elite e = Elite.Begin(army, w);
+                    double left = army;
+                    for (int i = 0; i < e.SwingsExpected; i++)
+                        left -= Elite.SwingCost(left, w, e.SwingsExpected, false, false);
+                    Assert.Greater(left, army * 0.7,
+                        $"a weight-{w} barricade took more than 30% of an army of {army:N0}, "
+                        + "which it cannot be steered around to avoid");
+                }
+        }
+
+        [Test]
+        public void TheFightHasRoomForAtMostThreeSwings()
+        {
+            // Not taste: the swing count is the divisor the per-swing share is derived from,
+            // and it is also how partial an answer the shield is. Three swings means blocking
+            // one saves a third. Seven — which the old 10.8 s ceiling allowed against a small
+            // army — means the shield magazine decides the fight rather than the player.
+            foreach (double army in new[] { 1.0, 100.0, 2_000.0, 1e9 })
+                for (int w = 1; w <= 4; w++)
+                {
+                    Elite e = Elite.Begin(army, w);
+                    Assert.GreaterOrEqual(e.SwingsExpected, 1);
+                    Assert.LessOrEqual(e.SwingsExpected, 3,
+                        $"weight {w} against {army:N0} men has room for {e.SwingsExpected} swings");
+                }
+            Assert.LessOrEqual(Elite.FightLength(1.0, 9), Elite.MaxFightSeconds);
+        }
+
+        [Test]
+        public void TheSwingsExpectedAtTheStartAreTheSwingsThatActuallyLand()
+        {
+            // The derived share is only the right share if the count it was derived from is
+            // the count that happens. Run the real loop — grind first, swing only on a frame
+            // the champion survived — and compare.
+            foreach (double army in new[] { 60.0, 800.0, 5e4, 1e7 })
+                for (int w = 1; w <= 4; w++)
+                {
+                    Elite e = Elite.Begin(army, w);
+                    int landed = 0;
+                    for (int i = 0; i < 4000 && e.Alive; i++)
+                    {
+                        bool died = e.Grind(1f / 240f);
+                        if (!died && e.TakeSwingIfDue()) landed++;
+                    }
+                    Assert.AreEqual(e.SwingsExpected, landed,
+                        $"weight {w} against {army:N0} men budgeted {e.SwingsExpected} swings "
+                        + $"and landed {landed}");
+                }
         }
 
         [Test]
         public void ASwingNeverWipesTheArmyAndNeverCostsNothing()
         {
             // Both clamps matter, at opposite ends of the campaign.
-            Assert.AreEqual(1.0, Elite.SwingCost(3.0, 3, false, false), 1e-9,
+            Assert.AreEqual(1.0, Elite.SwingCost(3.0, 3, 3, false, false), 1e-9,
                 "at three men the floor is what keeps the swing visible");
             for (int w = 1; w <= 4; w++)
-                Assert.Less(Elite.SwingCost(1000.0, w, false, false), 1000.0,
+                Assert.Less(Elite.SwingCost(1000.0, w, 1, false, false), 1000.0,
                     $"weight {w} wiped the army in one swing");
         }
 
@@ -146,11 +220,35 @@ namespace BattleRunner.Tests
         }
 
         [Test]
+        public void ShieldingTheWholeFightIsWorthFarMoreThanTankingIt()
+        {
+            // THE SKILL GRADIENT, and it is the reason a mandatory obstacle is still a
+            // decision. Tank every swing of a barricade and the bounty nearly makes you whole;
+            // shield every swing and you leave a fifth larger than you arrived. The gap between
+            // the two is what the player is playing for, and it has to be a gap rather than a
+            // cliff — the old numbers made tanking a weight-4 champion cost 68.6% of a million
+            // men, which is not a decision, it is a punishment for owning a shield magazine.
+            for (int w = 2; w <= 4; w++)
+            {
+                double tanked = Elite.UnshieldedFactor(w);
+                double shielded = 1.0 + Elite.BountyShare * w;
+                Assert.Less(tanked, 1.0, $"weight {w}: tanking a barricade came out ahead");
+                Assert.Greater(tanked, 0.88, $"weight {w}: tanking a barricade is a spiral");
+                // The gap has to GROW with the weight, or a heavy barricade is no more worth
+                // shielding than a light one and the shield magazine has nothing to spend
+                // itself on. It comes to 13.2, 20.7 and 28.8 points at weights 2, 3 and 4.
+                Assert.Greater(shielded - tanked, Elite.BarricadeShare * w,
+                    $"weight {w}: shielding is worth only {(shielded - tanked) * 100:0.0} "
+                    + "points more than standing there, which is not a decision");
+            }
+        }
+
+        [Test]
         public void KillingOnePaysSomethingWorthHaving()
         {
             double bounty = Elite.Bounty(1000.0, 1);
-            double swing = Elite.SwingCost(1000.0, 1, false, false);
-            Assert.Greater(bounty, swing * 0.8,
+            double whole = 1000.0 * Elite.WholeFightShare(1);
+            Assert.Greater(bounty, whole * 0.5,
                 "the reward for beating it should be comparable to the cost of failing it");
             Assert.GreaterOrEqual(Elite.Bounty(1.0, 1), 1.0, "it must always pay at least a man");
         }
@@ -171,6 +269,48 @@ namespace BattleRunner.Tests
                     if (shape == ChunkShape.Champion) { seen = true; break; }
 
             Assert.IsTrue(seen, "no round in two hundred contained a champion");
+        }
+
+        [Test]
+        public void EveryChampionTheGeneratorAuthorsBlocksTheWholeRoad()
+        {
+            // *"mini bosses I fight only if they are on my lane, and I want them to be on 3
+            // lanes, mandatory to fight."* The flag is per-pack rather than implied by Elite,
+            // so a champion authored without it would be dodgeable again and nothing else
+            // would complain. And its centre is always lane 0: a wall spanning the road with
+            // its champion drawn off to one side reads as if the other two thirds were open.
+            int champions = 0;
+            for (int round = 0; round < 60; round++)
+                foreach (ChunkLayout layout in ChunkLayouts.BuildRound(RoundPlan.For(round)))
+                    foreach (PlannedPack pack in layout.Packs)
+                    {
+                        if (!pack.Elite) { Assert.IsFalse(pack.BlocksAllLanes,
+                            "an ordinary squad blocked the road; dodging one is still the game"); continue; }
+                        champions++;
+                        Assert.IsTrue(pack.BlocksAllLanes, "a champion the player can steer around");
+                        Assert.AreEqual(0, pack.Lane, "a barricade is centred, or it reads as a gap");
+                    }
+            Assert.Greater(champions, 20, "too few champions generated to conclude anything");
+        }
+
+        [Test]
+        public void ParChargesABarricadeInEveryLaneAndAtItsOwnPrice()
+        {
+            // TWO WAYS TO GET THIS WRONG AND THE OLD CODE HAD BOTH. Charging a barricade in
+            // one lane lets par treat the other two as escapes that no longer exist; charging
+            // it as an ambush gate of the same weight prices a weight-4 champion at 62% of the
+            // army when it actually takes 24% and pays 20% back. Measured on the shape itself:
+            // par for a champion chunk must land near the recruit gate's gain times the
+            // barricade's own factor, and nowhere near either mistake.
+            var champion = new ChunkLayout(ChunkShape.Champion);
+            champion.Packs.Add(new PlannedPack(3, 0, 26f, elite: true, blocksAllLanes: true));
+            double par = ChunkLayouts.EstimateParForce(new[] { champion }, 10_000.0);
+
+            Assert.AreEqual(10_000.0 * Elite.UnshieldedFactor(3), par, 1.0,
+                "par did not charge the barricade at its own price in every lane");
+            Assert.Less(par, 10_000.0, "a barricade that par counts as free is not an obstacle");
+            Assert.Greater(par, 10_000.0 * (1.0 - GateMath.AmbushShare * 3),
+                "par is still charging the barricade like an ambush gate of the same weight");
         }
 
         [Test]

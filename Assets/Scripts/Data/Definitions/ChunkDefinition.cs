@@ -24,6 +24,12 @@ namespace BattleRunner.Data.Definitions
             [Range(-1, 1)] public int Lane;
             [Tooltip("Meters from the chunk start.")]
             public float Position;
+
+            [Tooltip("A champion with health that winds up and swings, not a squad.")]
+            public bool Elite;
+
+            [Tooltip("Spans the whole road; Lane only says where its centre is drawn.")]
+            public bool BlocksAllLanes;
         }
 
         [Min(10f)] public float LengthMeters = 30f;

@@ -1379,6 +1379,88 @@ namespace BattleRunner.Gameplay
             }
         }
 
+        /// <summary>
+        /// The barricade a champion stands in the middle of: a low palisade spanning the whole
+        /// road, so there is no lane to steer into.
+        ///
+        /// *"mini bosses I fight only if they are on my lane, and I want them to be on 3 lanes,
+        /// mandatory to fight."*
+        ///
+        /// AUTHORED IN A UNIT BOX and scaled at the draw — x runs -1 to 1 and is stretched to
+        /// `CrowdMath.RoadHalfWidth(laneWidth)`, y runs 0 to 1 and is stretched to the height.
+        /// The road's width is a balance number that lives in BalanceSettings, and a mesh with
+        /// 3.3 baked into it would quietly stop spanning the road the day that number moved.
+        ///
+        /// IT IS OPEN-WORK, AND THAT IS THE POINT. A solid wall across the road at 2 m hides
+        /// 9.2 m of what is behind it from the shipped rig — the same complaint the camera lift
+        /// was for, reintroduced by the fix for a different one. Stakes with daylight between
+        /// them at 1.15 m hide 4.2 m even counted as solid, which is less than the hero already
+        /// hides at 5.8 m, so the barricade adds nothing the player was not already looking
+        /// past. The gap in the middle is where the champion stands.
+        /// </summary>
+        public static Mesh Barricade
+        {
+            get
+            {
+                if (_barricade == null) _barricade = BuildBarricade();
+                return _barricade;
+            }
+        }
+
+        private static Mesh _barricade;
+
+        private static Mesh BuildBarricade()
+        {
+            var vertices = new List<Vector3>();
+            var triangles = new List<int>();
+
+            // Stakes. Odd count so the gap can be an exact centre; the two either side of it
+            // are the champion's own posts and stand taller, which is what makes the middle of
+            // the wall read as the thing to hit rather than as a hole in it.
+            const int Stakes = 15;
+            const float Thickness = 0.055f;
+            for (int i = 0; i < Stakes; i++)
+            {
+                float x = -1f + 2f * i / (Stakes - 1f);
+                int fromCentre = System.Math.Abs(i - Stakes / 2);
+                if (fromCentre == 0) continue;
+
+                float top = fromCentre == 1 ? 1.0f : 0.80f + 0.06f * ((i * 7) % 3);
+                // A point on top, not a flat end: the silhouette is the only thing that reads
+                // at 26 m, and a row of blunt posts is a fence rather than a defence.
+                AddPrism(vertices, triangles,
+                    new Vector3(x, 0f, 0f), new Vector2(Thickness, 0.22f),
+                    new Vector3(x, top * 0.82f, 0f), new Vector2(Thickness * 0.85f, 0.19f));
+                AddPrism(vertices, triangles,
+                    new Vector3(x, top * 0.82f, 0f), new Vector2(Thickness * 0.85f, 0.19f),
+                    new Vector3(x, top, 0f), new Vector2(0.012f, 0.03f));
+            }
+
+            // Two rails tying it together, broken at the centre gap so the champion is framed
+            // by the wall rather than standing behind it.
+            const float GapHalf = 0.085f;
+            foreach (float y in new[] { 0.34f, 0.64f })
+            {
+                AddBox(vertices, triangles,
+                    new Vector3(-(1f + GapHalf) * 0.5f, y, 0f),
+                    new Vector3(1f - GapHalf, 0.055f, 0.10f));
+                AddBox(vertices, triangles,
+                    new Vector3((1f + GapHalf) * 0.5f, y, 0f),
+                    new Vector3(1f - GapHalf, 0.055f, 0.10f));
+            }
+
+            // Two braces leaning back off the ends, so the wall has depth from the low angle
+            // the shipped rig still looks along at small armies.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                AddPrism(vertices, triangles,
+                    new Vector3(side * 0.92f, 0f, 0.30f), new Vector2(0.06f, 0.14f),
+                    new Vector3(side * 0.92f, 0.72f, 0.02f), new Vector2(0.05f, 0.12f));
+            }
+
+            return Finish(vertices, triangles, "BarricadeGreybox");
+        }
+
         /// <summary>One stone of the ring. About 1 unit tall, leaning slightly outward.</summary>
         public static Mesh StandingStone
         {

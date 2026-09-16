@@ -28,6 +28,9 @@ namespace BattleRunner.Gameplay.Crowd
         private int _tierCap = 200;
         private float _laneWidth = 2.2f;
 
+        /// <summary>The road's lane width, as configured. A barricade has to span all three.</summary>
+        public float LaneWidth => _laneWidth;
+
         // Width belongs to the road: the crowd sits inside one 2.2 m lane and passes through
         // a 1.60 m gate aperture, so it never exceeds ~0.78 m either side of the anchor no
         // matter how large the army gets. Growth goes up the road instead.

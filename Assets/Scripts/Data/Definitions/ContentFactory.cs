@@ -285,7 +285,14 @@ namespace BattleRunner.Data.Definitions
                     {
                         ForceCost = layout.Packs[i].ForceCost,
                         Lane = layout.Packs[i].Lane,
-                        Position = layout.Packs[i].Position
+                        Position = layout.Packs[i].Position,
+                        // CARRIED, not dropped. These two were silently lost here: a champion
+                        // baked into a ChunkDefinition came back as an ordinary squad, and a
+                        // barricade as a squad in one lane. Nothing reads EnemySpec today, so
+                        // it was dormant rather than broken — and dormant is exactly how the
+                        // next person to revive this path would have inherited it.
+                        Elite = layout.Packs[i].Elite,
+                        BlocksAllLanes = layout.Packs[i].BlocksAllLanes
                     };
 
                 chunk.Gates = gates;

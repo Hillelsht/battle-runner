@@ -16,9 +16,9 @@ points → save → next level.
 | Area | State |
 |---|---|
 | Game loop | Complete end to end |
-| Content | **4 playable characters**, 8 worlds (one in daylight, each with its own arch over the road), 6 levels, 6 bosses (6 archetypes) x 5 champion affixes = 30 fights, inline champions, 15 gear items, 4 rarities, ~60 talents + endless paragon |
+| Content | **4 playable characters**, 8 worlds (one in daylight, each with its own arch over the road), 6 levels, 6 bosses (6 archetypes) x 5 champion affixes = 30 fights, champions behind barricades that span the road, 15 gear items, 4 rarities, ~60 talents + endless paragon |
 | Art | Procedural meshes and code-built uGUI, 119 CC0 Kenney models in one 563 KB pack, 8 generated ground surfaces with normal maps, a boss arena that opens out of the road, and one winged pony |
-| Tests | 482, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 488, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
@@ -1181,7 +1181,7 @@ The v0.4.0 screenshots confirmed the art pass landed — sky, stars, shadows, ro
 gates and UI frames all correct on device — and surfaced two bugs that were never about
 art: `Focus -0 %` on the menu and `+0.01 Focus` on the loot card. Both were units chosen
 from the ModifierKind rather than from the stat, plus a hard-coded minus sign in front of
-a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 482 tests today).
+a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 488 tests today).
 
 A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
 11 survived adversarial refutation. The headline three: the key light pointed the same way

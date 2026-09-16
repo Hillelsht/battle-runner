@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using BattleRunner.Core.Boss;
+using BattleRunner.Core.Crowd;
 using BattleRunner.Core.Run;
 using BattleRunner.Gameplay.Track;
 using UnityEngine;
@@ -186,6 +187,7 @@ namespace BattleRunner.Gameplay.Crowd
             // tall, so anything at chest height is invisible). Bigger AND a different outline,
             // so a champion is never mistaken for a squad that happens to be close.
             _championMesh = ProceduralMeshes.Soldier(ProceduralMeshes.SoldierKind.Banner);
+            _barricadeMesh = ProceduralMeshes.Barricade;
             if (enemyMaterial != null)
             {
                 _championMaterial = ShaderSafety.CreateMaterial(enemyMaterial);
@@ -471,6 +473,7 @@ namespace BattleRunner.Gameplay.Crowd
             if (_championMesh == null || _championMaterial == null) return;
 
             Vector3 foot = squad.transform.position;
+            if (squad.BlocksAllLanes) DrawBarricade(squad, foot);
             float lean = 0f;
             float rise = 0f;
 
@@ -497,6 +500,54 @@ namespace BattleRunner.Gameplay.Crowd
                 new RenderParams(_championMaterial) { receiveShadows = true },
                 _championMesh, 0, trs);
         }
+
+        /// <summary>
+        /// The wall the champion stands in the middle of, spanning the whole road.
+        ///
+        /// ONE DRAW CALL, in the champion's own material, and both halves of that are
+        /// deliberate. Doc 04 budgets under 60 draws on the low tier and the whole road is
+        /// four instanced ones, so a barricade that needed its own material would cost as much
+        /// as a tenth of the budget for a thing that is on screen for four seconds. Sharing
+        /// `_championMaterial` also means the wall HEATS WITH THE TELEGRAPH — DrawChampion has
+        /// already written `_EmissionFlat` for this frame by the time this runs — so the
+        /// warning is the width of the road rather than the width of one body, which is the
+        /// only way it survives being seen out of the corner of an eye while steering.
+        ///
+        /// It cracks as the champion is ground down: the two ends sink and lean as its health
+        /// falls, so the wall is visibly losing rather than waiting to vanish.
+        /// </summary>
+        private void DrawBarricade(EnemyPackBehaviour squad, Vector3 foot)
+        {
+            if (_barricadeMesh == null || _crowd == null) return;
+
+            float health = squad.Fighting ? Mathf.Clamp01(squad.Champion.Health) : 1f;
+            float half = CrowdMath.RoadHalfWidth(_crowd.LaneWidth);
+            // Sag, not shrink. A wall that scaled down with its health would pull away from
+            // the verges and reopen the lanes it exists to close.
+            float height = BarricadeHeight * (0.72f + 0.28f * health);
+            float lean = (1f - health) * 9f;
+
+            var trs = Matrix4x4.TRS(
+                new Vector3(0f, 0f, foot.z),
+                Quaternion.Euler(lean, 0f, 0f),
+                new Vector3(half, height, 1f));
+
+            Graphics.RenderMesh(
+                new RenderParams(_championMaterial) { receiveShadows = true },
+                _barricadeMesh, 0, trs);
+        }
+
+        /// <summary>
+        /// How tall the wall stands, in metres.
+        ///
+        /// Measured against the thing it could break rather than chosen. Counted as solid, a
+        /// 2 m wall hides 9.2 m of the road behind it from the shipped rig and 1.15 m hides
+        /// 4.2 m — and the hero standing in front of the player already hides 5.8 m, so at this
+        /// height the barricade never becomes the thing in the way. It is open-work besides.
+        /// </summary>
+        private const float BarricadeHeight = 1.15f;
+
+        private Mesh _barricadeMesh;
 
         /// <summary>
         /// How much larger than a soldier a champion stands.

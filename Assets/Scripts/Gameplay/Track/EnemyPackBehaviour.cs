@@ -61,6 +61,21 @@ namespace BattleRunner.Gameplay.Track
         /// </summary>
         public bool IsElite { get; private set; }
 
+        /// <summary>
+        /// This pack spans the road: <see cref="Lane"/> says where its centre is drawn and
+        /// nothing more. See ChunkLayouts.PlannedPack.BlocksAllLanes — the flag is carried
+        /// rather than inferred from <see cref="IsElite"/> so that the lane rule and the
+        /// champion rule stay two separate questions.
+        /// </summary>
+        public bool BlocksAllLanes { get; private set; }
+
+        /// <summary>
+        /// True when the army is actually on this pack: in its lane, or anywhere at all if it
+        /// blocks the road. The one place the barricade rule is decided; TrackController reads
+        /// this for the fight, the swing and the bounty alike.
+        /// </summary>
+        public bool Engages(int crowdLane) => BlocksAllLanes || Lane == crowdLane;
+
         /// <summary>The champion's own fight. Meaningless unless <see cref="IsElite"/>.</summary>
         public Elite Champion;
 
@@ -188,12 +203,13 @@ namespace BattleRunner.Gameplay.Track
         }
 
         public void Setup(int weight, int lane, int depth, Vector3 worldPosition,
-            bool elite = false)
+            bool elite = false, bool blocksAllLanes = false)
         {
             Weight = Mathf.Max(0, weight);
             Depth = Mathf.Max(0, depth);
             Lane = lane;
             IsElite = elite;
+            BlocksAllLanes = blocksAllLanes;
             Champion = default;
             _championStarted = false;
             Defeated = false;

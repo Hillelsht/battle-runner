@@ -31,7 +31,13 @@ namespace BattleRunner.Gameplay.Track
         /// every 1.45 s after that. Raising the same event twice would have made the shield
         /// answer the wrong one.
         /// </summary>
-        public event Action<int, int, bool, Vector3> EliteSwing;
+        /// <remarks>
+        /// weight, depth, the swings this whole fight has room for, whether the army is
+        /// actually on it, and where. The swing count travels with the event because the cost
+        /// of one swing is a share of the whole fight divided by it, and the handler must not
+        /// re-derive it from an army that has been shrinking since the fight began.
+        /// </remarks>
+        public event Action<int, int, int, bool, Vector3> EliteSwing;
 
         /// <summary>A champion is dead. The handler pays the bounty.</summary>
         public event Action<int, int, Vector3> EliteDefeated;
@@ -450,7 +456,7 @@ namespace BattleRunner.Gameplay.Track
                 EnemyPackBehaviour pack = _enemyPool.Get(_trackRoot);
                 pack.Setup(spec.ForceCost, spec.Lane, chunkIndex,
                     new Vector3(spec.Lane * _laneWidth, 0f, startZ + spec.Position),
-                    spec.Elite);
+                    spec.Elite, spec.BlocksAllLanes);
                 _activeEnemies.Add(pack);
             }
         }
@@ -696,7 +702,7 @@ namespace BattleRunner.Gameplay.Track
                 if (!pack.Resolved && z <= frontZ)
                 {
                     pack.Resolve();
-                    if (pack.Lane == crowdLane)
+                    if (pack.Engages(crowdLane))
                     {
                         // THE CLASH STARTS HERE AND TAKES A SECOND. The force is still
                         // subtracted in full on this frame — every tuned difficulty number in
@@ -725,18 +731,27 @@ namespace BattleRunner.Gameplay.Track
                     // site; it is the natural once-only hook for paying a bounty.
                     bool finished = pack.TickFight(Time.deltaTime);
 
-                    // The swing, resolved against BOTH answers. A champion is answerable by
-                    // the shield or by not being in its lane, and the lane is re-read every
-                    // frame so leaving mid-fight genuinely works.
+                    // The swing. A BARRICADE HAS ONE ANSWER AND IT IS THE SHIELD — Engages is
+                    // unconditionally true for one, so the lane is no longer a way out. The
+                    // test is still written against the lane rather than deleted, because an
+                    // elite authored without a barricade is still a lane decision and the
+                    // player is still allowed to leave it mid-fight.
+                    bool engaged = pack.Engages(crowdLane);
                     if (pack.IsElite && !finished)
                     {
-                        bool inLane = pack.Lane == crowdLane;
                         if (pack.Champion.TakeSwingIfDue())
-                            EliteSwing?.Invoke(pack.Weight, pack.Depth, inLane,
-                                pack.transform.position);
+                            EliteSwing?.Invoke(pack.Weight, pack.Depth,
+                                pack.Champion.SwingsExpected, engaged, pack.transform.position);
                     }
 
-                    if (finished && pack.IsElite)
+                    // THE BOUNTY IS FOR THE ARMY THAT WAS THERE. It used to be paid whichever
+                    // lane the player was in, while the grind above ran regardless of the lane
+                    // too — so against a dodgeable champion, entering its lane and then leaving
+                    // bought a free bounty of up to 64% of the army. A barricade closes that by
+                    // construction, since there is nowhere to leave to; this closes it for the
+                    // dodgeable case as well, so the hole does not reopen the next time someone
+                    // authors one.
+                    if (finished && pack.IsElite && engaged)
                         EliteDefeated?.Invoke(pack.Weight, pack.Depth, pack.transform.position);
 
                     Vector3 held = pack.transform.position;

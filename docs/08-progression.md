@@ -602,9 +602,18 @@ threat wearing different clothes. Resist mitigates down toward one man but never
 > *"can we add smaller bosses — semibosses to be found during levels — periodically are met and
 > fought against. This should also make the game a little bit more complicated."*
 
-A champion blocks one lane. The army grinds it down while it winds up and swings, and **the road
-never stops** — that comes free, because `TrackController` already pins a fighting squad at
-`frontZ + EngageGap` while the road scrolls underneath it.
+> *"mini bosses I fight only if they are on my lane, and I want them to be on 3 lanes, mandatory
+> to fight."*
+
+A champion stands at the centre of a **barricade spanning the whole road**. The army grinds it down
+while it winds up and swings, and **the road never stops** — that comes free, because
+`TrackController` already pins a fighting squad at `frontZ + EngageGap` while the road scrolls
+underneath it.
+
+`BlocksAllLanes` is a flag on the pack rather than a rule about elites, because the lane question
+and the champion question are genuinely separate and only one of them changed. An ordinary squad is
+still dodgeable and that is still the game; `EnemyPackBehaviour.Engages(crowdLane)` is the single
+place the rule is decided, and the fight, the swing and the bounty all read it.
 
 ## Why it is a third type and not one of the two that exist
 
@@ -620,20 +629,54 @@ never stops** — that comes free, because `TrackController` already pins a figh
 So `Core/Run/Elite` sits *beside* `Melee` rather than inside it — the same separation
 `BossAffixes` keeps from `BossSim`, for the same reason.
 
-## Two answers, and they pay the same
+## One answer, and the price had to change with the rule
 
-A swing is answerable by the **shield** or by **not being in its lane** — the lane is re-read every
-frame, so leaving mid-fight genuinely works. Both answers cost exactly nothing. A champion with two
-answers that cost the same as an ambush gate with none would be a chore rather than a threat, and
-an answer that only half works teaches the player not to bother finding it.
+The shield is the only answer. The lane test survives in the code — an elite authored *without* a
+barricade would still be a lane decision, and a block and a dodge have always paid the same — but
+no authored champion arrives without one.
+
+**The re-pricing was not optional, and it is larger than it looks.** A dodgeable champion could be
+priced per swing, because a player who steered paid nothing at all. Mandatory, the shipped share of
+11% of the *live* army per swing compounds over however many swings the fight is long enough for —
+and the fight is **longest against the smallest army**, because `FightLength` shrinks with its
+square root. Counted out:
+
+| army | weight 2 | weight 3 | weight 4 |
+|---:|---|---|---|
+| 100 | 3 swings, −52.5% | 5, −86.5% | 7, **−98.3%** |
+| 2,000 | 2, −39.2% | 2, −55.1% | 3, −82.4% |
+| 1,000,000 | 1, −22.0% | 2, −55.1% | 2, −68.6% |
+
+That is not a difficulty; it is a run ending on an obstacle with one answer, hardest on the player
+who can least afford it.
+
+So **the fight is priced as a whole and the swings divide it up**. `BarricadeShare` is what the
+entire barricade takes from an army that shields none of it; the per-swing share is derived from it
+and the swing count, `perSwing = 1 − (1 − whole)^(1/n)`, so the total is identical whether the
+fight has room for one swing or three. Army size and frame rate stop being able to change the bill.
 
 | | |
 |---|---|
 | wind-up to the first swing | 1.05 s |
 | between swings | 1.45 s |
 | readable window | **0.55 s** |
-| a landed swing | 11% of the army per weight |
-| killing it | 16% per weight |
+| longest fight | **4.4 s** — room for exactly three swings |
+| the whole barricade, unshielded | **6% of the army per weight** |
+| killing it | **5% per weight** |
+
+| weight | whole fight | bounty | tank it | shield it all |
+|---:|---|---|---|---|
+| 2 | −12.0% | +10.0% | **−3.2%** | **+10.0%** |
+| 3 | −18.0% | +15.0% | −5.7% | +15.0% |
+| 4 | −24.0% | +20.0% | −8.8% | +20.0% |
+
+Tanking a barricade costs a few per cent; shielding it is worth a fifth of the army. **The gap
+between the two is the skill check** — thirty points at weight 4 — and it is a gap rather than a
+cliff. The ceiling of 4.4 s matters for the same reason: three swings makes the shield a partial
+answer, where seven made the shield magazine decide the fight instead of the player.
+
+The old bounty of 16% was set when a champion could be walked around and so had to be worth
+stopping for. A wall you cannot walk around does not need a bribe.
 
 The readable window is **wider than a boss's telegraph, not narrower**. A boss fight is the only
 thing on screen and the player is looking straight at it; a champion arrives while the road is
@@ -642,6 +685,61 @@ still moving, gates are still coming and the player is steering. The warning has
 Swings are taken from a **closed form over elapsed time** rather than a countdown that resets, so a
 dropped frame can neither skip a swing nor fire one twice — there is a test for exactly that, with
 one enormous hitch.
+
+## The wall itself
+
+One draw call, in the champion's own material, and both halves of that are deliberate. Doc 04
+budgets under 60 draws on the low tier and the whole road is four instanced ones, so a barricade
+with its own material would cost a tenth of the budget for something on screen for four seconds.
+Sharing `_championMaterial` also means **the wall heats with the telegraph** — `DrawChampion` has
+already written `_EmissionFlat` for the frame by the time the barricade is submitted — so the
+warning is the width of the road rather than the width of one body, which is the only way it
+survives being seen out of the corner of an eye while steering.
+
+It is **authored in a unit box and scaled at the draw**: x runs −1 to 1 and is stretched to
+`CrowdMath.RoadHalfWidth(laneWidth)`, y runs 0 to 1 and is stretched to 1.15 m. The road's width is
+a balance number in `BalanceSettings`, and a mesh with 3.3 baked into it would quietly stop spanning
+the road the day that number moved.
+
+**The height was measured against the complaint the camera lift was for**, not chosen. Counted as
+solid, a 2 m wall hides 9.2 m of the road behind it from the shipped rig; 1.15 m hides 4.2 m — and
+the hero already hides 5.8 m, so the barricade never becomes the thing in the way. It is open-work
+besides: stakes with daylight between them, taller either side of the champion, rails broken at the
+centre so the champion is framed by the wall rather than standing behind it. As its health falls the
+wall **sags and leans** rather than shrinking; a wall that scaled down with its health would pull
+away from the verges and reopen the lanes it exists to close.
+
+## Par had to learn two things
+
+`EstimateParForce` walks every lane and multiplies each by what stands in it. A barricade broke that
+twice over.
+
+**It is charged in every lane, at its own price.** Charging it in one lane let par treat the other
+two as escapes that no longer exist; charging it as a `Subtract` of the same weight priced a
+weight-4 champion at 62% of the army when it actually takes 24% and pays 20% back.
+`Elite.UnshieldedFactor` is that number — take the share, then pay the bounty on what is left — and
+it is what par multiplies by.
+
+**And it walked the wrong lanes.** `PickLane` and `Shift` both produce −1, 0 or 1; the walk ran 0,
+1, 2. So par has been reading the left lane as empty and an imaginary fourth lane as a free one,
+which pinned `best` at 1.0 or better on every chunk in the game whatever was actually on the road.
+It was invisible while champions took a random lane — a third of them landed in the blind spot and
+the rest were only one lane of three — and putting a mandatory obstacle in a fixed lane surfaced it
+immediately. `StandingArmyTests` walked the same wrong range and so agreed with it.
+
+Both fixes together, measured across the 62-round campaign:
+
+| lane quality | shipped | after |
+|---|---|---|
+| 0.65 — sloppy | 1.6 | 2.7 |
+| 0.75 | 47 | 2,318 |
+| 0.85 — competent | 1.26e9 | **3.27e10** |
+| 0.95 — near perfect | 1.73e31 | **1.38e29** |
+
+The shape of that is the barricade doing what it was asked to: a mandatory obstacle **compresses the
+top of the skill curve**, because no amount of steering avoids it, while being far less punishing in
+the middle, because it now costs 9% where it used to cost 62%. Competent play ends 26× larger and
+near-perfect play 125× smaller, and the gradient between good and bad steering survives.
 
 ## The spell hurts it; it does not delete it
 
@@ -722,7 +820,8 @@ gate. A flat extra share on the adds is worth a steady few per cent a round and 
 
 **A block, not a dodge, for the Warden.** Stepping out of a champion's lane costs it nothing and so
 earns nothing; the rule is about standing there and taking it. Paying out for a dodge would hand the
-bonus to every hero who simply steered well.
+bonus to every hero who simply steered well. Against a barricade there is nowhere to step to, which
+makes the Warden's rule pay on every swing of every champion — the clearest the hero has ever read.
 
 **The delay is the point, for the Revenant.** Paid on the same frame, a refund is indistinguishable
 from the loss having been smaller. One debt and one timer rather than a queue: two ambushes half a

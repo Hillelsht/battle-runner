@@ -338,18 +338,19 @@ namespace BattleRunner.Gameplay.States
         }
 
         /// <summary>
-        /// A champion's swing. Two answers, and they pay the same.
+        /// A champion's swing. One answer now, and it is the shield.
         ///
-        /// The shield and the lane are deliberately worth exactly as much as each other. A
-        /// champion with two answers that costs the same as an ambush gate with none would be
-        /// a chore rather than a threat, and an answer that only half works teaches the player
-        /// not to bother finding it.
+        /// A barricade spans the road, so `inLane` arrives true for every one of them and the
+        /// dodge branch below is dead for authored content. It is kept because an elite without
+        /// a barricade would still be a lane decision, and because the block and the dodge have
+        /// always paid the same — an answer that only half works teaches the player not to
+        /// bother finding it.
         /// </summary>
-        private void OnEliteSwing(int weight, int depth, bool inLane, Vector3 where)
+        private void OnEliteSwing(int weight, int depth, int swings, bool inLane, Vector3 where)
         {
             bool blocked = _ctx.Shield.IsActive;
             bool dodged = !inLane;
-            double cost = Elite.SwingCost(_ctx.Run.ForceCount, weight, blocked, dodged);
+            double cost = Elite.SwingCost(_ctx.Run.ForceCount, weight, swings, blocked, dodged);
 
             if (cost <= 0.0)
             {
@@ -361,7 +362,7 @@ namespace BattleRunner.Gameplay.States
                 // taking it, and paying out for a dodge would hand the bonus to every hero
                 // who simply steered well.
                 if (blocked)
-                    ConvertBlock(Elite.SwingCost(_ctx.Run.ForceCount, weight, false, false), where);
+                    ConvertBlock(Elite.SwingCost(_ctx.Run.ForceCount, weight, swings, false, false), where);
                 return;
             }
 

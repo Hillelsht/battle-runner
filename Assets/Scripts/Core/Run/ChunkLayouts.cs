@@ -73,12 +73,25 @@ namespace BattleRunner.Core.Run
         /// </summary>
         public bool Elite { get; }
 
-        public PlannedPack(int forceCost, int lane, float position, bool elite = false)
+        /// <summary>
+        /// This pack spans the whole road rather than standing in <see cref="Lane"/>: there is
+        /// no steering around it, and <see cref="Lane"/> only says where its centre is drawn.
+        ///
+        /// A flag rather than a rule about elites, because the two are genuinely separate
+        /// questions and only one of them changed. An ordinary squad is still dodgeable and
+        /// that is still the game; an elite that did not block would still be a lane decision,
+        /// and every lane test downstream reads this rather than <see cref="Elite"/>.
+        /// </summary>
+        public bool BlocksAllLanes { get; }
+
+        public PlannedPack(int forceCost, int lane, float position, bool elite = false,
+            bool blocksAllLanes = false)
         {
             ForceCost = forceCost;
             Lane = lane;
             Position = position;
             Elite = elite;
+            BlocksAllLanes = blocksAllLanes;
         }
     }
 
@@ -229,11 +242,18 @@ namespace BattleRunner.Core.Run
                     // a gate beside it would ask the player to read two things during the one
                     // event in the round that needs their whole attention.
                     //
-                    // The recruit gate at 10 m is deliberately BEFORE it and in another lane:
-                    // it gives the player somewhere to be if they choose to dodge, so the
-                    // dodge is a decision with a payoff rather than a hole in the round.
+                    // The recruit gate at 10 m is deliberately BEFORE it: it is the last thing
+                    // the player can do to arrive at the wall with more men than they had, and
+                    // arriving bigger is now the only preparation available, since the wall
+                    // itself cannot be steered around.
+                    //
+                    // The barricade's LANE IS THE MIDDLE ONE, always, because a wall that spans
+                    // the road has no lane — Lane only says where its centre is drawn, and a
+                    // champion drawn off-centre in a symmetrical barricade would read as if the
+                    // other two thirds were passable.
                     layout.Gates.Add(new PlannedGate(GateOp.Add, add + 1, Shift(lane, 1), 10f));
-                    layout.Packs.Add(new PlannedPack(cost + 1, lane, 26f, elite: true));
+                    layout.Packs.Add(new PlannedPack(cost + 1, 0, 26f, elite: true,
+                        blocksAllLanes: true));
                     break;
 
                 default: // Crossfire
@@ -314,13 +334,27 @@ namespace BattleRunner.Core.Run
                 if (layout == null) continue;
 
                 double best = double.MinValue, worst = double.MaxValue;
-                for (int lane = 0; lane < LaneCount; lane++)
+                // LANES ARE -1, 0 AND 1, and this walked 0, 1 and 2 — so it has been reading
+                // the left lane as empty and an imaginary fourth lane as a free one. `best` was
+                // therefore pinned at 1.0 or better on every chunk in the game, whatever was
+                // actually on the road, and anything the generator put in the left lane was
+                // invisible to par. The barricade is what surfaced it: put a mandatory obstacle
+                // in a fixed lane and a third of them used to land where par could not see.
+                for (int lane = LaneMin; lane <= LaneMax; lane++)
                 {
                     double factor = 1.0;
                     foreach (PlannedGate gate in layout.Gates)
                         if (gate.Lane == lane) factor *= GateMath.Factor(gate.Op, gate.Value, i);
                     foreach (PlannedPack pack in layout.Packs)
-                        if (pack.Lane == lane) factor *= GateMath.Factor(GateOp.Subtract, pack.ForceCost, i);
+                    {
+                        // A barricade is charged in EVERY lane, and at its own price rather than
+                        // at an ambush gate's. Both halves matter: charging it in one lane let
+                        // par treat the other two as escapes that no longer exist, and charging
+                        // it as a Subtract of the same weight would price a weight-4 champion at
+                        // 62% of the army when it actually takes 24% and pays 20% back.
+                        if (pack.BlocksAllLanes) factor *= Elite.UnshieldedFactor(pack.ForceCost);
+                        else if (pack.Lane == lane) factor *= GateMath.Factor(GateOp.Subtract, pack.ForceCost, i);
+                    }
                     if (factor > best) best = factor;
                     if (factor < worst) worst = factor;
                 }
@@ -334,6 +368,12 @@ namespace BattleRunner.Core.Run
 
         /// <summary>Lanes on the road. Named because par has to walk all of them.</summary>
         public const int LaneCount = 3;
+
+        /// <summary>The leftmost lane. PickLane and Shift both produce -1, 0 or 1.</summary>
+        public const int LaneMin = -1;
+
+        /// <summary>The rightmost lane.</summary>
+        public const int LaneMax = 1;
 
         private static long SaturatingAdd(long a, int b)
         {
