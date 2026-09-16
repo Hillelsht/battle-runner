@@ -9,15 +9,16 @@ Releases: <https://github.com/Hillelsht/battle-runner/releases>
 ## Current status
 
 **Stage:** playable greybox MVP. The full loop runs on device: menu → **pick one of four
-characters** → 3-lane run through `+` `×` `−` gates, **under the world's arches and past its
-champions** → boss fight **in an arena the road opens into** → loot with Auto-Equip → stat
-points → save → next level.
+characters, each standing on a lit stage and animated** → 3-lane run through `+` `×` `−` gates,
+**under the world's arches and through barricades you cannot steer around** → boss fight **in an
+arena the road opens into** → loot with Auto-Equip → stat points → save → next level.
 
 | Area | State |
 |---|---|
 | Game loop | Complete end to end |
+| Camera | Rises with the army, so a million-man hero stops hiding the road |
 | Content | **4 playable characters**, 8 worlds (one in daylight, each with its own arch over the road), 6 levels, 6 bosses (6 archetypes) x 5 champion affixes = 30 fights, champions behind barricades that span the road, 15 gear items, 4 rarities, ~60 talents + endless paragon |
-| Art | Procedural meshes and code-built uGUI, 119 CC0 Kenney models in one 563 KB pack, 8 generated ground surfaces with normal maps, a boss arena that opens out of the road, and one winged pony |
+| Art | Procedural meshes and code-built uGUI, 119 CC0 Kenney models in one 563 KB pack, 8 generated ground surfaces with normal maps, a boss arena that opens out of the road, a character-select stage the heroes are posed on, and one winged pony |
 | Tests | 504, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
