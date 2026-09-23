@@ -54,6 +54,83 @@ namespace BattleRunner.Core.Text
         {
             if (string.IsNullOrEmpty(logical) || !HasRtl(logical)) return logical;
 
+            // RICH-TEXT TAGS ARE NOT TEXT and reordering them destroys them. Unity's uGUI markup
+            // goes through this the same as anything else, and the result is not subtly wrong:
+            //
+            //     <i>שלל כפול</i>   became   </i>לופכ ללש<i>
+            //     <size=30>...      became   <30=size>...
+            //
+            // The angle brackets mirror like any other pair and the run reverses, so the tag
+            // comes out inside out. Unity then draws "<30=size>" as literal characters, and the
+            // loot card -- the only screen in the game with markup on it -- shows the player a
+            // mangled tag instead of the size change it asked for.
+            //
+            // So the tags come out, the text is reordered without them, and they go back at the
+            // same offsets into the text. Every tag in this game wraps a whole line, which is the
+            // case that makes exact: an opening tag at offset 0 returns to offset 0 and its
+            // closing partner to the end. A tag in mid-line would land approximately, which is
+            // worth far less than the guarantee that the markup always comes out valid.
+            return Tagged(logical) ? WithTagsKept(logical) : Reorder(logical);
+        }
+
+        /// <summary>Is there anything that looks like a uGUI rich-text tag in here?</summary>
+        private static bool Tagged(string s)
+        {
+            int open = s.IndexOf('<');
+            return open >= 0 && s.IndexOf('>', open + 1) > open;
+        }
+
+        /// <summary>
+        /// Reorder the text with the tags lifted out, then put them back where they were.
+        /// </summary>
+        private static string WithTagsKept(string logical)
+        {
+            var tagAt = new System.Collections.Generic.List<int>();
+            var tags = new System.Collections.Generic.List<string>();
+            var bare = new System.Text.StringBuilder(logical.Length);
+
+            for (int i = 0; i < logical.Length; )
+            {
+                if (logical[i] == '<')
+                {
+                    int close = logical.IndexOf('>', i + 1);
+                    // A bare '<' with no partner is ordinary text, not a broken tag.
+                    if (close > i && close - i <= MaxTagLength)
+                    {
+                        tagAt.Add(bare.Length);
+                        tags.Add(logical.Substring(i, close - i + 1));
+                        i = close + 1;
+                        continue;
+                    }
+                }
+                bare.Append(logical[i]);
+                i++;
+            }
+
+            if (tags.Count == 0) return Reorder(logical);
+
+            string visual = Reorder(bare.ToString());
+            var rebuilt = new System.Text.StringBuilder(logical.Length);
+            int next = 0;
+            for (int t = 0; t < tags.Count; t++)
+            {
+                int at = tagAt[t] < visual.Length ? tagAt[t] : visual.Length;
+                if (at > next) rebuilt.Append(visual, next, at - next);
+                rebuilt.Append(tags[t]);
+                next = at > next ? at : next;
+            }
+            if (next < visual.Length) rebuilt.Append(visual, next, visual.Length - next);
+            return rebuilt.ToString();
+        }
+
+        /// <summary>Longest run of characters accepted as a tag, so a stray '&lt;' cannot swallow a line.</summary>
+        private const int MaxTagLength = 40;
+
+        /// <summary>The reordering itself, on text with no markup in it.</summary>
+        private static string Reorder(string logical)
+        {
+            if (string.IsNullOrEmpty(logical) || !HasRtl(logical)) return logical;
+
             int n = logical.Length;
             var levels = new int[n];
 

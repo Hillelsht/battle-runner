@@ -117,6 +117,54 @@ namespace BattleRunner.Tests
         }
 
         [Test]
+        public void RichTextTagsComeOutTheSameWayTheyWentIn()
+        {
+            // uGUI markup went through the reordering like any other text, and the angle
+            // brackets mirror like any other pair: "<i>...</i>" came back "</i>...<i>" and
+            // "<size=30>" came back "<30=size>", which Unity draws as literal characters. The
+            // loot card is the only screen in the game carrying markup, and it carried both.
+            const string open = "<size=30>";
+            const string close = "</size>";
+            string logical = open + "\u05E0\u05D3\u05D9\u05E8 \u05E7\u05E1\u05D3\u05D4" + close;
+            string visual = BiDi.Visual(logical);
+
+            Assert.IsTrue(visual.StartsWith(open), $"opening tag did not survive: {visual}");
+            Assert.IsTrue(visual.EndsWith(close), $"closing tag did not survive: {visual}");
+            Assert.AreEqual(logical.Length, visual.Length);
+
+            // And the Hebrew between them is genuinely reordered -- the tags being intact must
+            // not have come at the price of doing nothing at all.
+            Assert.AreNotEqual(logical, visual);
+        }
+
+        [Test]
+        public void TheLootItemLineSurvivesBeingComposedAndReordered()
+        {
+            // The real template, filled the way LootScreen fills it. This is the one string in
+            // the game where a format template, three translated fragments and rich-text markup
+            // all meet, and it is composed at runtime so no table test ever sees the result.
+            string line = Loc.In(Language.Hebrew, LocKey.LootItemLine);
+            string composed = string.Format(line,
+                "\u05E7\u05E1\u05D3\u05D4", "\u05E0\u05D3\u05D9\u05E8", "\u05E8\u05D0\u05E9");
+            string visual = BiDi.VisualLines(composed);
+
+            Assert.IsTrue(visual.Contains("<size=30>"), $"opening tag mangled: {visual}");
+            Assert.IsTrue(visual.Contains("</size>"), $"closing tag mangled: {visual}");
+            Assert.IsFalse(visual.Contains("<30=size>"), "the tag was reordered inside out");
+            Assert.AreEqual(composed.Length, visual.Length);
+        }
+
+        [Test]
+        public void AComparisonSignIsStillTextRatherThanATag()
+        {
+            // A lone '<' with no partner is ordinary text and must keep mirroring like the
+            // paired character it is -- the tag handling must not swallow it.
+            string visual = BiDi.Visual("5 < 7 \u05D1\u05E2\u05D1\u05E8\u05D9\u05EA");
+            Assert.IsTrue(visual.Contains(">"), $"the comparison did not mirror: {visual}");
+            Assert.IsFalse(visual.Contains("<"), $"the comparison mirrored to both: {visual}");
+        }
+
+        [Test]
         public void WrappingHappensBeforeReorderingAndNotAfter()
         {
             // Four Hebrew words. Read right to left the sentence is aleph, bet, gimel, dalet.
