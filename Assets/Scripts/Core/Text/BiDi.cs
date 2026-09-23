@@ -76,8 +76,36 @@ namespace BattleRunner.Core.Text
         /// <summary>Is there anything that looks like a uGUI rich-text tag in here?</summary>
         private static bool Tagged(string s)
         {
-            int open = s.IndexOf('<');
-            return open >= 0 && s.IndexOf('>', open + 1) > open;
+            for (int i = 0; i < s.Length; i++)
+                if (s[i] == '<' && TagEnd(s, i) > i) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// The index of the '>' closing a tag that starts at <paramref name="open"/>, or -1.
+        ///
+        /// DELIBERATELY STRICTER THAN "a '&lt;' with a '&gt;' after it somewhere", because that
+        /// description also fits `5 &lt; 7 &gt; 3`, and swallowing a pair of comparisons as
+        /// markup would stop them mirroring — trading the corruption this code exists to fix for
+        /// a quieter one. A uGUI tag opens with a letter or a slash and never contains
+        /// whitespace, which separates the two cases completely.
+        /// </summary>
+        private static int TagEnd(string s, int open)
+        {
+            if (open + 1 >= s.Length) return -1;
+            char first = s[open + 1];
+            if (first != '/' && !((first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z')))
+                return -1;
+
+            int limit = open + MaxTagLength;
+            if (limit >= s.Length) limit = s.Length - 1;
+            for (int i = open + 1; i <= limit; i++)
+            {
+                char c = s[i];
+                if (c == '>') return i;
+                if (c == '<' || char.IsWhiteSpace(c)) return -1;
+            }
+            return -1;
         }
 
         /// <summary>
@@ -93,9 +121,10 @@ namespace BattleRunner.Core.Text
             {
                 if (logical[i] == '<')
                 {
-                    int close = logical.IndexOf('>', i + 1);
-                    // A bare '<' with no partner is ordinary text, not a broken tag.
-                    if (close > i && close - i <= MaxTagLength)
+                    // Anything that is not a tag by TagEnd's rules is ordinary text and keeps
+                    // mirroring like the paired character it is.
+                    int close = TagEnd(logical, i);
+                    if (close > i)
                     {
                         tagAt.Add(bare.Length);
                         tags.Add(logical.Substring(i, close - i + 1));

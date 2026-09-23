@@ -19,7 +19,7 @@ arena the road opens into** → loot with Auto-Equip → stat points → save �
 | Camera | Rises with the army, so a million-man hero stops hiding the road |
 | Content | **4 playable characters**, 8 worlds (one in daylight, each with its own arch over the road), 6 levels, 6 bosses (6 archetypes) x 5 champion affixes = 30 fights, champions behind barricades that span the road, 15 gear items, 4 rarities, ~60 talents + endless paragon |
 | Art | Procedural meshes and code-built uGUI, 119 CC0 Kenney models in one 563 KB pack, 8 generated ground surfaces with normal maps, a boss arena that opens out of the road, a character-select stage the heroes are posed on, and one winged pony |
-| Tests | 540, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 541, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
@@ -1184,7 +1184,7 @@ The v0.4.0 screenshots confirmed the art pass landed — sky, stars, shadows, ro
 gates and UI frames all correct on device — and surfaced two bugs that were never about
 art: `Focus -0 %` on the menu and `+0.01 Focus` on the loot card. Both were units chosen
 from the ModifierKind rather than from the stat, plus a hard-coded minus sign in front of
-a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 540 tests today).
+a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 541 tests today).
 
 A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
 11 survived adversarial refutation. The headline three: the key light pointed the same way
@@ -1501,9 +1501,17 @@ Unity then draws `<30=size>` as literal characters. The loot card is the only sc
 game carrying markup and it carried both — the italic flavour line and the size change on the
 rarity line. `BiDi` lifts the tags out, reorders the text without them and puts them back at the
 same offsets; every tag in this game wraps a whole line, which is the case that makes exact. A
-lone `<` with no partner is still treated as ordinary text and still mirrors, which is a third
-test, because a tag handler that swallows a comparison sign has traded one silent corruption
-for another.
+`<` that is not opening a tag is still ordinary text and still mirrors, because a tag handler
+that swallows a comparison sign has traded one silent corruption for another. The rule is that a
+uGUI tag opens with a letter or a slash and never contains whitespace — stricter than "a `<`
+with a `>` after it", which is also a description of `5 < 7 > 3`.
+
+That test needed a second attempt. The first version counted brackets and checked the length,
+and **both versions of the code passed it** — the loose one lifts `< 7 >` out as though it were
+markup and puts it back at the same offset into text that has since been reversed, which
+preserves every count while driving the comparison through the middle of a Hebrew word:
+`תי< 7 >רבעב 3  5`. Only adjacency separates them, so that is what it asserts now, and it was
+run against the loose version to watch it fail before being kept.
 
 That one had gone unseen through every table test and both earlier bidi passes, because it only
 exists **after** `Loc.Format` has composed the template with its three fragments. Nothing that

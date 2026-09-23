@@ -279,11 +279,48 @@ namespace BattleRunner.Tests
         [Test]
         public void AComparisonSignIsStillTextRatherThanATag()
         {
-            // A lone '<' with no partner is ordinary text and must keep mirroring like the
-            // paired character it is -- the tag handling must not swallow it.
-            string visual = BiDi.Visual("5 < 7 \u05D1\u05E2\u05D1\u05E8\u05D9\u05EA");
-            Assert.IsTrue(visual.Contains(">"), $"the comparison did not mirror: {visual}");
-            Assert.IsFalse(visual.Contains("<"), $"the comparison mirrored to both: {visual}");
+            // A '<' that is not opening a tag is ordinary text and must keep mirroring like the
+            // paired character it is. The harder case is the SECOND one: "5 < 7 > 3" contains a
+            // '<' with a '>' after it, which is the whole of a naive tag test, so a handler that
+            // asks only that question swallows both comparisons and silently stops them
+            // mirroring -- trading the corruption this code exists to fix for a quieter one.
+            string lone = BiDi.Visual("5 < 7 \u05D1\u05E2\u05D1\u05E8\u05D9\u05EA");
+            Assert.IsTrue(lone.Contains(">"), $"the comparison did not mirror: {lone}");
+            Assert.IsFalse(lone.Contains("<"), $"the comparison mirrored to both: {lone}");
+
+            const string logical = "5 < 7 > 3 \u05D1\u05E2\u05D1\u05E8\u05D9\u05EA";
+            string pair = BiDi.Visual(logical);
+            Assert.AreEqual(logical.Length, pair.Length);
+            Assert.AreEqual(1, Count(pair, '<'), $"'<' count changed: {pair}");
+            Assert.AreEqual(1, Count(pair, '>'), $"'>' count changed: {pair}");
+
+            // THE ASSERTION THAT ACTUALLY SEPARATES THE TWO. Counting brackets does not: a
+            // handler that takes "< 7 >" for markup lifts it out whole and puts it back at the
+            // same offset into text that has since been reversed, which lands it INSIDE a word
+            // -- "תי< 7 >רבעב 3  5", with the comparison driven through the middle of בעברית.
+            // Both outputs have one of each bracket and the same length, so only adjacency
+            // tells them apart.
+            for (int i = 0; i < pair.Length; i++)
+            {
+                if (pair[i] != '<' && pair[i] != '>') continue;
+                if (i > 0)
+                    Assert.IsFalse(IsHebrew(pair[i - 1]),
+                        $"markup handling spliced {pair[i]} into a word: {pair}");
+                if (i + 1 < pair.Length)
+                    Assert.IsFalse(IsHebrew(pair[i + 1]),
+                        $"markup handling spliced {pair[i]} into a word: {pair}");
+            }
+        }
+
+        [Test]
+        public void AnAngleBracketFollowedByASpaceIsNotATag()
+        {
+            // The discriminator: a uGUI tag opens with a letter or a slash and never contains
+            // whitespace. Assert the rule directly, so a future loosening of it fails here
+            // rather than on a loot card.
+            string visual = BiDi.Visual("\u05E9\u05DC\u05DC <3 \u05DB\u05E4\u05D5\u05DC");
+            Assert.AreEqual("\u05E9\u05DC\u05DC <3 \u05DB\u05E4\u05D5\u05DC".Length, visual.Length);
+            Assert.IsTrue(visual.Contains(">"), $"'<3' was treated as markup: {visual}");
         }
 
         [Test]
@@ -356,6 +393,8 @@ namespace BattleRunner.Tests
                     $"{key} gained or lost a separator");
             }
         }
+
+        private static bool IsHebrew(char c) => c >= '\u05D0' && c <= '\u05EA';
 
         private static int Count(string s, char c)
         {
