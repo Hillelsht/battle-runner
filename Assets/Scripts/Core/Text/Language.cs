@@ -43,6 +43,24 @@ namespace BattleRunner.Core.Text
             }
         }
 
+        /// <summary>
+        /// The same name, in the order it should be DRAWN.
+        ///
+        /// THE ONE STRING ON SCREEN THAT IS NOT IN THE CURRENT LANGUAGE, and that is exactly why
+        /// it needs its own reordering. `UiFactory.Shape` reorders by `Loc.IsRightToLeft` — the
+        /// language the UI is in — which is the right question for every other label and the
+        /// wrong one here. The button shows the language it switches TO, so while the UI is in
+        /// Russian the label reads "עברית", `Loc.IsRightToLeft` is false, no reordering happens,
+        /// and legacy Text draws it "תירבע": the escape hatch out of a language you cannot read,
+        /// rendered backwards.
+        ///
+        /// So the name is reordered by the language it NAMES. Callers assign the result straight
+        /// to `.text` and must not pass it through `UiFactory.SetText`, which would reorder it a
+        /// second time and put it back.
+        /// </summary>
+        public static string NativeNameVisual(Language language) =>
+            IsRightToLeft(language) ? BiDi.Visual(NativeName(language)) : NativeName(language);
+
         /// <summary>The next language in the cycle, wrapping.</summary>
         public static Language Next(Language language) =>
             (Language)(((int)language + 1) % Count);

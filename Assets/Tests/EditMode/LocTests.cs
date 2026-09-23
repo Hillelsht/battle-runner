@@ -146,6 +146,34 @@ namespace BattleRunner.Tests
         }
 
         [Test]
+        public void TheHebrewOptionIsDrawnTheRightWayRoundFromAnyLanguage()
+        {
+            // The language button is the ONE label on screen written in a language other than the
+            // one the UI is in: it shows the language it switches TO. UiFactory.Shape reorders by
+            // Loc.IsRightToLeft — the CURRENT language — so while the UI is in English or Russian
+            // nothing reorders "עברית" and legacy Text draws it backwards. The escape hatch out of
+            // a language you cannot read, unreadable.
+            string drawn = Languages.NativeNameVisual(Language.Hebrew);
+            Assert.AreNotEqual(Languages.NativeName(Language.Hebrew), drawn,
+                "the Hebrew option is not reordered, so it draws backwards");
+            Assert.AreEqual(BiDi.Visual(Languages.NativeName(Language.Hebrew)), drawn);
+
+            // Reordering may never add or drop a character, here as everywhere else.
+            Assert.AreEqual(Languages.NativeName(Language.Hebrew).Length, drawn.Length);
+        }
+
+        [Test]
+        public void TheLeftToRightOptionsAreLeftExactlyAlone()
+        {
+            // Nothing to reorder, and the result has to be identical rather than merely equivalent
+            // — the caller assigns it straight to .text without passing it through SetText.
+            foreach (Language language in new[] { Language.English, Language.Russian })
+                Assert.AreEqual(Languages.NativeName(language),
+                    Languages.NativeNameVisual(language),
+                    $"{language} names itself in a left-to-right script and must not be touched");
+        }
+
+        [Test]
         public void CyclingReachesEveryLanguageAndComesBack()
         {
             Language at = Language.English;

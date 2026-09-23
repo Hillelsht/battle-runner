@@ -19,7 +19,7 @@ arena the road opens into** → loot with Auto-Equip → stat points → save �
 | Camera | Rises with the army, so a million-man hero stops hiding the road |
 | Content | **4 playable characters**, 8 worlds (one in daylight, each with its own arch over the road), 6 levels, 6 bosses (6 archetypes) x 5 champion affixes = 30 fights, champions behind barricades that span the road, 15 gear items, 4 rarities, ~60 talents + endless paragon |
 | Art | Procedural meshes and code-built uGUI, 119 CC0 Kenney models in one 563 KB pack, 8 generated ground surfaces with normal maps, a boss arena that opens out of the road, a character-select stage the heroes are posed on, and one winged pony |
-| Tests | 528, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 530, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
@@ -1184,7 +1184,7 @@ The v0.4.0 screenshots confirmed the art pass landed — sky, stars, shadows, ro
 gates and UI frames all correct on device — and surfaced two bugs that were never about
 art: `Focus -0 %` on the menu and `+0.01 Focus` on the loot card. Both were units chosen
 from the ModifierKind rather than from the stat, plus a hard-coded minus sign in front of
-a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 528 tests today).
+a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 530 tests today).
 
 A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
 11 survived adversarial refutation. The headline three: the key light pointed the same way
@@ -1403,6 +1403,16 @@ never intended to touch. `ActionButton` takes a `labelSize` now and those sites 
 this for the mute toggle — `PlayerProfile` is per **slot**, and `GameContext.SaveProfile`
 refuses to write while no slot is active. Language is the stronger case: it has to be legible
 on the slot-select screen, which runs before any slot exists. No schema bump, no migration.
+
+**And the escape hatch itself was drawing backwards.** The language button shows the language
+it switches *to*, which makes it the one label in the game written in a script other than the
+one the UI is in. `UiFactory.Shape` reorders by `Loc.IsRightToLeft` — the **current** language —
+which is the right question for every other label and the wrong one here: while the UI sat in
+English or Russian the button read `עברית`, `IsRightToLeft` was false, nothing reordered it, and
+legacy Text drew `תירבע`. The control whose entire purpose is to get someone out of a language
+they cannot read, unreadable. `Languages.NativeNameVisual` reorders by the language each option
+*names*, and its test asserts the Hebrew option comes back **different** from the stored string —
+an equality test would have passed just as happily against the broken version.
 
 **What a regex edit does when it matches nothing is report success**, and three did. A
 `Boss` factory signature was matched on `string name, string displayName` when the parameter

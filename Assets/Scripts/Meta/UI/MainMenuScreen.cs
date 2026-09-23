@@ -89,8 +89,12 @@ namespace BattleRunner.Meta.UI
         /// <summary>Re-label the button with whatever it switches to next.</summary>
         public void RefreshLanguage()
         {
+            // NativeNameVisual, and .text rather than UiFactory.SetText. This is the only label
+            // in the game written in a language other than the one the UI is in, so it is
+            // reordered by the language it names rather than by the current one — and SetText
+            // would reorder it a second time and put it back.
             if (_languageLabel != null)
-                _languageLabel.text = Languages.NativeName(Languages.Next(Loc.Language));
+                _languageLabel.text = Languages.NativeNameVisual(Languages.Next(Loc.Language));
         }
 
         public void BindSound(Func<bool> readState, Action toggle)
