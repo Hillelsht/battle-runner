@@ -30,10 +30,15 @@ namespace BattleRunner.Meta.UI
             UiFactory.Place((RectTransform)_forceLabel.transform, 0.5f, 0.92f, 700f, 110f);
 
             _spellLabel = UiFactory.Label(root, "Spell", Loc.Format(LocKey.HudSpellReady, string.Empty), 34, UiFactory.Arcane);
-            UiFactory.Place((RectTransform)_spellLabel.transform, 0.82f, 0.07f, 320f, 70f);
+            // Spell and shield swap sides in Hebrew, because they name the flick that reaches
+            // them and a thumb finds the near edge first. The BAR below does not mirror: it is a
+            // quantity draining, and one that emptied the other way reads as filling.
+            UiFactory.Place((RectTransform)_spellLabel.transform, UiFactory.Mirror(0.82f),
+                0.07f, 320f, 70f);
 
             _shieldLabel = UiFactory.Label(root, "Shield", Loc.Format(LocKey.HudShieldReady, string.Empty), 34, UiFactory.Parchment);
-            UiFactory.Place((RectTransform)_shieldLabel.transform, 0.18f, 0.07f, 320f, 70f);
+            UiFactory.Place((RectTransform)_shieldLabel.transform, UiFactory.Mirror(0.18f),
+                0.07f, 320f, 70f);
 
             RectTransform barBack = UiFactory.Panel(root, "BossBarBack", UiFactory.InkSoft);
             UiFactory.Place(barBack, 0.5f, 0.83f, 820f, 44f);
@@ -75,7 +80,7 @@ namespace BattleRunner.Meta.UI
             string shown = BattleRunner.Core.Stats.StatFormat.Army(force);
             if (shown == _lastForce) return;
             _lastForce = shown;
-            _forceLabel.text = shown;
+            UiFactory.SetText(_forceLabel, shown);
         }
 
         /// <summary>
@@ -90,17 +95,17 @@ namespace BattleRunner.Meta.UI
         public void SetAbilities(float spellFill, int spellCharges, int spellCapacity,
             float shieldFill, int shieldCharges, int shieldCapacity, bool shieldActive)
         {
-            _spellLabel.text = spellCharges > 0
+            UiFactory.SetText(_spellLabel, spellCharges > 0
                 ? Loc.Format(LocKey.HudSpellReady, Pips(spellCharges, spellCapacity))
-                : Loc.Format(LocKey.HudSpellRefill, Pips(0, spellCapacity), RefillTail(spellFill));
+                : Loc.Format(LocKey.HudSpellRefill, Pips(0, spellCapacity), RefillTail(spellFill)));
             _spellLabel.color = spellCharges > 0 ? UiFactory.Arcane : UiFactory.InkSoft * 2f;
 
-            _shieldLabel.text = shieldActive
+            UiFactory.SetText(_shieldLabel, shieldActive
                 ? Loc.Format(LocKey.HudShielded, Pips(shieldCharges, shieldCapacity))
                 : shieldCharges > 0
                     ? Loc.Format(LocKey.HudShieldReady, Pips(shieldCharges, shieldCapacity))
                     : Loc.Format(LocKey.HudShieldRefill, Pips(0, shieldCapacity),
-                        RefillTail(shieldFill));
+                        RefillTail(shieldFill)));
             _shieldLabel.color = shieldActive ? UiFactory.Gold :
                 shieldCharges > 0 ? UiFactory.Parchment : UiFactory.InkSoft * 2f;
         }
@@ -144,7 +149,7 @@ namespace BattleRunner.Meta.UI
         /// </param>
         public void ShowBossBar(string bossName, bool withHealth = true, Color? fillTint = null)
         {
-            _bossName.text = bossName;
+            UiFactory.SetText(_bossName, bossName);
             _bossBarFillImage.color = fillTint.HasValue
                 ? Color.Lerp(UiFactory.Blood, Normalized(fillTint.Value), 0.34f)
                 : UiFactory.Blood;
@@ -175,6 +180,6 @@ namespace BattleRunner.Meta.UI
         public void HideBossBar() => _bossBarRoot.SetActive(false);
 
         /// <summary>The act-and-round marker, e.g. "3-2  THE BONE WASTES".</summary>
-        public void SetRound(string text) => _roundLabel.text = text ?? string.Empty;
+        public void SetRound(string text) => UiFactory.SetText(_roundLabel, text ?? string.Empty);
     }
 }

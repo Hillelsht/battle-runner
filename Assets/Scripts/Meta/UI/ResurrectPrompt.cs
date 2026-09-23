@@ -21,7 +21,8 @@ namespace BattleRunner.Meta.UI
                 gradient: false);
             _root = root.gameObject;
 
-            _message = UiFactory.Label(root, "Message", Loc.Get(LocKey.ResurrectFallen), 58, UiFactory.Blood);
+            _message = UiFactory.Label(root, "Message", Loc.Get(LocKey.ResurrectFallen), 58, UiFactory.Blood,
+                TextAnchor.MiddleCenter, LocKey.ResurrectFallen);
             UiFactory.Place((RectTransform)_message.transform, 0.5f, 0.68f, 950f, 120f);
 
             Button resurrect = UiFactory.ActionButton(root, "Resurrect", Loc.Get(LocKey.ResurrectAd), UiFactory.Gold,

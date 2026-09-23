@@ -277,6 +277,11 @@ namespace BattleRunner.Gameplay
 
         private static void CreateUi(GameContext ctx)
         {
+            // BEFORE A SINGLE LABEL IS BUILT. Every screen's constructor resolves its strings
+            // through Loc, and they are all built once and never rebuilt — so a language loaded
+            // after this point would leave the whole UI in whatever it defaulted to.
+            Meta.Services.LanguageService.Load();
+
             if (Object.FindFirstObjectByType<EventSystem>() == null)
                 new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
 
@@ -286,6 +291,16 @@ namespace BattleRunner.Gameplay
             ctx.MenuScreen = new MainMenuScreen(root,
                 () => ctx.MenuState.OnPlayPressed(),
                 () => ctx.MenuState.OnNewRunPressed());
+            ctx.MenuScreen.BindLanguage(() =>
+            {
+                Meta.Services.LanguageService.Next();
+                // Every keyed label at once, then the menu's own two live labels. The only
+                // screen on screen right now is this one, and the rest resolve their text the
+                // next time they are shown.
+                Meta.UI.UiFactory.ReapplyText();
+                ctx.MenuScreen.RefreshLanguage();
+                ctx.MenuScreen.RefreshSound();
+            });
             ctx.MenuScreen.BindSound(
                 () => ctx.Audio.Enabled,
                 () => ctx.Audio.Enabled = !ctx.Audio.Enabled);

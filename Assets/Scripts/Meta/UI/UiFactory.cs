@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using BattleRunner.Core.Text;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -16,6 +18,78 @@ namespace BattleRunner.Meta.UI
         /// GameBootstrap points this at the audio service once and nothing else knows.
         /// </summary>
         public static event System.Action Tap;
+
+        /// <summary>
+        /// Every label built with a key, so the language can change without rebuilding the UI.
+        ///
+        /// A STATIC LIST, WHICH IS SAFE HERE FOR A SPECIFIC REASON. The eight screens are built
+        /// once in GameBootstrap.CreateUi and toggled with SetActive for the rest of the process's
+        /// life — nothing is ever destroyed, so these references cannot go stale. In a project
+        /// that tore screens down this would be a leak; here it is the cheapest correct answer,
+        /// and it follows the Tap event above, added for the same reason: so a screen written
+        /// later works without anybody remembering to make it.
+        /// </summary>
+        private static readonly List<(Text Label, LocKey Key)> Keyed =
+            new List<(Text, LocKey)>(128);
+
+        /// <summary>
+        /// Rewrite every keyed label in the current language. Called when the language changes.
+        ///
+        /// It does not reach labels whose text is set at runtime — the HUD's round marker, the
+        /// loot card, the talent cells. Those are rewritten by their own screen the next time it
+        /// is shown or refreshed, and the only screen visible when the language button is pressed
+        /// is the menu, which refreshes itself on the same tap.
+        /// </summary>
+        public static void ReapplyText()
+        {
+            for (int i = 0; i < Keyed.Count; i++)
+            {
+                (Text label, LocKey key) = Keyed[i];
+                if (label != null) label.text = Shape(Loc.Get(key));
+            }
+        }
+
+        /// <summary>
+        /// A string, in the order it should be DRAWN.
+        ///
+        /// THE LAST MOMENT BEFORE THE GLYPHS. Legacy Text performs no bidirectional reordering
+        /// at all, so Hebrew handed to it straight from the table renders backwards. Everything
+        /// that assigns .text goes through here; it is a no-op in English and Russian.
+        /// </summary>
+        public static string Shape(string text) =>
+            Loc.IsRightToLeft ? Core.Text.BiDi.VisualLines(text) : text;
+
+        /// <summary>Set a label's text, reordering it for the language first.</summary>
+        public static void SetText(Text label, string text)
+        {
+            if (label != null) label.text = Shape(text);
+        }
+
+        /// <summary>
+        /// A normalized x, mirrored when the language reads right to left.
+        ///
+        /// For the dozen places that are genuinely directional — the talent tree's tab row and
+        /// two-column grid, ERASE against PLAY, the hero chips. The road and the bars are NOT
+        /// put through this: a lane is a physical position and a draining bar is a quantity,
+        /// and a bar that empties the other way reads as filling.
+        /// </summary>
+        public static float Mirror(float x) => Loc.IsRightToLeft ? 1f - x : x;
+
+        /// <summary>An alignment, flipped when the language reads right to left.</summary>
+        public static TextAnchor Flip(TextAnchor anchor)
+        {
+            if (!Loc.IsRightToLeft) return anchor;
+            switch (anchor)
+            {
+                case TextAnchor.UpperLeft: return TextAnchor.UpperRight;
+                case TextAnchor.UpperRight: return TextAnchor.UpperLeft;
+                case TextAnchor.MiddleLeft: return TextAnchor.MiddleRight;
+                case TextAnchor.MiddleRight: return TextAnchor.MiddleLeft;
+                case TextAnchor.LowerLeft: return TextAnchor.LowerRight;
+                case TextAnchor.LowerRight: return TextAnchor.LowerLeft;
+                default: return anchor;
+            }
+        }
 
         public static readonly Color Ink = new Color(0.07f, 0.06f, 0.09f, 0.94f);
         public static readonly Color InkSoft = new Color(0.11f, 0.10f, 0.14f, 0.92f);
@@ -159,17 +233,22 @@ namespace BattleRunner.Meta.UI
             return rt;
         }
 
+        /// <param name="key">
+        /// When given, the label is remembered and rewritten by <see cref="ReapplyText"/> on a
+        /// language change. Leave it out for a label whose text is set at runtime — its own
+        /// screen owns that.
+        /// </param>
         public static Text Label(Transform parent, string name, string content, int size, Color color,
-            TextAnchor anchor = TextAnchor.MiddleCenter)
+            TextAnchor anchor = TextAnchor.MiddleCenter, LocKey? key = null)
         {
             var go = new GameObject(name, typeof(RectTransform), typeof(Text), typeof(Outline));
             go.transform.SetParent(parent, false);
             var text = go.GetComponent<Text>();
             text.font = Font;
-            text.text = content;
+            text.text = Shape(content);
             text.fontSize = size;
             text.color = color;
-            text.alignment = anchor;
+            text.alignment = Flip(anchor);
             text.horizontalOverflow = HorizontalWrapMode.Overflow;
             text.verticalOverflow = VerticalWrapMode.Overflow;
 
@@ -195,12 +274,13 @@ namespace BattleRunner.Meta.UI
             text.resizeTextMinSize = Mathf.Max(10, Mathf.RoundToInt(size * 0.67f));
 
             go.GetComponent<Outline>().effectColor = Shadow;
+            if (key.HasValue) Keyed.Add((text, key.Value));
             return text;
         }
 
         /// <summary>
-        /// A framed, bevelled button. GetComponent&lt;Image&gt;() still returns the FILL, and
-        /// GetComponentInChildren&lt;Text&gt;() still returns the label, so callers that repaint
+        /// A framed, bevelled button. GetComponent&lt;Image>() still returns the FILL, and
+        /// GetComponentInChildren&lt;Text>() still returns the label, so callers that repaint
         /// a button to show state are untouched.
         ///
         /// Child order is the draw order: fill (on the button itself), then frame, then
@@ -216,7 +296,7 @@ namespace BattleRunner.Meta.UI
         /// changed size on screens nobody touched.
         /// </param>
         public static Button ActionButton(Transform parent, string name, string label, Color tint,
-            UnityEngine.Events.UnityAction onClick, int labelSize = 40)
+            UnityEngine.Events.UnityAction onClick, int labelSize = 40, LocKey? key = null)
         {
             var go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
             go.transform.SetParent(parent, false);
@@ -249,7 +329,8 @@ namespace BattleRunner.Meta.UI
 
             AddFrame((RectTransform)go.transform);
 
-            Text text = Label(go.transform, "Label", label, labelSize, Color.white);
+            Text text = Label(go.transform, "Label", label, labelSize, Color.white,
+                TextAnchor.MiddleCenter, key);
             Stretch((RectTransform)text.transform);
             // Inset off the bevelled frame. Best-fit fits text to its RECT, and the label's rect
             // is the whole button — so without this a shrunk Russian label sits hard against the

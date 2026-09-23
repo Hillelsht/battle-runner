@@ -121,6 +121,70 @@ Informal, and phrased so it never assumes the player's gender. Russian uses `т�
 which are genderless. **Hebrew imperatives are not** — `החלק` to a man, `החליקי` to a woman — so
 instructions are phrased as infinitives: `להחליק את האגודל` rather than either.
 
+## Hebrew has to be reordered by hand
+
+Legacy `UnityEngine.UI.Text` performs **no bidirectional reordering whatsoever**. It has no
+`isRightToLeft`, no bidi pass, and no notion that a script might run the other way. Hand it Hebrew
+in logical order and it lays the characters out left to right exactly as given, which reads
+backwards. Nothing in Unity does this at this layer, so `Core/Text/BiDi.cs` does it.
+
+**The first implementation was wrong, and the test caught it.** The naive version — reverse the
+whole string, then re-reverse each run that is not Hebrew — produces:
+
+```
+logical   "שלום 42 world"
+naive     "42 world םולש"      ✗
+correct   "world 42 םולש"      ✓
+```
+
+The bug is the space between `42` and `world`. UAX #9 resolves a neutral between two strong types
+by taking the embedding direction when they disagree — **and a number counts as right-to-left for
+that purpose**. So the space sits at the paragraph level, not inside the Latin island, and the two
+must not be reversed together. Getting that right means actually assigning levels and reversing by
+level rather than pattern-matching runs, which is what the file does now.
+
+Two more details, each its own test:
+
+- **Signs and separators belong to the number they touch** — UAX #9's ES and CS classes. Treat the
+  `+` in `"+3 עוצמה"` as neutral punctuation and the reversal strands it as `"3+"`, on every stat
+  line in the game. `StatFormat` produces exactly that shape, so it is not a corner case.
+- **Brackets mirror.** Reversing `"(שלום)"` leaves the parentheses inside-out unless each is
+  swapped for its partner.
+
+Reordering is safe here **only because nothing wraps** — `horizontalOverflow = Overflow` everywhere
+— since visual-order text broken at a new point is scrambled rather than re-flowed. `VisualLines`
+exists for the two talent labels that do wrap: break first, in logical order, then reorder each
+finished line on its own.
+
+It happens at the very last moment, in `UiFactory.Shape`, and every one of the 28 `.text`
+assignments in the project goes through it. Reordering in the table instead would mean `Loc.Format`
+composing already-reversed fragments.
+
+## Changing language without rebuilding the UI
+
+The eight screens are built once in `GameBootstrap.CreateUi` and toggled with `SetActive` for the
+rest of the process's life. Nothing is ever destroyed — which is what makes a **static registry of
+`(Text, LocKey)` pairs** safe here rather than a leak. `UiFactory.Label` remembers any label given a
+key; `ReapplyText` walks them.
+
+It does not reach labels whose text is set at runtime — the round marker, the loot card, the talent
+cells. Those are rewritten by their own screen the next time it is shown, and the only screen
+visible when the language button is pressed is the menu, which refreshes itself on the same tap.
+
+The setting lives in `PlayerPrefs` under `ui.language`, beside `audio.enabled`, and the argument is
+`AudioDirector`'s own only stronger: `PlayerProfile` is per save **slot** and `GameContext.SaveProfile`
+refuses to write while no slot is active. For a mute toggle that is awkward; for language it is
+fatal, because the first screen a new player sees is slot select, which runs before any slot exists.
+**No save-schema bump and no migration** — this is not part of a save at all.
+
+First run reads `Application.systemLanguage`. Unity has already done the awkward part there: Android
+reports Hebrew with the legacy code `iw`, deprecated in 1989 and still going, and Unity maps it to
+`SystemLanguage.Hebrew` before we see it.
+
+**The language button is always labelled in the language it switches to**, never translated into the
+current one. Someone whose device was guessed wrong is looking at a screen they cannot read, and the
+one control that rescues them has to be legible from outside.
+
 ## What is deliberately not translated
 
 **The magnitude suffixes stay Latin** — `K`, `M`, `B`, `T`. They are near-universal in games, and they

@@ -112,7 +112,8 @@ namespace BattleRunner.Meta.UI
             RectTransform root = UiFactory.FullscreenPanel(canvas, "SkillTree", UiFactory.Ink);
             _root = root.gameObject;
 
-            Text header = UiFactory.Label(root, "Header", Loc.Get(LocKey.TreeTitle), 52, UiFactory.Gold);
+            Text header = UiFactory.Label(root, "Header", Loc.Get(LocKey.TreeTitle), 52, UiFactory.Gold,
+                TextAnchor.MiddleCenter, LocKey.TreeTitle);
             UiFactory.Place((RectTransform)header.transform, 0.5f, 0.957f, 900f, 76f);
 
             _pointsLabel = UiFactory.Label(root, "Points", string.Empty, 32, UiFactory.Parchment);
@@ -128,7 +129,8 @@ namespace BattleRunner.Meta.UI
 
             _respecButton = UiFactory.ActionButton(root, "Respec", RespecIdle,
                 new Color(0.30f, 0.12f, 0.12f), OnRespecPressed, labelSize: 28);
-            UiFactory.Place((RectTransform)_respecButton.transform, 0.24f, 0.055f, 340f, 108f);
+            UiFactory.Place((RectTransform)_respecButton.transform, UiFactory.Mirror(0.24f), 0.055f,
+                340f, 108f);
             _respecLabel = _respecButton.GetComponentInChildren<Text>();
 
             Button continueBtn = UiFactory.ActionButton(root, "Continue", Loc.Get(LocKey.TreeContinue), UiFactory.Blood,
@@ -148,8 +150,14 @@ namespace BattleRunner.Meta.UI
                 int captured = i;
                 Button tab = UiFactory.ActionButton(root, $"Tab{i}", TabName(i),
                     Available, () => SelectTab(captured), labelSize: 20);
+                // The tab row runs the other way in Hebrew. Mirroring the SPAN rather than the
+                // centre, so the tabs keep their widths and their gutters.
+                float tabLo = 0.030f + i * 0.188f, tabHi = 0.206f + i * 0.188f;
                 UiFactory.PlaceRegion((RectTransform)tab.transform,
-                    0.030f + i * 0.188f, 0.838f, 0.206f + i * 0.188f, 0.888f);
+                    UiFactory.Mirror(Mathf.Max(tabLo, tabHi)) == tabLo ? tabLo : Mathf.Min(
+                        UiFactory.Mirror(tabLo), UiFactory.Mirror(tabHi)),
+                    0.838f,
+                    Mathf.Max(UiFactory.Mirror(tabLo), UiFactory.Mirror(tabHi)), 0.888f);
                 _tabFills[i] = tab.GetComponent<Image>();
             }
         }
@@ -202,7 +210,8 @@ namespace BattleRunner.Meta.UI
             string captured = node.Id;
             Button button = UiFactory.ActionButton(content, $"Node_{node.Id}", node.DisplayName,
                 Locked, () => OnNodeTapped(captured), labelSize: 23);
-            float xMin = column == 0 ? 0.015f : 0.515f;
+            // Column 0 is the left one, which is the right one in Hebrew.
+            float xMin = (column == 0) != Loc.IsRightToLeft ? 0.015f : 0.515f;
             UiFactory.PlaceCell((RectTransform)button.transform, xMin, xMin + 0.470f, y, NodeHeight);
 
             var widget = new NodeWidget { NodeId = node.Id, Button = button };
@@ -230,7 +239,9 @@ namespace BattleRunner.Meta.UI
             // otherwise rank the node up.
             Button minus = UiFactory.ActionButton(button.transform, "Minus", "-",
                 new Color(0.30f, 0.12f, 0.12f), () => OnMinusTapped(captured), labelSize: 26);
-            UiFactory.PlaceRegion((RectTransform)minus.transform, 0.05f, 0.03f, 0.26f, 0.20f);
+            UiFactory.PlaceRegion((RectTransform)minus.transform,
+                Loc.IsRightToLeft ? 0.74f : 0.05f, 0.03f,
+                Loc.IsRightToLeft ? 0.95f : 0.26f, 0.20f);
             widget.Minus = minus.gameObject;
 
             return widget;
@@ -349,7 +360,7 @@ namespace BattleRunner.Meta.UI
         }
 
         /// <summary>Say something back to the player — a refused tap, or a confirmed one.</summary>
-        public void ShowNote(string note) => _detailLabel.text = note;
+        public void ShowNote(string note) => UiFactory.SetText(_detailLabel, note);
 
         // --- Painting ----------------------------------------------------------
 
@@ -366,7 +377,7 @@ namespace BattleRunner.Meta.UI
 
         private void Paint()
         {
-            _pointsLabel.text = Loc.Count(LocKey.TreePointsToSpend, _unspent);
+            UiFactory.SetText(_pointsLabel, Loc.Count(LocKey.TreePointsToSpend, _unspent));
 
             bool keystone = SkillTree.AnyKeystoneTaken(_ranks);
 
@@ -394,10 +405,10 @@ namespace BattleRunner.Meta.UI
                 // The bottom line is the node's status, and what counts as status changes
                 // with state: ranks when it has some, what it is waiting for when it does
                 // not, and the confirmation when an undo is armed.
-                widget.Pips.text = armed ? Loc.Get(LocKey.TreeTapAgain)
+                UiFactory.SetText(widget.Pips, armed ? Loc.Get(LocKey.TreeTapAgain)
                     : rank > 0 ? $"{rank}/{node.MaxRanks}"
                     : canTake ? (node.MaxRanks > 1 ? $"0/{node.MaxRanks}" : Loc.Get(LocKey.TreeReady))
-                    : blocked;
+                    : blocked);
                 widget.Pips.color = armed ? Color.white
                     : rank > 0 || canTake ? UiFactory.Gold
                     : Dim;
@@ -419,9 +430,9 @@ namespace BattleRunner.Meta.UI
                 track.Background.color = !keystone ? Locked : affordable ? Available : Ranked;
                 track.Name.color = keystone ? Color.white : Dim;
                 track.Detail.color = keystone ? UiFactory.Parchment : Dim;
-                track.Detail.text = !keystone
+                UiFactory.SetText(track.Detail, !keystone
                     ? Loc.Get(LocKey.TreeParagonLocked)
-                    : Loc.Format(LocKey.TreeRankLine, rank, Describe(def, rank), cost);
+                    : Loc.Format(LocKey.TreeRankLine, rank, Describe(def, rank), cost));
                 track.Button.interactable = true;
             }
 
@@ -434,16 +445,16 @@ namespace BattleRunner.Meta.UI
             // action off centre on the fresh tree every new player meets it in.
             _respecButton.gameObject.SetActive(anything);
             PlaceContinue(anything);
-            _respecLabel.text = _respecIsArmed ? RespecArmed : RespecIdle;
+            UiFactory.SetText(_respecLabel, _respecIsArmed ? RespecArmed : RespecIdle);
 
             if (_tab == ParagonTab)
-                _detailLabel.text = keystone
+                UiFactory.SetText(_detailLabel, keystone
                     ? Loc.Count(LocKey.TreeParagonRanks, paragonRanks)
-                    : Loc.Get(LocKey.TreeParagonOpens);
+                    : Loc.Get(LocKey.TreeParagonOpens));
             else if (spent == 0)
-                _detailLabel.text = Loc.Get(LocKey.TreeSpendFour);
+                UiFactory.SetText(_detailLabel, Loc.Get(LocKey.TreeSpendFour));
             else
-                _detailLabel.text = Loc.Count(LocKey.TreePointsSpent, spent);
+                UiFactory.SetText(_detailLabel, Loc.Count(LocKey.TreePointsSpent, spent));
         }
 
         private static string Describe(Paragon.Track track, int rank)

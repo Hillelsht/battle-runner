@@ -71,8 +71,8 @@ namespace BattleRunner.Meta.UI
 
         public void Show(string headline, string detail)
         {
-            _headline.text = headline;
-            _detail.text = detail;
+            UiFactory.SetText(_headline, headline);
+            UiFactory.SetText(_detail, detail);
             SetPatience(0f);
             _root.SetActive(true);
         }

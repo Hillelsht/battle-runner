@@ -75,19 +75,19 @@ namespace BattleRunner.Meta.UI
             // THE ENUMS ARE LOOKED UP, NOT ToString()'d. item.Rarity and item.Slot used to render
             // straight from the enum, which made seven user-facing strings with no literal in the
             // codebase to find — an extraction pass misses them in silence.
-            _itemName.text = Loc.Format(LocKey.LootItemLine, displayName,
-                LootNames.Rarity(item.Rarity), LootNames.Slot(item.Slot));
+            UiFactory.SetText(_itemName, Loc.Format(LocKey.LootItemLine, displayName,
+                LootNames.Rarity(item.Rarity), LootNames.Slot(item.Slot)));
             _itemName.color = rarityColor;
-            _itemStats.text = statsText;
-            _powerLabel.text = Loc.Format(
+            UiFactory.SetText(_itemStats, statsText);
+            UiFactory.SetText(_powerLabel, Loc.Format(
                 equippedUpgrade ? LocKey.LootPowerEquipped : LocKey.LootPowerKept,
-                itemPower.ToString("0", System.Globalization.CultureInfo.InvariantCulture));
+                itemPower.ToString("0", System.Globalization.CultureInfo.InvariantCulture)));
             _doubleButtonGo.SetActive(adAvailable);
             PlaceContinue(adAvailable);
             _root.SetActive(true);
         }
 
-        public void SetHeader(string text) => _header.text = text;
+        public void SetHeader(string text) => UiFactory.SetText(_header, text);
 
         /// <summary>The header a fresh drop gets, before any double-loot ad.</summary>
         public static string DefaultHeader => Loc.Get(LocKey.LootBossYields);

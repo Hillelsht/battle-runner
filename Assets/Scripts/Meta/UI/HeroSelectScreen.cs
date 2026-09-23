@@ -80,10 +80,12 @@ namespace BattleRunner.Meta.UI
             Fade(root, "FadeTop", WindowTop, WindowTop + 0.075f, from: 1f);
             Fade(root, "FadeBottom", WindowBottom - 0.075f, WindowBottom, from: 0f);
 
-            Text title = UiFactory.Label(root, "Title", Loc.Get(LocKey.HeroChooseTitle), 58, UiFactory.Gold);
+            Text title = UiFactory.Label(root, "Title", Loc.Get(LocKey.HeroChooseTitle), 58, UiFactory.Gold,
+                TextAnchor.MiddleCenter, LocKey.HeroChooseTitle);
             UiFactory.Place((RectTransform)title.transform, 0.5f, 0.945f, 1000f, 90f);
             Text note = UiFactory.Label(root, "Note",
-                Loc.Get(LocKey.HeroChooseNote), 26, UiFactory.Parchment);
+                Loc.Get(LocKey.HeroChooseNote), 26, UiFactory.Parchment,
+                TextAnchor.MiddleCenter, LocKey.HeroChooseNote);
             UiFactory.Place((RectTransform)note.transform, 0.5f, 0.885f, 900f, 44f);
 
             // The hero's own name, large, under the window rather than over it — a caption on
@@ -107,7 +109,7 @@ namespace BattleRunner.Meta.UI
                 Button chip = UiFactory.ActionButton(root, $"Hero{i}", hero.Name, rest,
                     () => Select(index), labelSize: 23);
                 UiFactory.Place((RectTransform)chip.transform,
-                    0.145f + 0.237f * i, 0.145f, 250f, 92f);
+                    UiFactory.Mirror(0.145f + 0.237f * i), 0.145f, 250f, 92f);
                 Text label = chip.GetComponentInChildren<Text>();
                 _chips.Add(new Chip { Fill = chip.GetComponent<Image>(), Label = label, Rest = rest });
             }
@@ -117,12 +119,12 @@ namespace BattleRunner.Meta.UI
             // nobody finds. Tapping an already-selected chip replays the greeting; this replays
             // the attack, which is the one act that will not play on its own.
             Button fight = UiFactory.ActionButton(root, "Fight", Loc.Get(LocKey.HeroShowMe), UiFactory.InkSoft,
-                () => _onFight?.Invoke());
-            UiFactory.Place((RectTransform)fight.transform, 0.275f, 0.055f, 400f, 108f);
+                () => _onFight?.Invoke(), key: LocKey.HeroShowMe);
+            UiFactory.Place((RectTransform)fight.transform, UiFactory.Mirror(0.275f), 0.055f, 400f, 108f);
 
             Button confirm = UiFactory.ActionButton(root, "Confirm", Loc.Get(LocKey.HeroBegin), UiFactory.Gold,
-                () => _onChoose?.Invoke(_selected));
-            UiFactory.Place((RectTransform)confirm.transform, 0.705f, 0.055f, 400f, 108f);
+                () => _onChoose?.Invoke(_selected), key: LocKey.HeroBegin);
+            UiFactory.Place((RectTransform)confirm.transform, UiFactory.Mirror(0.705f), 0.055f, 400f, 108f);
 
             Hide();
         }
@@ -187,9 +189,9 @@ namespace BattleRunner.Meta.UI
             }
 
             HeroProfile profile = HeroRoster.For((HeroClass)index);
-            _name.text = profile.Name;
-            _tagline.text = profile.Tagline;
-            _detail.text = HeroRoster.StatLine((HeroClass)index);
+            UiFactory.SetText(_name, profile.Name);
+            UiFactory.SetText(_tagline, profile.Tagline);
+            UiFactory.SetText(_detail, HeroRoster.StatLine((HeroClass)index));
             _onPreview?.Invoke(index);
         }
     }

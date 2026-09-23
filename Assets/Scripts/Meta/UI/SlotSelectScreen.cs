@@ -45,10 +45,12 @@ namespace BattleRunner.Meta.UI
             // The whole screen used to sit in its top two thirds: 256 px of margin above the
             // title against 654 px of nothing below the last slot, a 2.6:1 imbalance on a
             // 1920-tall phone. Everything moves down and the block closes up.
-            Text title = UiFactory.Label(root, "Title", Loc.Get(LocKey.GameTitle), 84, UiFactory.Gold);
+            Text title = UiFactory.Label(root, "Title", Loc.Get(LocKey.GameTitle), 84, UiFactory.Gold,
+                TextAnchor.MiddleCenter, LocKey.GameTitle);
             UiFactory.Place((RectTransform)title.transform, 0.5f, 0.80f, 900f, 130f);
 
-            Text subtitle = UiFactory.Label(root, "Subtitle", Loc.Get(LocKey.SlotChooseWar), 32, UiFactory.Parchment);
+            Text subtitle = UiFactory.Label(root, "Subtitle", Loc.Get(LocKey.SlotChooseWar), 32, UiFactory.Parchment,
+                TextAnchor.MiddleCenter, LocKey.SlotChooseWar);
             UiFactory.Place((RectTransform)subtitle.transform, 0.5f, 0.735f, 800f, 55f);
 
             for (int i = 0; i < SaveSlots.Count; i++)
@@ -66,7 +68,7 @@ namespace BattleRunner.Meta.UI
 
                 Button erase = UiFactory.ActionButton(root, $"Erase{i}", EraseIdle,
                     new Color(0.30f, 0.12f, 0.12f), () => OnErasePressed(slot), labelSize: 26);
-                UiFactory.Place((RectTransform)erase.transform, 0.84f, y, 200f, 130f);
+                UiFactory.Place((RectTransform)erase.transform, UiFactory.Mirror(0.84f), y, 200f, 130f);
                 widget.Erase = erase;
                 widget.EraseLabel = erase.GetComponentInChildren<Text>();
 
@@ -89,7 +91,7 @@ namespace BattleRunner.Meta.UI
             for (int i = 0; i < _slots.Count && i < summaries.Count; i++)
             {
                 SaveSlotSummary summary = summaries[i];
-                _slots[i].Label.text = summary.Describe();
+                UiFactory.SetText(_slots[i].Label, summary.Describe());
                 _slots[i].Label.color = summary.Occupied ? Color.white : new Color(0.62f, 0.60f, 0.55f);
 
                 // Nothing to erase in an empty slot, so do not offer it.
@@ -133,7 +135,7 @@ namespace BattleRunner.Meta.UI
                 for (int i = 0; i < _slots.Count; i++) Disarm(i); // only one armed at a time
                 widget.Armed = true;
                 widget.ArmedFor = 0f;
-                widget.EraseLabel.text = EraseArmed;
+                UiFactory.SetText(widget.EraseLabel, EraseArmed);
                 return;
             }
 
@@ -146,7 +148,7 @@ namespace BattleRunner.Meta.UI
             SlotWidget widget = _slots[slot];
             widget.Armed = false;
             widget.ArmedFor = 0f;
-            widget.EraseLabel.text = EraseIdle;
+            UiFactory.SetText(widget.EraseLabel, EraseIdle);
         }
     }
 }
