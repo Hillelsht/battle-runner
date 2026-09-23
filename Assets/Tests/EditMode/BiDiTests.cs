@@ -1,3 +1,4 @@
+using BattleRunner.Core.Stats;
 using BattleRunner.Core.Text;
 using NUnit.Framework;
 
@@ -114,6 +115,41 @@ namespace BattleRunner.Tests
             Assert.IsFalse(BiDi.HasRtl("SET FORTH"));
             Assert.IsFalse(BiDi.HasRtl(string.Empty));
             Assert.IsFalse(BiDi.HasRtl(null));
+        }
+
+        [Test]
+        public void ASignedStatStaysWithItsNumberInHebrew()
+        {
+            // "+3 עוצמה" is the shape StatFormat.Affix produces on every gear item and every
+            // talent detail line, so it is the single most-printed composition in the game. The
+            // sign is a UAX #9 ES character and belongs to the number beside it; treated as a
+            // plain neutral it drifts to the other end and "+3" comes out "3+", which reads as a
+            // different quantity rather than as a rendering fault.
+            Loc.Use(Language.Hebrew);
+            try
+            {
+                foreach (string statId in new[] { StatIds.Damage, StatIds.Health, StatIds.Fortune })
+                    foreach (float value in new[] { 3f, -3f, 12.5f })
+                    {
+                        string affix = StatFormat.Affix(statId, ModifierKind.Flat, value);
+                        string visual = BiDi.Visual(affix);
+
+                        Assert.AreEqual(affix.Length, visual.Length, $"{statId} {value}: length changed");
+
+                        // Whatever else moves, the sign keeps its digit's company.
+                        char sign = value < 0f ? '-' : '+';
+                        int at = visual.IndexOf(sign);
+                        Assert.GreaterOrEqual(at, 0, $"{statId} {value}: the sign vanished from \"{visual}\"");
+                        Assert.Less(at + 1, visual.Length,
+                            $"{statId} {value}: the sign ended up last in \"{visual}\"");
+                        Assert.IsTrue(char.IsDigit(visual[at + 1]),
+                            $"{statId} {value}: the sign parted from its number in \"{visual}\"");
+                    }
+            }
+            finally
+            {
+                Loc.Use(Language.English);
+            }
         }
 
         [Test]
