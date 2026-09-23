@@ -59,7 +59,7 @@ namespace BattleRunner.Meta.UI
             // cannot read, and the one control that rescues them has to be legible from
             // outside the language it is sitting in.
             Button language = UiFactory.ActionButton(root, "Language",
-                Languages.NativeName(Languages.Next(Loc.Language)), UiFactory.InkSoft,
+                Languages.NativeNameVisual(Languages.Next(Loc.Language)), UiFactory.InkSoft,
                 () => { _onCycleLanguage?.Invoke(); }, labelSize: 26);
             UiFactory.Place((RectTransform)language.transform, 0.70f, 0.10f, 320f, 74f);
             _languageLabel = language.GetComponentInChildren<Text>();

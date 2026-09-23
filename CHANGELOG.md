@@ -24,7 +24,7 @@ arena the road opens into** → loot with Auto-Equip → stat points → save �
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
 | Audio | 15 cues in 21 files, 2 music beds played on real instruments and bent per world; mute toggle |
-| Languages | **English, Russian and Hebrew** — 352 strings, one bundled font covering all three scripts, Hebrew reordered for display |
+| Languages | **English, Russian and Hebrew** — 351 strings, one bundled font covering all three scripts, Hebrew reordered for display |
 | Not started | Real ad SDK, analytics, battle pass |
 
 **Confirmed on device:** v0.1.2 plays as a lane game. The crowd stays in its lane at
@@ -1302,8 +1302,8 @@ someone who cannot read the one currently showing.
 
 **Every string was a literal in a `.cs` file, and that was the one piece of luck.**
 `Assets/Scenes/Main.unity` contains no text at all — the whole UI is built procedurally by
-`UiFactory` — so there was nothing to extract from serialized YAML. 352 strings moved
-behind `LocKey`, an enum rather than string keys, because a typo in 352 lookups is a
+`UiFactory` — so there was nothing to extract from serialized YAML. 351 strings moved
+behind `LocKey`, an enum rather than string keys, because a typo in 351 lookups is a
 runtime blank and the compiler should be the one to find it. `Loc` indexes three
 `string[]` tables by that enum; there is no dictionary, matching how the rest of Core
 avoids them under `JsonUtility`.
@@ -1356,7 +1356,7 @@ Three details are each a test because each is a visible bug otherwise:
   base character and the glyph breaks. Modern Hebrew UI is written without vowel points
   regardless; the test enforces it so a later edit cannot reintroduce them.
 
-A fourth test runs all 352 Hebrew entries through the pass and asserts the output length
+A fourth test runs all 351 Hebrew entries through the pass and asserts the output length
 equals the input length — reordering must never add or drop a character.
 
 **The menus mirror; the road does not.** `Loc.IsRightToLeft` drives `UiFactory.Mirror(x)`
@@ -1470,6 +1470,24 @@ Two faults surfaced while wiring it, neither of them about switching:
   It hugs one end of the talent cell, so the end it hugs has to move; the anchor flip alone would
   have left the status line stranded in the middle of the cell with nothing holding it to an edge.
   Every other span was checked and every other one mirrors onto itself.
+
+**A key can be translated into all three languages and read by nothing.** `LootBossYieldsTwice`
+was in the table, correct in Russian and Hebrew, and the double-loot header still said
+`"THE BOSS YIELDS... TWICE!"` because the call site had the English spelled out inline. Every
+table test stayed green throughout — the table *was* complete. What was missing was a reader,
+and nothing in a completeness check can see that.
+
+So an unreferenced key is not dead weight to tidy up later; it is the signature of a string the
+player still sees in English. `tooling/check_loc_keys.py` is a seventh pre-push gate asserting
+every key is read by something, and it found a second one on its first run: `MenuLanguage`
+("LANGUAGE" / "ЯЗЫК" / "שפה"), authored as a caption for a control that deliberately shows the
+*target* language's name instead. That one really was stranded, so it and its three rows are
+gone — 352 keys to 351.
+
+The gate was written with an exemption list for the talent and stat keys, on the assumption they
+were reached through a computed name. They are not: every one is still written out at the point
+of use, so the plain check covers them and the exemption list is deleted. A gate carrying
+exemptions nobody needs is how it quietly stops catching what it was written for.
 
 **What a regex edit does when it matches nothing is report success**, and three did. A
 `Boss` factory signature was matched on `string name, string displayName` when the parameter

@@ -45,6 +45,13 @@ jobs:
       - name: Verify no local is declared twice in one scope
         run: python3 tooling/check_local_shadowing.py
 
+      # A key can be declared, translated into all three languages, and read by
+      # NOTHING, because the call site kept its English literal. The table's own
+      # completeness tests stay green throughout: the table IS complete: what is
+      # missing is a reader. LootBossYieldsTwice shipped that way.
+      - name: Verify every translated string is actually used
+        run: python3 tooling/check_loc_keys.py
+
   # Decides whether a COMPLETE Unity activation strategy is configured.
   # GameCI ALWAYS needs the Unity account credentials to reach the licensing
   # servers, plus proof of licence:

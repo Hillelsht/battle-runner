@@ -47,6 +47,7 @@ On a first run a coaching prompt introduces each control the moment it first mat
 - **Without Unity:** `dotnet test tooling/CoreTests/CoreTests.csproj` runs the identical test sources against the same core code (the core assembly is engine-free by design).
 - **Serialized-file lint:** `python3 tooling/lint_unity_yaml.py` validates the hand-written scene/material/meta files, and pins the crowd scale constants that `CrowdRenderer.cs` and `CrowdInstanced.shader` must agree on (the shader decodes each unit's bob phase from the instance scale, and nothing at compile time connects the two).
 - **Assembly-reference check:** `python3 tooling/check_asmdef_refs.py` asserts every asmdef declares the package assemblies its code actually uses. Unity references are not transitive, and a missing one surfaces only as `CS0234` from a headless editor sixteen minutes into CI.
+- **Localization-key check:** `python3 tooling/check_loc_keys.py` asserts every `LocKey` is read by something. A key that is declared and translated but referenced by nothing is not tidy-up work — it is a string the player still sees in English, and the table's own completeness tests cannot see it, because the table is complete.
 
 ## Android build
 

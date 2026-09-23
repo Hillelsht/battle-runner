@@ -10,7 +10,7 @@ is that `Assets/Scenes/Main.unity` contains no text at all — the whole UI is b
 `UiFactory` — so every string lived in a `.cs` file rather than scattered across prefabs.
 
 Counted before anything was designed: ~370–380 distinct translatable strings, unevenly spread;
-**352 keys** once composed lines had been folded into templates and the duplicates removed.
+**351 keys** once composed lines had been folded into templates and the duplicates removed.
 Around 172 of them are talent names and descriptions in one file, and seven of them have **no string
 literal to find** — `LootScreen` interpolated `item.Rarity` and `item.Slot` straight from
 `enum.ToString()`, so an extraction pass misses them silently.
@@ -95,7 +95,7 @@ so 21 takes the same form as 1, 22 the same as 2, and 11–14 take the many-form
 
 ### The talent tree is half the table
 
-79 nodes, a name and a description each, plus branch names and refusals — 170 of the 352 keys.
+79 nodes, a name and a description each, plus branch names and refusals — 170 of the 351 keys.
 Every description was extracted from the source rather than transcribed, and **the digits in all
 158 translations were checked against the English before a single one was committed**. That check
 then became a permanent test, because these descriptions quote balance values that also exist as a

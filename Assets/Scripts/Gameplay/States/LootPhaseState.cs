@@ -143,7 +143,7 @@ namespace BattleRunner.Gameplay.States
                 // Order matters: ShowCard now restores the default header, so the TWICE
                 // text has to be written AFTER it, not before.
                 ShowCard(bonus, equipped);
-                _ctx.LootScreen.SetHeader("THE BOSS YIELDS... TWICE!");
+                _ctx.LootScreen.SetHeader(Meta.UI.LootScreen.DoubleHeader);
                 Debug.Log("[Loot] Double-loot reward granted.");
             });
         }

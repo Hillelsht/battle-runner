@@ -276,7 +276,6 @@ namespace BattleRunner.Core.Text
         MenuChangeSlot,
         MenuSoundOn,
         MenuSoundOff,
-        MenuLanguage,
         MenuLevelLine,
         SlotChooseWar,
         SlotErase,

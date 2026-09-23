@@ -29,7 +29,8 @@ namespace BattleRunner.Meta.UI
             RectTransform root = UiFactory.FullscreenPanel(canvas, "Loot", UiFactory.Ink);
             _root = root.gameObject;
 
-            _header = UiFactory.Label(root, "Header", "THE BOSS YIELDS...", 56, UiFactory.Gold);
+            _header = UiFactory.Label(root, "Header", DefaultHeader, 56, UiFactory.Gold,
+                key: LocKey.LootBossYields);
             UiFactory.Place((RectTransform)_header.transform, 0.5f, 0.85f, 900f, 90f);
 
             _card = UiFactory.Panel(root, "Card", UiFactory.InkSoft);
@@ -94,6 +95,15 @@ namespace BattleRunner.Meta.UI
 
         /// <summary>A round that only threatened. Nothing died, so nothing yielded.</summary>
         public static string ThreatHeader => Loc.Get(LocKey.LootSpoils);
+
+        /// <summary>
+        /// The header after a double-loot ad pays out.
+        ///
+        /// It exists because the caller had the English spelled out inline. LootBossYieldsTwice
+        /// was in the table, translated into both languages, and referenced by nothing -- so a
+        /// Russian or Hebrew player who watched the ad got one line of English back.
+        /// </summary>
+        public static string DoubleHeader => Loc.Get(LocKey.LootBossYieldsTwice);
 
         public void HideDoubleButton()
         {
