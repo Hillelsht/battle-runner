@@ -37,7 +37,9 @@ namespace BattleRunner.Editor
 
             // Rasterise on demand. See the class note: this is the one that decides whether
             // Russian and Hebrew can be drawn at all.
-            importer.fontTTFName = "Arimo";
+            //
+            // fontTTFName is NOT set here, and cannot be: it is read-only, because Unity reads
+            // the family name out of the font file itself rather than taking our word for it.
             importer.fontRenderingMode = FontRenderingMode.Smooth;
             // Ship the outlines, do not look for them on the device.
             importer.includeFontData = true;

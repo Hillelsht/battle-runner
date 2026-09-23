@@ -24,6 +24,7 @@ arena the road opens into** → loot with Auto-Equip → stat points → save �
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
 | Audio | 15 cues in 21 files, 2 music beds played on real instruments and bent per world; mute toggle |
+| Languages | **English, Russian and Hebrew** — 352 strings, one bundled font covering all three scripts, Hebrew reordered for display |
 | Not started | Real ad SDK, analytics, battle pass |
 
 **Confirmed on device:** v0.1.2 plays as a lane game. The crowd stays in its lane at
