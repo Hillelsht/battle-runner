@@ -1,3 +1,4 @@
+using BattleRunner.Core.Text;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -28,10 +29,10 @@ namespace BattleRunner.Meta.UI
             _forceLabel = UiFactory.Label(root, "Force", "5", 84, UiFactory.Gold);
             UiFactory.Place((RectTransform)_forceLabel.transform, 0.5f, 0.92f, 700f, 110f);
 
-            _spellLabel = UiFactory.Label(root, "Spell", "SPELL ^", 34, UiFactory.Arcane);
+            _spellLabel = UiFactory.Label(root, "Spell", Loc.Format(LocKey.HudSpellReady, string.Empty), 34, UiFactory.Arcane);
             UiFactory.Place((RectTransform)_spellLabel.transform, 0.82f, 0.07f, 320f, 70f);
 
-            _shieldLabel = UiFactory.Label(root, "Shield", "SHIELD v", 34, UiFactory.Parchment);
+            _shieldLabel = UiFactory.Label(root, "Shield", Loc.Format(LocKey.HudShieldReady, string.Empty), 34, UiFactory.Parchment);
             UiFactory.Place((RectTransform)_shieldLabel.transform, 0.18f, 0.07f, 320f, 70f);
 
             RectTransform barBack = UiFactory.Panel(root, "BossBarBack", UiFactory.InkSoft);
@@ -90,13 +91,16 @@ namespace BattleRunner.Meta.UI
             float shieldFill, int shieldCharges, int shieldCapacity, bool shieldActive)
         {
             _spellLabel.text = spellCharges > 0
-                ? "SPELL ^ " + Pips(spellCharges, spellCapacity)
-                : $"SPELL {Pips(0, spellCapacity)} {RefillTail(spellFill)}";
+                ? Loc.Format(LocKey.HudSpellReady, Pips(spellCharges, spellCapacity))
+                : Loc.Format(LocKey.HudSpellRefill, Pips(0, spellCapacity), RefillTail(spellFill));
             _spellLabel.color = spellCharges > 0 ? UiFactory.Arcane : UiFactory.InkSoft * 2f;
 
-            _shieldLabel.text = shieldActive ? "SHIELDED " + Pips(shieldCharges, shieldCapacity)
-                : shieldCharges > 0 ? "SHIELD v " + Pips(shieldCharges, shieldCapacity)
-                : $"SHIELD {Pips(0, shieldCapacity)} {RefillTail(shieldFill)}";
+            _shieldLabel.text = shieldActive
+                ? Loc.Format(LocKey.HudShielded, Pips(shieldCharges, shieldCapacity))
+                : shieldCharges > 0
+                    ? Loc.Format(LocKey.HudShieldReady, Pips(shieldCharges, shieldCapacity))
+                    : Loc.Format(LocKey.HudShieldRefill, Pips(0, shieldCapacity),
+                        RefillTail(shieldFill));
             _shieldLabel.color = shieldActive ? UiFactory.Gold :
                 shieldCharges > 0 ? UiFactory.Parchment : UiFactory.InkSoft * 2f;
         }

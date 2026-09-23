@@ -1,3 +1,4 @@
+using BattleRunner.Core.Text;
 using System;
 using System.Collections.Generic;
 using BattleRunner.Core.Heroes;
@@ -79,10 +80,10 @@ namespace BattleRunner.Meta.UI
             Fade(root, "FadeTop", WindowTop, WindowTop + 0.075f, from: 1f);
             Fade(root, "FadeBottom", WindowBottom - 0.075f, WindowBottom, from: 0f);
 
-            Text title = UiFactory.Label(root, "Title", "CHOOSE YOUR CHAMPION", 58, UiFactory.Gold);
+            Text title = UiFactory.Label(root, "Title", Loc.Get(LocKey.HeroChooseTitle), 58, UiFactory.Gold);
             UiFactory.Place((RectTransform)title.transform, 0.5f, 0.945f, 1000f, 90f);
             Text note = UiFactory.Label(root, "Note",
-                "this choice is for the life of this save", 26, UiFactory.Parchment);
+                Loc.Get(LocKey.HeroChooseNote), 26, UiFactory.Parchment);
             UiFactory.Place((RectTransform)note.transform, 0.5f, 0.885f, 900f, 44f);
 
             // The hero's own name, large, under the window rather than over it — a caption on
@@ -115,11 +116,11 @@ namespace BattleRunner.Meta.UI
             // fight"* is a thing the player asked to see and an unlabelled gesture is a thing
             // nobody finds. Tapping an already-selected chip replays the greeting; this replays
             // the attack, which is the one act that will not play on its own.
-            Button fight = UiFactory.ActionButton(root, "Fight", "SHOW ME", UiFactory.InkSoft,
+            Button fight = UiFactory.ActionButton(root, "Fight", Loc.Get(LocKey.HeroShowMe), UiFactory.InkSoft,
                 () => _onFight?.Invoke());
             UiFactory.Place((RectTransform)fight.transform, 0.275f, 0.055f, 400f, 108f);
 
-            Button confirm = UiFactory.ActionButton(root, "Confirm", "BEGIN", UiFactory.Gold,
+            Button confirm = UiFactory.ActionButton(root, "Confirm", Loc.Get(LocKey.HeroBegin), UiFactory.Gold,
                 () => _onChoose?.Invoke(_selected));
             UiFactory.Place((RectTransform)confirm.transform, 0.705f, 0.055f, 400f, 108f);
 

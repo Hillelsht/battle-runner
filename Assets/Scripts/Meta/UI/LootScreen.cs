@@ -1,3 +1,4 @@
+using BattleRunner.Core.Text;
 using System;
 using BattleRunner.Core.Loot;
 using UnityEngine;
@@ -48,7 +49,7 @@ namespace BattleRunner.Meta.UI
             _powerLabel = UiFactory.Label(_card, "Power", "", 34, UiFactory.Arcane);
             UiFactory.Place((RectTransform)_powerLabel.transform, 0.5f, 0.13f, 700f, 60f);
 
-            Button doubleBtn = UiFactory.ActionButton(root, "Double", "DOUBLE LOOT  (AD)", UiFactory.Arcane,
+            Button doubleBtn = UiFactory.ActionButton(root, "Double", Loc.Get(LocKey.LootDoubleAd), UiFactory.Arcane,
                 () => _onDouble?.Invoke());
             // Same footprint as CONTINUE below. Two buttons stacked in one column at
             // 560x110 and 640x130 read as a mistake, not a hierarchy — the difference is
@@ -56,7 +57,7 @@ namespace BattleRunner.Meta.UI
             UiFactory.Place((RectTransform)doubleBtn.transform, 0.5f, 0.38f, 640f, 130f);
             _doubleButtonGo = doubleBtn.gameObject;
 
-            Button continueBtn = UiFactory.ActionButton(root, "Continue", "AUTO-EQUIP & CONTINUE", UiFactory.Blood,
+            Button continueBtn = UiFactory.ActionButton(root, "Continue", Loc.Get(LocKey.LootAutoEquip), UiFactory.Blood,
                 () => _onContinue?.Invoke());
             _continueRect = (RectTransform)continueBtn.transform;
             PlaceContinue(true);
@@ -71,12 +72,16 @@ namespace BattleRunner.Meta.UI
             _onDouble = onDouble;
 
             Color rarityColor = UiFactory.RarityColors[(int)item.Rarity];
-            _itemName.text = $"{displayName}\n<size=30>{item.Rarity} {item.Slot}</size>";
+            // THE ENUMS ARE LOOKED UP, NOT ToString()'d. item.Rarity and item.Slot used to render
+            // straight from the enum, which made seven user-facing strings with no literal in the
+            // codebase to find — an extraction pass misses them in silence.
+            _itemName.text = Loc.Format(LocKey.LootItemLine, displayName,
+                LootNames.Rarity(item.Rarity), LootNames.Slot(item.Slot));
             _itemName.color = rarityColor;
             _itemStats.text = statsText;
-            _powerLabel.text = equippedUpgrade
-                ? $"Item Power {itemPower:0}  — equipped!"
-                : $"Item Power {itemPower:0}  — kept in inventory";
+            _powerLabel.text = Loc.Format(
+                equippedUpgrade ? LocKey.LootPowerEquipped : LocKey.LootPowerKept,
+                itemPower.ToString("0", System.Globalization.CultureInfo.InvariantCulture));
             _doubleButtonGo.SetActive(adAvailable);
             PlaceContinue(adAvailable);
             _root.SetActive(true);
@@ -85,10 +90,10 @@ namespace BattleRunner.Meta.UI
         public void SetHeader(string text) => _header.text = text;
 
         /// <summary>The header a fresh drop gets, before any double-loot ad.</summary>
-        public const string DefaultHeader = "THE BOSS YIELDS...";
+        public static string DefaultHeader => Loc.Get(LocKey.LootBossYields);
 
         /// <summary>A round that only threatened. Nothing died, so nothing yielded.</summary>
-        public const string ThreatHeader = "SPOILS OF THE ROAD";
+        public static string ThreatHeader => Loc.Get(LocKey.LootSpoils);
 
         public void HideDoubleButton()
         {

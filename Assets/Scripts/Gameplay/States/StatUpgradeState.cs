@@ -1,3 +1,4 @@
+using BattleRunner.Core.Text;
 using System.Collections.Generic;
 using BattleRunner.Core.Flow;
 using BattleRunner.Core.Progression;
@@ -77,7 +78,7 @@ namespace BattleRunner.Gameplay.States
             PlayerProfile.WriteMap(_ctx.Profile.SkillRanks, ranks);
             _ctx.Profile.UnspentStatPoints += SkillTree.PointCost;
 
-            Commit($"{SkillTree.Find(nodeId)?.DisplayName} refunded.");
+            Commit(Loc.Format(LocKey.TreeRefunded, SkillTree.Find(nodeId)?.DisplayName));
         }
 
         private void OnParagon(string trackId)
@@ -98,7 +99,7 @@ namespace BattleRunner.Gameplay.States
             PlayerProfile.WriteMap(_ctx.Profile.ParagonRanks, paragon);
             _ctx.Profile.UnspentStatPoints -= cost;
 
-            Commit($"{Paragon.Find(trackId)?.DisplayName} deepened.");
+            Commit(Loc.Format(LocKey.TreeDeepened, Paragon.Find(trackId)?.DisplayName));
         }
 
         private void OnRespec()
@@ -117,7 +118,7 @@ namespace BattleRunner.Gameplay.States
             _ctx.Profile.ParagonRanks.Clear();
             _ctx.Profile.UnspentStatPoints += refund;
 
-            Commit("Everything forgotten. Spend the points again.");
+            Commit(Loc.Get(LocKey.TreeForgotten));
         }
 
         private void Commit(string note)

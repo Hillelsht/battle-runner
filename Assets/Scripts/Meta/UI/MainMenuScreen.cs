@@ -1,3 +1,4 @@
+using BattleRunner.Core.Text;
 using System;
 using UnityEngine;
 using UnityEngine.UI;
@@ -17,10 +18,10 @@ namespace BattleRunner.Meta.UI
             RectTransform root = UiFactory.FullscreenPanel(canvas, "MainMenu", UiFactory.Ink);
             _root = root.gameObject;
 
-            Text title = UiFactory.Label(root, "Title", "BATTLE RUNNER", 96, UiFactory.Gold);
+            Text title = UiFactory.Label(root, "Title", Loc.Get(LocKey.GameTitle), 96, UiFactory.Gold);
             UiFactory.Place((RectTransform)title.transform, 0.5f, 0.78f, 900f, 140f);
 
-            Text subtitle = UiFactory.Label(root, "Subtitle", "march. multiply. slay.", 34, UiFactory.Parchment);
+            Text subtitle = UiFactory.Label(root, "Subtitle", Loc.Get(LocKey.MenuTagline), 34, UiFactory.Parchment);
             UiFactory.Place((RectTransform)subtitle.transform, 0.5f, 0.71f, 800f, 60f);
 
             _levelLabel = UiFactory.Label(root, "Level", "", 44, UiFactory.Parchment);
@@ -32,12 +33,12 @@ namespace BattleRunner.Meta.UI
             _statsLabel = UiFactory.Label(root, "Stats", "", 32, UiFactory.Parchment);
             UiFactory.Place((RectTransform)_statsLabel.transform, 0.5f, 0.50f, 900f, 120f);
 
-            Button play = UiFactory.ActionButton(root, "Play", "SET FORTH", UiFactory.Blood, () => onPlay?.Invoke());
+            Button play = UiFactory.ActionButton(root, "Play", Loc.Get(LocKey.MenuSetForth), UiFactory.Blood, () => onPlay?.Invoke());
             UiFactory.Place((RectTransform)play.transform, 0.5f, 0.32f, 560f, 140f);
 
             // Starting over and erasing now live on the slot picker, where they act on a
             // named save rather than on "the" save.
-            Button newRun = UiFactory.ActionButton(root, "ChangeSlot", "CHANGE SLOT", UiFactory.InkSoft,
+            Button newRun = UiFactory.ActionButton(root, "ChangeSlot", Loc.Get(LocKey.MenuChangeSlot), UiFactory.InkSoft,
                 () => onNewRun?.Invoke(), labelSize: 32);
             UiFactory.Place((RectTransform)newRun.transform, 0.5f, 0.19f, 560f, 96f);
 
@@ -45,7 +46,7 @@ namespace BattleRunner.Meta.UI
             // and no slider — the entire UI is Text, Image and Button. SlotSelectScreen and
             // SkillTreeScreen already swap a button's own label for their arm/disarm states,
             // so this is the vocabulary the game already speaks rather than a new widget.
-            Button sound = UiFactory.ActionButton(root, "Sound", "SOUND ON", UiFactory.InkSoft,
+            Button sound = UiFactory.ActionButton(root, "Sound", Loc.Get(LocKey.MenuSoundOn), UiFactory.InkSoft,
                 () => { _onToggleSound?.Invoke(); RefreshSound(); }, labelSize: 26);
             UiFactory.Place((RectTransform)sound.transform, 0.5f, 0.10f, 360f, 74f);
             _soundLabel = sound.GetComponentInChildren<Text>();
@@ -72,13 +73,13 @@ namespace BattleRunner.Meta.UI
         {
             if (_soundLabel == null) return;
             bool on = _soundState == null || _soundState();
-            _soundLabel.text = on ? "SOUND ON" : "SOUND OFF";
+            _soundLabel.text = Loc.Get(on ? LocKey.MenuSoundOn : LocKey.MenuSoundOff);
             _soundLabel.color = on ? UiFactory.Parchment : UiFactory.InkSoft * 2f;
         }
 
         public void Show(int levelIndex, string levelName, string statsSummary)
         {
-            _levelLabel.text = $"Level {levelIndex + 1} — {levelName}";
+            _levelLabel.text = Loc.Format(LocKey.MenuLevelLine, levelIndex + 1, levelName);
             _statsLabel.text = statsSummary;
             RefreshSound();
             _root.SetActive(true);

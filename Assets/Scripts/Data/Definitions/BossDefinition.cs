@@ -6,7 +6,10 @@ namespace BattleRunner.Data.Definitions
     [CreateAssetMenu(menuName = "BattleRunner/Boss", fileName = "Boss")]
     public sealed class BossDefinition : ScriptableObject
     {
-        public string DisplayName = "Bone Colossus";
+        /// <summary>The boss's name, as a key. The HUD's round marker shows it and it has to arrive in the language on screen.</summary>
+        public Core.Text.LocKey NameKey = Core.Text.LocKey.BossBoneColossus;
+
+        public string DisplayName => Core.Text.Loc.Get(NameKey);
 
         [Tooltip("What this boss DOES and what it looks like — the two are deliberately coupled.")]
         public BossArchetype Archetype = BossArchetype.Slam;

@@ -1,3 +1,4 @@
+using BattleRunner.Core.Text;
 using System;
 using System.Collections.Generic;
 using BattleRunner.Core.Save;
@@ -27,8 +28,8 @@ namespace BattleRunner.Meta.UI
         }
 
         private const float ArmedSeconds = 4f;
-        private const string EraseIdle = "ERASE";
-        private const string EraseArmed = "SURE?";
+        private static string EraseIdle => Loc.Get(LocKey.SlotErase);
+        private static string EraseArmed => Loc.Get(LocKey.ConfirmSure);
 
         private readonly GameObject _root;
         private readonly List<SlotWidget> _slots = new List<SlotWidget>();
@@ -44,10 +45,10 @@ namespace BattleRunner.Meta.UI
             // The whole screen used to sit in its top two thirds: 256 px of margin above the
             // title against 654 px of nothing below the last slot, a 2.6:1 imbalance on a
             // 1920-tall phone. Everything moves down and the block closes up.
-            Text title = UiFactory.Label(root, "Title", "BATTLE RUNNER", 84, UiFactory.Gold);
+            Text title = UiFactory.Label(root, "Title", Loc.Get(LocKey.GameTitle), 84, UiFactory.Gold);
             UiFactory.Place((RectTransform)title.transform, 0.5f, 0.80f, 900f, 130f);
 
-            Text subtitle = UiFactory.Label(root, "Subtitle", "choose your war", 32, UiFactory.Parchment);
+            Text subtitle = UiFactory.Label(root, "Subtitle", Loc.Get(LocKey.SlotChooseWar), 32, UiFactory.Parchment);
             UiFactory.Place((RectTransform)subtitle.transform, 0.5f, 0.735f, 800f, 55f);
 
             for (int i = 0; i < SaveSlots.Count; i++)

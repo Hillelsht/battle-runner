@@ -1,3 +1,4 @@
+using BattleRunner.Core.Text;
 using System;
 using System.Collections.Generic;
 using BattleRunner.Core.Audio;
@@ -102,7 +103,7 @@ namespace BattleRunner.Gameplay.States
 
         /// <summary>
         /// Resets the header as well as the card. SetHeader was sticky: once a double-loot
-        /// ad had run, "THE BOSS YIELDS... TWICE!" stayed on the screen for every drop for
+        /// ad had run, Loc.Get(LocKey.LootBossYieldsTwice) stayed on the screen for every drop for
         /// the rest of the session, because nothing ever put it back.
         /// </summary>
         private void ShowCard(GearItemModel rolled, bool equipped)

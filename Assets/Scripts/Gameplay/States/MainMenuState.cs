@@ -23,7 +23,8 @@ namespace BattleRunner.Gameplay.States
             BattleRunner.Core.World.WorldTheme theme = BattleRunner.Core.World.WorldThemes.For(
                 BattleRunner.Core.Progression.RoundPlan.For(_ctx.Profile.CurrentLevelIndex));
             _ctx.MenuScreen.Show(_ctx.Profile.CurrentLevelIndex,
-                theme != null ? theme.DisplayName : "???", summary);
+                theme != null ? theme.DisplayName : BattleRunner.Core.Text.Loc.Get(
+                    BattleRunner.Core.Text.LocKey.HudBossUnknown), summary);
         }
 
         public void Tick(float deltaTime) { }

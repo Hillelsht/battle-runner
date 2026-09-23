@@ -7,7 +7,11 @@ namespace BattleRunner.Data.Definitions
     {
         [Tooltip("Canonical id from BattleRunner.Core.Stats.StatIds")]
         public string Id;
-        public string DisplayName;
-        [TextArea] public string Description;
+
+        public Core.Text.LocKey NameKey;
+        public Core.Text.LocKey DescriptionKey;
+
+        public string DisplayName => Core.Text.Loc.Get(NameKey);
+        public string Description => Core.Text.Loc.Get(DescriptionKey);
     }
 }

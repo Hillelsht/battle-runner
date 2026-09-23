@@ -1,3 +1,4 @@
+using BattleRunner.Core.Text;
 using System;
 using UnityEngine;
 using UnityEngine.UI;
@@ -20,15 +21,15 @@ namespace BattleRunner.Meta.UI
                 gradient: false);
             _root = root.gameObject;
 
-            _message = UiFactory.Label(root, "Message", "YOUR FORCE HAS FALLEN", 58, UiFactory.Blood);
+            _message = UiFactory.Label(root, "Message", Loc.Get(LocKey.ResurrectFallen), 58, UiFactory.Blood);
             UiFactory.Place((RectTransform)_message.transform, 0.5f, 0.68f, 950f, 120f);
 
-            Button resurrect = UiFactory.ActionButton(root, "Resurrect", "RESURRECT  (AD)", UiFactory.Gold,
+            Button resurrect = UiFactory.ActionButton(root, "Resurrect", Loc.Get(LocKey.ResurrectAd), UiFactory.Gold,
                 () => _onResurrect?.Invoke());
             UiFactory.Place((RectTransform)resurrect.transform, 0.5f, 0.45f, 620f, 130f);
             _resurrectGo = resurrect.gameObject;
 
-            Button giveUp = UiFactory.ActionButton(root, "GiveUp", "ACCEPT DEFEAT", UiFactory.InkSoft,
+            Button giveUp = UiFactory.ActionButton(root, "GiveUp", Loc.Get(LocKey.ResurrectGiveUp), UiFactory.InkSoft,
                 () => _onGiveUp?.Invoke());
             UiFactory.Place((RectTransform)giveUp.transform, 0.5f, 0.3f, 560f, 110f);
 

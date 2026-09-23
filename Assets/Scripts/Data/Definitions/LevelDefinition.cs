@@ -5,7 +5,10 @@ namespace BattleRunner.Data.Definitions
     [CreateAssetMenu(menuName = "BattleRunner/Level", fileName = "Level")]
     public sealed class LevelDefinition : ScriptableObject
     {
-        public string DisplayName = "The Ashen Road";
+        /// <summary>The level's name, as a key.</summary>
+        public Core.Text.LocKey NameKey = Core.Text.LocKey.LevelAshenRoad;
+
+        public string DisplayName => Core.Text.Loc.Get(NameKey);
         [Tooltip("Ordered chunk sequence; total length defines the run.")]
         public ChunkDefinition[] Chunks;
         public BossDefinition Boss;

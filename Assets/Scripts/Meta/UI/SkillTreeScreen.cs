@@ -1,3 +1,4 @@
+using BattleRunner.Core.Text;
 using System;
 using System.Collections.Generic;
 using BattleRunner.Core.Progression;
@@ -58,8 +59,8 @@ namespace BattleRunner.Meta.UI
         private const int TabCount = 5;
 
         private const float ArmedSeconds = 4f;
-        private const string RespecIdle = "FORGET ALL";
-        private const string RespecArmed = "SURE?";
+        private static string RespecIdle => Loc.Get(LocKey.TreeForgetAll);
+        private static string RespecArmed => Loc.Get(LocKey.ConfirmSure);
 
         // Layout, in reference pixels down the content column.
         private const float TierHeadHeight = 46f;
@@ -111,7 +112,7 @@ namespace BattleRunner.Meta.UI
             RectTransform root = UiFactory.FullscreenPanel(canvas, "SkillTree", UiFactory.Ink);
             _root = root.gameObject;
 
-            Text header = UiFactory.Label(root, "Header", "GROW STRONGER", 52, UiFactory.Gold);
+            Text header = UiFactory.Label(root, "Header", Loc.Get(LocKey.TreeTitle), 52, UiFactory.Gold);
             UiFactory.Place((RectTransform)header.transform, 0.5f, 0.957f, 900f, 76f);
 
             _pointsLabel = UiFactory.Label(root, "Points", string.Empty, 32, UiFactory.Parchment);
@@ -130,7 +131,7 @@ namespace BattleRunner.Meta.UI
             UiFactory.Place((RectTransform)_respecButton.transform, 0.24f, 0.055f, 340f, 108f);
             _respecLabel = _respecButton.GetComponentInChildren<Text>();
 
-            Button continueBtn = UiFactory.ActionButton(root, "Continue", "CONTINUE", UiFactory.Blood,
+            Button continueBtn = UiFactory.ActionButton(root, "Continue", Loc.Get(LocKey.TreeContinue), UiFactory.Blood,
                 () => _onContinue?.Invoke());
             _continueRect = (RectTransform)continueBtn.transform;
             PlaceContinue(false);
@@ -241,7 +242,7 @@ namespace BattleRunner.Meta.UI
             UiFactory.PlaceRegion((RectTransform)scroll.transform, 0.025f, 0.185f, 0.975f, 0.830f);
 
             Text head = UiFactory.Label(content, "ParagonHead",
-                "ENDLESS — every point still counts", 24, UiFactory.Arcane, TextAnchor.MiddleLeft);
+                Loc.Get(LocKey.TreeEndless), 24, UiFactory.Arcane, TextAnchor.MiddleLeft);
             UiFactory.PlaceCell((RectTransform)head.transform, 0.02f, 0.98f, 0f, TierHeadHeight);
 
             float y = TierHeadHeight;
@@ -272,11 +273,11 @@ namespace BattleRunner.Meta.UI
 
         private static string TabName(int tab) => tab switch
         {
-            0 => "WARLORD",
-            1 => "WARDEN",
-            2 => "ZEALOT",
-            3 => "HYBRID",
-            _ => "PARAGON"
+            0 => Loc.Get(LocKey.TabWarlord),
+            1 => Loc.Get(LocKey.TabWarden),
+            2 => Loc.Get(LocKey.TabZealot),
+            3 => Loc.Get(LocKey.TabHybrid),
+            _ => Loc.Get(LocKey.TabParagon)
         };
 
         /// <summary>
@@ -286,10 +287,10 @@ namespace BattleRunner.Meta.UI
         /// </summary>
         private static string TierHeading(SkillBranch branch, int tier) =>
             branch == SkillBranch.Crossroads
-                ? $"NEEDS {tier * SkillTree.TierUnlockCost} IN BOTH BRANCHES"
+                ? Loc.Format(LocKey.TreeNeedsBothTier, tier * SkillTree.TierUnlockCost)
                 : tier >= SkillTree.MaxTier
-                    ? "KEYSTONE — CHOOSE ONE"
-                    : $"TIER {tier} · {(tier - 1) * SkillTree.TierUnlockCost} POINTS IN BRANCH";
+                    ? Loc.Get(LocKey.TreeKeystoneChoose)
+                    : Loc.Format(LocKey.TreeTierLine, tier, (tier - 1) * SkillTree.TierUnlockCost);
 
         // --- Lifecycle ---------------------------------------------------------
 
@@ -365,7 +366,7 @@ namespace BattleRunner.Meta.UI
 
         private void Paint()
         {
-            _pointsLabel.text = _unspent == 1 ? "1 point to spend" : $"{_unspent} points to spend";
+            _pointsLabel.text = Loc.Count(LocKey.TreePointsToSpend, _unspent);
 
             bool keystone = SkillTree.AnyKeystoneTaken(_ranks);
 
@@ -393,9 +394,9 @@ namespace BattleRunner.Meta.UI
                 // The bottom line is the node's status, and what counts as status changes
                 // with state: ranks when it has some, what it is waiting for when it does
                 // not, and the confirmation when an undo is armed.
-                widget.Pips.text = armed ? "TAP - AGAIN"
+                widget.Pips.text = armed ? Loc.Get(LocKey.TreeTapAgain)
                     : rank > 0 ? $"{rank}/{node.MaxRanks}"
-                    : canTake ? (node.MaxRanks > 1 ? $"0/{node.MaxRanks}" : "READY")
+                    : canTake ? (node.MaxRanks > 1 ? $"0/{node.MaxRanks}" : Loc.Get(LocKey.TreeReady))
                     : blocked;
                 widget.Pips.color = armed ? Color.white
                     : rank > 0 || canTake ? UiFactory.Gold
@@ -419,8 +420,8 @@ namespace BattleRunner.Meta.UI
                 track.Name.color = keystone ? Color.white : Dim;
                 track.Detail.color = keystone ? UiFactory.Parchment : Dim;
                 track.Detail.text = !keystone
-                    ? "Locked until you take a keystone"
-                    : $"Rank {rank} · {Describe(def, rank)} · next costs {cost}";
+                    ? Loc.Get(LocKey.TreeParagonLocked)
+                    : Loc.Format(LocKey.TreeRankLine, rank, Describe(def, rank), cost);
                 track.Button.interactable = true;
             }
 
@@ -437,12 +438,12 @@ namespace BattleRunner.Meta.UI
 
             if (_tab == ParagonTab)
                 _detailLabel.text = keystone
-                    ? $"{paragonRanks} paragon rank{(paragonRanks == 1 ? string.Empty : "s")} · each rank costs more and gives a little less"
-                    : "Paragon opens the moment you take a keystone.";
+                    ? Loc.Count(LocKey.TreeParagonRanks, paragonRanks)
+                    : Loc.Get(LocKey.TreeParagonOpens);
             else if (spent == 0)
-                _detailLabel.text = "Spend four points in a branch to open its next tier.";
+                _detailLabel.text = Loc.Get(LocKey.TreeSpendFour);
             else
-                _detailLabel.text = $"{spent} point{(spent == 1 ? string.Empty : "s")} spent · tap - on a talent to take one back";
+                _detailLabel.text = Loc.Count(LocKey.TreePointsSpent, spent);
         }
 
         private static string Describe(Paragon.Track track, int rank)
@@ -485,7 +486,7 @@ namespace BattleRunner.Meta.UI
             _armedFor = 0f;
             DisarmRespec();
             Paint();
-            ShowNote($"Tap - again to give back a rank of {SkillTree.Find(nodeId)?.DisplayName}.");
+            ShowNote(Loc.Format(LocKey.TreeGiveBack, SkillTree.Find(nodeId)?.DisplayName));
         }
 
         private void OnRespecPressed()
@@ -496,7 +497,7 @@ namespace BattleRunner.Meta.UI
                 _respecIsArmed = true;
                 _respecArmedFor = 0f;
                 Paint();
-                ShowNote("Forget every talent and paragon rank, and take all the points back?");
+                ShowNote(Loc.Get(LocKey.TreeForgetConfirm));
                 return;
             }
 

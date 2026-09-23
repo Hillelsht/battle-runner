@@ -1,3 +1,4 @@
+using BattleRunner.Core.Text;
 using System.Collections.Generic;
 using BattleRunner.Core.Heroes;
 using BattleRunner.Core.Loot;
@@ -64,7 +65,7 @@ namespace BattleRunner.Meta.Services
                 GearItemInstance instance = instanceId == null ? null : profile.FindInstance(instanceId);
                 if (instance != null && gearById.TryGetValue(instance.DefinitionId, out GearItemDefinition def))
                     return def.DisplayName;
-                return "—";
+                return Loc.Get(LocKey.Dash);
             }
 
             // Every stat now goes through StatFormat, which knows which ids are fractions.
@@ -95,7 +96,7 @@ namespace BattleRunner.Meta.Services
             string gear = $"{GearLine(GearSlot.Weapon)}  |  {GearLine(GearSlot.Armor)}  |  " +
                           $"{GearLine(GearSlot.Relic)}";
             if (gear.Replace("—", string.Empty).Replace("|", string.Empty).Trim().Length == 0)
-                gear = "no gear yet";
+                gear = Loc.Get(LocKey.GearNone);
 
             return $"{StatFormat.Total(StatIds.Damage, stats.Get(StatIds.Damage))}   " +
                    $"{StatFormat.Total(StatIds.Health, stats.Get(StatIds.Health))}   " +
@@ -105,7 +106,7 @@ namespace BattleRunner.Meta.Services
 
         public static string DescribeModifiers(GearItemDefinition def)
         {
-            if (def.Modifiers == null || def.Modifiers.Length == 0) return "No bonuses";
+            if (def.Modifiers == null || def.Modifiers.Length == 0) return Loc.Get(LocKey.StatNone);
             // Units come from the STAT, never from the ModifierKind. Kind says how a
             // modifier composes — added into the base, or multiplied over the total — and
             // nothing about units. Choosing units by kind is what printed the Ember

@@ -1,3 +1,4 @@
+using BattleRunner.Core.Text;
 using System.Collections.Generic;
 using BattleRunner.Core.Boss;
 using BattleRunner.Core.Loot;
@@ -44,19 +45,19 @@ namespace BattleRunner.Data.Definitions
         {
             return new[]
             {
-                Stat(StatIds.Damage, "Might", "Raw damage dealt by your hero and horde."),
-                Stat(StatIds.Health, "Vigor", "Cushions your force against boss blows."),
-                Stat(StatIds.Cooldown, "Focus", "Shortens spell and shield cooldowns.")
+                Stat(StatIds.Damage, LocKey.StatDamage, LocKey.StatMightDesc),
+                Stat(StatIds.Health, LocKey.StatHealth, LocKey.StatVigorDesc),
+                Stat(StatIds.Cooldown, LocKey.StatCooldown, LocKey.StatFocusDesc)
             };
         }
 
-        private static StatDefinition Stat(string id, string displayName, string description)
+        private static StatDefinition Stat(string id, LocKey displayName, LocKey description)
         {
             var stat = ScriptableObject.CreateInstance<StatDefinition>();
             stat.name = $"Stat_{displayName}";
             stat.Id = id;
-            stat.DisplayName = displayName;
-            stat.Description = description;
+            stat.NameKey = displayName;
+            stat.DescriptionKey = description;
             return stat;
         }
 
@@ -65,55 +66,55 @@ namespace BattleRunner.Data.Definitions
             var gear = new List<GearItemDefinition>
             {
                 // Weapons
-                Item("wpn_rusted_cleaver", "Rusted Cleaver", GearSlot.Weapon, Rarity.Common,
-                    "Still remembers the war it lost.", Flat(StatIds.Damage, 2f)),
-                Item("wpn_gravedigger_axe", "Gravedigger's Axe", GearSlot.Weapon, Rarity.Common,
-                    "Blunt from honest, grim work.", Flat(StatIds.Damage, 3f)),
-                Item("wpn_cinder_blade", "Cinder Blade", GearSlot.Weapon, Rarity.Rare,
-                    "Warm to the touch. Always.", Flat(StatIds.Damage, 6f), Percent(StatIds.Damage, 0.05f)),
-                Item("wpn_soulreaver", "Soulreaver", GearSlot.Weapon, Rarity.Epic,
-                    "It drinks. You wield.", Flat(StatIds.Damage, 10f), Percent(StatIds.Damage, 0.10f)),
-                Item("wpn_doombringer", "Doombringer", GearSlot.Weapon, Rarity.Legendary,
-                    "The last blade its forger ever made.", Flat(StatIds.Damage, 16f), Percent(StatIds.Damage, 0.25f)),
+                Item("wpn_rusted_cleaver", LocKey.GearWpnRustedCleaverName, GearSlot.Weapon, Rarity.Common,
+                    LocKey.GearWpnRustedCleaverFlavor, Flat(StatIds.Damage, 2f)),
+                Item("wpn_gravedigger_axe", LocKey.GearWpnGravediggerAxeName, GearSlot.Weapon, Rarity.Common,
+                    LocKey.GearWpnGravediggerAxeFlavor, Flat(StatIds.Damage, 3f)),
+                Item("wpn_cinder_blade", LocKey.GearWpnCinderBladeName, GearSlot.Weapon, Rarity.Rare,
+                    LocKey.GearWpnCinderBladeFlavor, Flat(StatIds.Damage, 6f), Percent(StatIds.Damage, 0.05f)),
+                Item("wpn_soulreaver", LocKey.GearWpnSoulreaverName, GearSlot.Weapon, Rarity.Epic,
+                    LocKey.GearWpnSoulreaverFlavor, Flat(StatIds.Damage, 10f), Percent(StatIds.Damage, 0.10f)),
+                Item("wpn_doombringer", LocKey.GearWpnDoombringerName, GearSlot.Weapon, Rarity.Legendary,
+                    LocKey.GearWpnDoombringerFlavor, Flat(StatIds.Damage, 16f), Percent(StatIds.Damage, 0.25f)),
 
                 // Armor
-                Item("arm_tattered_hauberk", "Tattered Hauberk", GearSlot.Armor, Rarity.Common,
-                    "More gaps than mail.", Flat(StatIds.Health, 10f)),
-                Item("arm_bone_vest", "Bone-Studded Vest", GearSlot.Armor, Rarity.Common,
-                    "The bones are not decorative.", Flat(StatIds.Health, 15f)),
-                Item("arm_ironbark_plate", "Ironbark Plate", GearSlot.Armor, Rarity.Rare,
-                    "Grown, not forged.", Flat(StatIds.Health, 30f)),
-                Item("arm_wraithmail", "Wraithmail", GearSlot.Armor, Rarity.Epic,
-                    "Weightless. Whispering.", Flat(StatIds.Health, 50f), Percent(StatIds.Health, 0.10f)),
-                Item("arm_aegis_fallen_king", "Aegis of the Fallen King", GearSlot.Armor, Rarity.Legendary,
-                    "He fell. It didn't.", Flat(StatIds.Health, 80f), Percent(StatIds.Health, 0.25f)),
+                Item("arm_tattered_hauberk", LocKey.GearArmTatteredHauberkName, GearSlot.Armor, Rarity.Common,
+                    LocKey.GearArmTatteredHauberkFlavor, Flat(StatIds.Health, 10f)),
+                Item("arm_bone_vest", LocKey.GearArmBoneVestName, GearSlot.Armor, Rarity.Common,
+                    LocKey.GearArmBoneVestFlavor, Flat(StatIds.Health, 15f)),
+                Item("arm_ironbark_plate", LocKey.GearArmIronbarkPlateName, GearSlot.Armor, Rarity.Rare,
+                    LocKey.GearArmIronbarkPlateFlavor, Flat(StatIds.Health, 30f)),
+                Item("arm_wraithmail", LocKey.GearArmWraithmailName, GearSlot.Armor, Rarity.Epic,
+                    LocKey.GearArmWraithmailFlavor, Flat(StatIds.Health, 50f), Percent(StatIds.Health, 0.10f)),
+                Item("arm_aegis_fallen_king", LocKey.GearArmAegisFallenKingName, GearSlot.Armor, Rarity.Legendary,
+                    LocKey.GearArmAegisFallenKingFlavor, Flat(StatIds.Health, 80f), Percent(StatIds.Health, 0.25f)),
 
                 // Relics
-                Item("rel_cracked_skull", "Cracked Skull Charm", GearSlot.Relic, Rarity.Common,
-                    "Its previous owner had worse luck.", Flat(StatIds.Cooldown, 0.02f)),
-                Item("rel_ember_talisman", "Ember Talisman", GearSlot.Relic, Rarity.Common,
-                    "A pocketful of dying fire.", Flat(StatIds.Damage, 2f), Flat(StatIds.Cooldown, 0.01f)),
-                Item("rel_hollow_idol", "Hollow Idol", GearSlot.Relic, Rarity.Rare,
-                    "Something used to live inside.", Flat(StatIds.Cooldown, 0.05f)),
-                Item("rel_eye_of_abyss", "Eye of the Abyss", GearSlot.Relic, Rarity.Epic,
-                    "It blinks when you cast.", Flat(StatIds.Cooldown, 0.08f), Percent(StatIds.Damage, 0.05f)),
-                Item("rel_crown_of_embers", "Crown of Embers", GearSlot.Relic, Rarity.Legendary,
-                    "Rule nothing. Burn everything.", Flat(StatIds.Cooldown, 0.12f), Percent(StatIds.Damage, 0.10f))
+                Item("rel_cracked_skull", LocKey.GearRelCrackedSkullName, GearSlot.Relic, Rarity.Common,
+                    LocKey.GearRelCrackedSkullFlavor, Flat(StatIds.Cooldown, 0.02f)),
+                Item("rel_ember_talisman", LocKey.GearRelEmberTalismanName, GearSlot.Relic, Rarity.Common,
+                    LocKey.GearRelEmberTalismanFlavor, Flat(StatIds.Damage, 2f), Flat(StatIds.Cooldown, 0.01f)),
+                Item("rel_hollow_idol", LocKey.GearRelHollowIdolName, GearSlot.Relic, Rarity.Rare,
+                    LocKey.GearRelHollowIdolFlavor, Flat(StatIds.Cooldown, 0.05f)),
+                Item("rel_eye_of_abyss", LocKey.GearRelEyeOfAbyssName, GearSlot.Relic, Rarity.Epic,
+                    LocKey.GearRelEyeOfAbyssFlavor, Flat(StatIds.Cooldown, 0.08f), Percent(StatIds.Damage, 0.05f)),
+                Item("rel_crown_of_embers", LocKey.GearRelCrownOfEmbersName, GearSlot.Relic, Rarity.Legendary,
+                    LocKey.GearRelCrownOfEmbersFlavor, Flat(StatIds.Cooldown, 0.12f), Percent(StatIds.Damage, 0.10f))
             };
             return gear.ToArray();
         }
 
-        private static GearItemDefinition Item(string id, string displayName, GearSlot slot, Rarity rarity,
-            string flavor, params StatModifier[] modifiers)
+        private static GearItemDefinition Item(string id, LocKey displayName, GearSlot slot, Rarity rarity,
+            LocKey flavor, params StatModifier[] modifiers)
         {
             var item = ScriptableObject.CreateInstance<GearItemDefinition>();
             item.name = $"Gear_{id}";
             item.Id = id;
-            item.DisplayName = displayName;
+            item.NameKey = displayName;
             item.Slot = slot;
             item.Rarity = rarity;
             item.Modifiers = modifiers;
-            item.Flavor = flavor;
+            item.FlavorKey = flavor;
             return item;
         }
 
@@ -167,27 +168,27 @@ namespace BattleRunner.Data.Definitions
                 // a LINEAR project, so they are gamma-expanded on upload: 0.55 arrives as
                 // 0.263 linear, and BossView used to halve it first, landing the boss on a
                 // 5% reflectance — darker than the road it stands on. See BossView.Show.
-                Boss("Boss_BoneColossus", "Bone Colossus", BossArchetype.Slam,
+                Boss("Boss_BoneColossus", LocKey.BossBoneColossus, BossArchetype.Slam,
                     690f, 0.036f, 4.0f, 1.20f, 0.30f,
                     new Color(0.78f, 0.74f, 0.66f), new Color(1.40f, 0.50f, 0.20f)),
 
-                Boss("Boss_EmberLich", "Ember Lich", BossArchetype.Volley,
+                Boss("Boss_EmberLich", LocKey.BossEmberLich, BossArchetype.Volley,
                     798f, 0.040f, 4.4f, 1.10f, 0.30f,
                     new Color(0.95f, 0.52f, 0.22f), new Color(1.60f, 0.62f, 0.18f)),
 
-                Boss("Boss_GraveWarden", "Grave Warden", BossArchetype.Warded,
+                Boss("Boss_GraveWarden", LocKey.BossGraveWarden, BossArchetype.Warded,
                     870f, 0.044f, 3.8f, 1.30f, 0.34f,
                     new Color(0.52f, 0.62f, 0.72f), new Color(0.45f, 1.10f, 1.55f)),
 
-                Boss("Boss_HollowLeech", "Hollow Leech", BossArchetype.Drain,
+                Boss("Boss_HollowLeech", LocKey.BossHollowLeech, BossArchetype.Drain,
                     792f, 0.042f, 5.0f, 1.10f, 0.26f,
                     new Color(0.44f, 0.66f, 0.50f), new Color(0.55f, 1.50f, 0.62f)),
 
-                Boss("Boss_PaleShepherd", "Pale Shepherd", BossArchetype.Summoner,
+                Boss("Boss_PaleShepherd", LocKey.BossPaleShepherd, BossArchetype.Summoner,
                     834f, 0.047f, 4.6f, 1.25f, 0.22f,
                     new Color(0.72f, 0.60f, 0.86f), new Color(1.15f, 0.55f, 1.60f)),
 
-                Boss("Boss_GoreHound", "Gore Hound", BossArchetype.Enrage,
+                Boss("Boss_GoreHound", LocKey.BossGoreHound, BossArchetype.Enrage,
                     906f, 0.051f, 3.6f, 0.95f, 0.28f,
                     new Color(0.80f, 0.34f, 0.30f), new Color(1.70f, 0.30f, 0.22f))
             };
@@ -199,7 +200,7 @@ namespace BattleRunner.Data.Definitions
         {
             var boss = ScriptableObject.CreateInstance<BossDefinition>();
             boss.name = assetName;
-            boss.DisplayName = displayName;
+            boss.NameKey = displayName;
             boss.Archetype = archetype;
             boss.BaseHp = baseHp;
             boss.PerLevelGrowth = growth;
@@ -213,17 +214,17 @@ namespace BattleRunner.Data.Definitions
 
         public static LevelDefinition[] BuildLevels(BossDefinition[] bosses, LootTableDefinition lootTable)
         {
-            string[] names =
+            LocKey[] names =
             {
-                "The Ashen Road", "Gallows Mire", "The Sunken Crypt",
-                "Ember Fields", "Throne of Dust", "The Weeping Gate"
+                LocKey.LevelAshenRoad, LocKey.LevelGallowsMire, LocKey.LevelSunkenCrypt,
+                LocKey.LevelEmberFields, LocKey.LevelThroneOfDust, LocKey.LevelWeepingGate
             };
             var levels = new LevelDefinition[names.Length];
             for (int i = 0; i < names.Length; i++)
             {
                 var level = ScriptableObject.CreateInstance<LevelDefinition>();
                 level.name = $"Level_{i + 1:00}";
-                level.DisplayName = names[i];
+                level.NameKey = names[i];
                 level.Chunks = BuildChunksForLevel(i);
                 level.Boss = bosses[i % bosses.Length];
                 level.LootTable = lootTable;

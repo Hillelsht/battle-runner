@@ -1,3 +1,4 @@
+using BattleRunner.Core.Text;
 using BattleRunner.Core.Audio;
 using BattleRunner.Core.Flow;
 using BattleRunner.Core.Feel;
@@ -51,10 +52,18 @@ namespace BattleRunner.Gameplay.States
             // waiting at the end of it. The build-up only works if the player knows how many
             // rounds are left before the fight.
             RoundPlan plan = RoundPlan.For(_ctx.Profile.CurrentLevelIndex);
+            // "AWAITS" IS A TEMPLATE, NOT A SUFFIX. Bolting a verb onto the end of a proper
+            // noun is a rule about English word order; the key holds the whole phrase so a
+            // language that puts the verb elsewhere can.
+            string boss = _ctx.Config.BossFor(_ctx.Profile.CurrentLevelIndex)?.DisplayName
+                          ?? Loc.Get(LocKey.HudBossUnknown);
             string where = plan.IsBossRound
-                ? (_ctx.Config.BossFor(_ctx.Profile.CurrentLevelIndex)?.DisplayName ?? "SOMETHING") + " AWAITS"
+                ? Loc.Format(LocKey.HudBossAwaits, boss)
                 : BattleRunner.Core.World.WorldThemes.For(plan).DisplayName;
-            _ctx.Hud.SetRound($"{plan.ActIndex + 1}-{plan.RoundInAct + 1}   {where.ToUpperInvariant()}");
+            // ToUpperInvariant stays: it is correct for Cyrillic and a no-op for Hebrew, which
+            // has no case at all. The all-caps house style simply carries less emphasis there.
+            _ctx.Hud.SetRound(Loc.Format(LocKey.HudRound,
+                plan.ActIndex + 1, plan.RoundInAct + 1, where.ToUpperInvariant()));
 
             _ctx.LaneTargetChannel.Subscribe(_ctx.Crowd.OnLaneTarget);
             _ctx.FlickUpChannel.Subscribe(OnFlickUp);
