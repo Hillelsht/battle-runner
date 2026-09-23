@@ -56,20 +56,18 @@ namespace BattleRunner.Meta.UI
                 float y = SlotY(i);
 
                 Button play = UiFactory.ActionButton(root, $"Slot{i}", string.Empty,
-                    UiFactory.InkSoft, () => _onPlay?.Invoke(slot));
+                    UiFactory.InkSoft, () => _onPlay?.Invoke(slot), labelSize: 30);
 
                 var widget = new SlotWidget { Label = play.GetComponentInChildren<Text>() };
-                widget.Label.fontSize = 30;
                 widget.PlayRect = (RectTransform)play.transform;
                 widget.Row = i;
                 PlacePlay(widget, false); // Refresh re-places it once occupancy is known
 
                 Button erase = UiFactory.ActionButton(root, $"Erase{i}", EraseIdle,
-                    new Color(0.30f, 0.12f, 0.12f), () => OnErasePressed(slot));
+                    new Color(0.30f, 0.12f, 0.12f), () => OnErasePressed(slot), labelSize: 26);
                 UiFactory.Place((RectTransform)erase.transform, 0.84f, y, 200f, 130f);
                 widget.Erase = erase;
                 widget.EraseLabel = erase.GetComponentInChildren<Text>();
-                widget.EraseLabel.fontSize = 26;
 
                 _slots.Add(widget);
             }

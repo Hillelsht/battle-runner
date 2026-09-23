@@ -38,19 +38,17 @@ namespace BattleRunner.Meta.UI
             // Starting over and erasing now live on the slot picker, where they act on a
             // named save rather than on "the" save.
             Button newRun = UiFactory.ActionButton(root, "ChangeSlot", "CHANGE SLOT", UiFactory.InkSoft,
-                () => onNewRun?.Invoke());
+                () => onNewRun?.Invoke(), labelSize: 32);
             UiFactory.Place((RectTransform)newRun.transform, 0.5f, 0.19f, 560f, 96f);
-            newRun.GetComponentInChildren<Text>().fontSize = 32;
 
             // A label-swapping button rather than a toggle, because UiFactory has no toggle
             // and no slider — the entire UI is Text, Image and Button. SlotSelectScreen and
             // SkillTreeScreen already swap a button's own label for their arm/disarm states,
             // so this is the vocabulary the game already speaks rather than a new widget.
             Button sound = UiFactory.ActionButton(root, "Sound", "SOUND ON", UiFactory.InkSoft,
-                () => { _onToggleSound?.Invoke(); RefreshSound(); });
+                () => { _onToggleSound?.Invoke(); RefreshSound(); }, labelSize: 26);
             UiFactory.Place((RectTransform)sound.transform, 0.5f, 0.10f, 360f, 74f);
             _soundLabel = sound.GetComponentInChildren<Text>();
-            _soundLabel.fontSize = 26;
 
             Hide();
         }

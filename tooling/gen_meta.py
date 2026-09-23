@@ -39,6 +39,17 @@ def importer_block(rel_path: str, is_dir: bool) -> str:
     # opened the project, and the diff would look like a change nobody made.
     if ext in (".bytes", ".txt"):
         return "TextScriptImporter:\n  externalObjects: {}\n" + TAIL
+    # A font needs its importer named for the same reason: Unity rewrites a bare
+    # DefaultImporter on first import, and a dynamic font that came back as something else
+    # would render nothing and say nothing about why. fontSize here is only the atlas's
+    # starting point — every Text sets its own size, and a dynamic font rasterises on demand.
+    if ext in (".ttf", ".otf"):
+        return ("TrueTypeFontImporter:\n  externalObjects: {}\n  serializedVersion: 4\n"
+                "  fontSize: 40\n  forceTextureCase: -2\n  characterSpacing: 0\n"
+                "  characterPadding: 1\n  includeFontData: 1\n  fontNames:\n  - Arimo\n"
+                "  fallbackFontReferences: []\n  customCharacters: \n"
+                "  fontRenderingMode: 0\n  ascentCalculationMode: 1\n"
+                "  useLegacyBoundsCalculation: 0\n  shouldRoundAdvanceValue: 1\n" + TAIL)
     if ext in (".wav", ".ogg"):
         return ("AudioImporter:\n  externalObjects: {}\n  serializedVersion: 7\n"
                 "  defaultSettings:\n    loadType: 0\n    sampleRateSetting: 0\n"

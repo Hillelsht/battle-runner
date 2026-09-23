@@ -1,6 +1,31 @@
 # Imported assets
 
-Every 3D model in this game that was not written as code. All of it is Kenney's, released under **Creative Commons Zero (CC0)** — free for commercial use with no attribution required. We credit anyway.
+Everything in this game that was not written as code: the 3D models, and the one font.
+
+## The font
+
+The game speaks English, Russian and Hebrew, which is three alphabets, and until it did it shipped
+no font at all — `UiFactory` resolved Unity's built-in `LegacyRuntime.ttf`. Unity configures no
+fallback chain, so a codepoint the built-in font lacks renders as an empty box on device and a build
+machine cannot tell. This project has already lost content to that twice, and left the reason in
+comments: the HUD's pips were deleted and the tutorial's arrows became ASCII `^` and `v`.
+
+- **Arimo Regular**, 316 KB — Latin, Cyrillic, Greek and Hebrew in one file
+- Source: <https://fonts.google.com/specimen/Arimo> · Licence: `Assets/Art/LICENSE-ARIMO-OFL.txt` (SIL OFL 1.1)
+- Fetched and **verified** by `tooling/fetch_font.py` (sha256 `e5717ff6c2063b0e`)
+
+Chosen because it is metric-compatible with Arial, which is what `LegacyRuntime.ttf` already is — so
+the English screens, every one laid out by eye against fixed pixel widths, move as little as it is
+possible to move them while changing typeface at all.
+
+The fetch script does not merely download: it parses the font's own `cmap` table and fails unless
+every codepoint the game can render is present. A font that arrived intact and silently lacked
+Hebrew is the exact failure it exists to prevent. Run `python3 tooling/fetch_font.py --report` to
+re-check what is installed.
+
+## The models
+
+All Kenney's, released under **Creative Commons Zero (CC0)** — free for commercial use with no attribution required. We credit anyway.
 
 - Source: <https://kenney.nl> · mirror <https://github.com/shorepine/kenney>
 - Licence: `Assets/Art/LICENSE-KENNEY-CC0.txt`

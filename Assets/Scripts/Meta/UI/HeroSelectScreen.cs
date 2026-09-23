@@ -104,11 +104,10 @@ namespace BattleRunner.Meta.UI
                 var rest = new Color(hero.Army.R * 0.34f, hero.Army.G * 0.34f,
                     hero.Army.B * 0.34f, 0.95f);
                 Button chip = UiFactory.ActionButton(root, $"Hero{i}", hero.Name, rest,
-                    () => Select(index));
+                    () => Select(index), labelSize: 23);
                 UiFactory.Place((RectTransform)chip.transform,
                     0.145f + 0.237f * i, 0.145f, 250f, 92f);
                 Text label = chip.GetComponentInChildren<Text>();
-                label.fontSize = 23;
                 _chips.Add(new Chip { Fill = chip.GetComponent<Image>(), Label = label, Rest = rest });
             }
 

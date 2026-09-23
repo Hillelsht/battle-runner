@@ -35,12 +35,35 @@ namespace BattleRunner.Meta.UI
 
         private static Font _font;
 
+        /// <summary>
+        /// The one font in the build, and the one line that decides whether this game can be
+        /// read in Russian or Hebrew at all.
+        ///
+        /// It used to be Unity's built-in LegacyRuntime.ttf. That font carries Latin and nothing
+        /// this project can rely on beyond it: Unity configures no fallback chain, so a missing
+        /// codepoint renders as an empty box on device and the build machine cannot tell. This
+        /// project has already paid that twice and left the scars in comments — HudScreen's pips
+        /// were deleted and TutorialDirector's arrows became ASCII ^ and v, both because a glyph
+        /// could not be counted on.
+        ///
+        /// Arimo is metric-compatible with Arial, which is what LegacyRuntime already is, so the
+        /// English screens — every one of them laid out by eye against fixed pixel widths — move
+        /// as little as it is possible to move them while changing typeface at all. It carries
+        /// Latin, Cyrillic and Hebrew in one 316 KB file, which is why there is still exactly one
+        /// Font here and one atlas rather than a fallback chain. tooling/fetch_font.py proves the
+        /// coverage by reading the font's own cmap rather than asserting it.
+        ///
+        /// THE FALLBACK IS DELIBERATE AND IS NOT A SAFETY NET. If the asset is missing the game
+        /// still runs, in English, looking exactly as it did before — which is the failure mode
+        /// worth having, because the alternative is a blank UI. It is not a licence to skip the
+        /// asset: Russian and Hebrew would both render as boxes.
+        /// </summary>
         public static Font Font
         {
             get
             {
-                if (_font == null)
-                    _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                if (_font == null) _font = Resources.Load<Font>("Fonts/Arimo-Regular");
+                if (_font == null) _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
                 return _font;
             }
         }
@@ -149,6 +172,28 @@ namespace BattleRunner.Meta.UI
             text.alignment = anchor;
             text.horizontalOverflow = HorizontalWrapMode.Overflow;
             text.verticalOverflow = VerticalWrapMode.Overflow;
+
+            // SHRINK RATHER THAN SPILL, and this is what makes a translated build survive at all.
+            // Overflow means long text does not wrap and does not shrink — it runs straight out
+            // past the bevelled frame of whatever button it is on. That was fine while every
+            // string was English and hand-fitted to a fixed pixel width; Russian runs 10-30%
+            // longer than English and would have walked out of every button in the game.
+            //
+            // Widening the buttons instead is the obvious fix and the wrong one: SlotSelectScreen
+            // records that exact bug biting once already, when a 640 px button and a 210 px button
+            // overlapped by 53 units on a tall phone and one of them silently took the other's
+            // taps. Place() mixes a normalised centre with a pixel width, so growing anything
+            // grows it into its neighbour.
+            //
+            // The max is the size the caller asked for, so ENGLISH IS UNCHANGED: it already fits,
+            // so best-fit never has anything to do. Only a longer translation shrinks, and only as
+            // far as it must. The floor is two thirds, below which a label stops being readable at
+            // arm's length and the honest answer is shorter copy — which is what the per-key
+            // length budgets in the Core tests are for.
+            text.resizeTextForBestFit = true;
+            text.resizeTextMaxSize = size;
+            text.resizeTextMinSize = Mathf.Max(10, Mathf.RoundToInt(size * 0.67f));
+
             go.GetComponent<Outline>().effectColor = Shadow;
             return text;
         }
@@ -161,8 +206,17 @@ namespace BattleRunner.Meta.UI
         /// Child order is the draw order: fill (on the button itself), then frame, then
         /// text. The frame must sit over the fill and under the label.
         /// </summary>
+        /// <param name="labelSize">
+        /// The label's font size, and therefore the ceiling best-fit will not grow past.
+        ///
+        /// A PARAMETER RATHER THAN AN ASSIGNMENT AFTERWARDS, which it used to be at ten call
+        /// sites. Label() now sets resizeTextMaxSize from the size it is given, so a caller that
+        /// built a 40 pt label and then quietly set fontSize = 26 would leave the ceiling at 40 —
+        /// and best-fit, finding room, would grow it straight back. The English UI would have
+        /// changed size on screens nobody touched.
+        /// </param>
         public static Button ActionButton(Transform parent, string name, string label, Color tint,
-            UnityEngine.Events.UnityAction onClick)
+            UnityEngine.Events.UnityAction onClick, int labelSize = 40)
         {
             var go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
             go.transform.SetParent(parent, false);
@@ -195,10 +249,19 @@ namespace BattleRunner.Meta.UI
 
             AddFrame((RectTransform)go.transform);
 
-            Text text = Label(go.transform, "Label", label, 40, Color.white);
+            Text text = Label(go.transform, "Label", label, labelSize, Color.white);
             Stretch((RectTransform)text.transform);
+            // Inset off the bevelled frame. Best-fit fits text to its RECT, and the label's rect
+            // is the whole button — so without this a shrunk Russian label sits hard against the
+            // frame it was shrunk to stay inside.
+            var rect = (RectTransform)text.transform;
+            rect.offsetMin = new Vector2(LabelInset, 0f);
+            rect.offsetMax = new Vector2(-LabelInset, 0f);
             return button;
         }
+
+        /// <summary>Pixels of breathing room between a button's label and its frame.</summary>
+        private const float LabelInset = 14f;
 
         public static void Stretch(RectTransform rt)
         {

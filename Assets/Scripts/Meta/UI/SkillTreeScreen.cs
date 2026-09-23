@@ -126,10 +126,9 @@ namespace BattleRunner.Meta.UI
             UiFactory.Place((RectTransform)_detailLabel.transform, 0.5f, 0.142f, 980f, 90f);
 
             _respecButton = UiFactory.ActionButton(root, "Respec", RespecIdle,
-                new Color(0.30f, 0.12f, 0.12f), OnRespecPressed);
+                new Color(0.30f, 0.12f, 0.12f), OnRespecPressed, labelSize: 28);
             UiFactory.Place((RectTransform)_respecButton.transform, 0.24f, 0.055f, 340f, 108f);
             _respecLabel = _respecButton.GetComponentInChildren<Text>();
-            _respecLabel.fontSize = 28;
 
             Button continueBtn = UiFactory.ActionButton(root, "Continue", "CONTINUE", UiFactory.Blood,
                 () => _onContinue?.Invoke());
@@ -147,11 +146,9 @@ namespace BattleRunner.Meta.UI
             {
                 int captured = i;
                 Button tab = UiFactory.ActionButton(root, $"Tab{i}", TabName(i),
-                    Available, () => SelectTab(captured));
+                    Available, () => SelectTab(captured), labelSize: 20);
                 UiFactory.PlaceRegion((RectTransform)tab.transform,
                     0.030f + i * 0.188f, 0.838f, 0.206f + i * 0.188f, 0.888f);
-                Text label = tab.GetComponentInChildren<Text>();
-                label.fontSize = 20;
                 _tabFills[i] = tab.GetComponent<Image>();
             }
         }
@@ -203,7 +200,7 @@ namespace BattleRunner.Meta.UI
         {
             string captured = node.Id;
             Button button = UiFactory.ActionButton(content, $"Node_{node.Id}", node.DisplayName,
-                Locked, () => OnNodeTapped(captured));
+                Locked, () => OnNodeTapped(captured), labelSize: 23);
             float xMin = column == 0 ? 0.015f : 0.515f;
             UiFactory.PlaceCell((RectTransform)button.transform, xMin, xMin + 0.470f, y, NodeHeight);
 
@@ -213,7 +210,6 @@ namespace BattleRunner.Meta.UI
             // ActionButton's own stretched label becomes the NAME line rather than being
             // left to overlap the description.
             widget.Name = button.GetComponentInChildren<Text>();
-            widget.Name.fontSize = 23;
             widget.Name.horizontalOverflow = HorizontalWrapMode.Wrap;
             widget.Name.verticalOverflow = VerticalWrapMode.Truncate;
             UiFactory.PlaceRegion((RectTransform)widget.Name.transform, 0.06f, 0.60f, 0.94f, 0.96f);
@@ -232,9 +228,8 @@ namespace BattleRunner.Meta.UI
             // Parented to the cell, so it draws above it and eats the tap that would
             // otherwise rank the node up.
             Button minus = UiFactory.ActionButton(button.transform, "Minus", "-",
-                new Color(0.30f, 0.12f, 0.12f), () => OnMinusTapped(captured));
+                new Color(0.30f, 0.12f, 0.12f), () => OnMinusTapped(captured), labelSize: 26);
             UiFactory.PlaceRegion((RectTransform)minus.transform, 0.05f, 0.03f, 0.26f, 0.20f);
-            minus.GetComponentInChildren<Text>().fontSize = 26;
             widget.Minus = minus.gameObject;
 
             return widget;
@@ -254,14 +249,13 @@ namespace BattleRunner.Meta.UI
             {
                 string captured = track.Id;
                 Button button = UiFactory.ActionButton(content, $"Track_{track.Id}", track.DisplayName,
-                    Locked, () => _onParagon?.Invoke(captured));
+                    Locked, () => _onParagon?.Invoke(captured), labelSize: 28);
                 UiFactory.PlaceCell((RectTransform)button.transform, 0.015f, 0.985f, y, TrackHeight);
                 y += TrackHeight + RowGap;
 
                 var widget = new TrackWidget { TrackId = track.Id, Button = button };
                 widget.Background = button.GetComponent<Image>();
                 widget.Name = button.GetComponentInChildren<Text>();
-                widget.Name.fontSize = 28;
                 UiFactory.PlaceRegion((RectTransform)widget.Name.transform, 0.04f, 0.50f, 0.96f, 0.94f);
 
                 widget.Detail = UiFactory.Label(button.transform, "Detail", string.Empty, 20,
