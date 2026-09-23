@@ -23,11 +23,17 @@ namespace BattleRunner.Core.Save
         /// <summary>One line for the slot button. Empty slots read as an invitation, not a blank.</summary>
         public string Describe()
         {
-            if (!Occupied) return $"SLOT {Index + 1}\nNew game";
+            string slot = Text.Loc.Format(Text.LocKey.SlotNumber, Index + 1);
+            if (!Occupied) return slot + "\n" + Text.Loc.Get(Text.LocKey.SlotNewGame);
 
-            string talents = TalentsLearned == 1 ? "1 talent" : $"{TalentsLearned} talents";
-            string unspent = UnspentPoints > 0 ? $" · {UnspentPoints} unspent" : string.Empty;
-            return $"SLOT {Index + 1}\nLevel {LevelIndex + 1} · {talents}{unspent}";
+            // Counted through Loc rather than an "s"-suffix ternary. Russian picks between three
+            // forms on the last two digits, so 21 talents and 11 talents do not agree.
+            string talents = Text.Loc.Count(Text.LocKey.SlotTalents, TalentsLearned);
+            string unspent = UnspentPoints > 0
+                ? " · " + Text.Loc.Format(Text.LocKey.SlotUnspent, UnspentPoints)
+                : string.Empty;
+            string level = Text.Loc.Format(Text.LocKey.SlotLevel, LevelIndex + 1);
+            return $"{slot}\n{level} · {talents}{unspent}";
         }
     }
 

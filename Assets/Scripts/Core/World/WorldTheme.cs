@@ -33,7 +33,14 @@ namespace BattleRunner.Core.World
     /// </summary>
     public sealed class WorldTheme
     {
-        public string DisplayName = "World";
+        /// <summary>
+        /// The world's name as a KEY, resolved on read — the HUD round marker shows it, and it
+        /// has to arrive in whatever language is on screen. A resolved string here would be
+        /// baked at static-table construction and never change again.
+        /// </summary>
+        public Text.LocKey NameKey = Text.LocKey.WorldAshenRoad;
+
+        public string DisplayName => Text.Loc.Get(NameKey);
 
         // --- the road ------------------------------------------------------
         public Rgb RoadStone;

@@ -41,21 +41,27 @@ namespace BattleRunner.Core.Tutorial
         {
             public readonly TutorialSignal Satisfies;
             public readonly bool HoldsRun;
-            public readonly string Headline;
-            public readonly string Detail;
+            public readonly Text.LocKey HeadlineKey;
+            public readonly Text.LocKey DetailKey;
 
-            public StepSpec(TutorialSignal satisfies, bool holdsRun, string headline, string detail)
+            public string Headline => Text.Loc.Get(HeadlineKey);
+            public string Detail => Text.Loc.Get(DetailKey);
+
+            public StepSpec(TutorialSignal satisfies, bool holdsRun,
+                Text.LocKey headline, Text.LocKey detail)
             {
                 Satisfies = satisfies;
                 HoldsRun = holdsRun;
-                Headline = headline;
-                Detail = detail;
+                HeadlineKey = headline;
+                DetailKey = detail;
             }
         }
 
-        // Copy uses the same ASCII vocabulary as the HUD ("SHIELD v" / "SPELL ^") rather
-        // than arrow glyphs: the built-in LegacyRuntime font is the only font in the build
-        // and geometric-shape codepoints are not guaranteed in it.
+        // The copy itself lives in Core/Text/LocTables, in three languages. The ASCII
+        // vocabulary it used to share with the HUD ("SHIELD v" / "SPELL ^") was a workaround for
+        // the built-in font's uncertain coverage of geometric shapes; the game ships its own
+        // font now, though the shapes have not been reinstated here — that is a look decision
+        // rather than a coverage one, and the Hebrew copy words the direction instead.
         //
         // Both flick prompts say "lift your thumb" on purpose. GestureClassifier is one
         // gesture per contact by design -- a touch that has classified as LaneDrag can
@@ -64,13 +70,13 @@ namespace BattleRunner.Core.Tutorial
         private static readonly StepSpec[] Specs =
         {
             new StepSpec(TutorialSignal.LaneChanged, true,
-                "DRAG TO STEER", "Slide your thumb left or right"),
+                Text.LocKey.TutorialSteerTitle, Text.LocKey.TutorialSteerDetail),
             new StepSpec(TutorialSignal.GatePassed, false,
-                "TAKE THE BIGGER GATE", "Blue adds, gold multiplies, red takes"),
+                Text.LocKey.TutorialGateTitle, Text.LocKey.TutorialGateDetail),
             new StepSpec(TutorialSignal.SpellCast, true,
-                "FLICK UP TO CAST", "Lift your thumb, then swipe up fast"),
+                Text.LocKey.TutorialCastTitle, Text.LocKey.TutorialCastDetail),
             new StepSpec(TutorialSignal.ShieldRaised, true,
-                "FLICK DOWN TO BLOCK", "Lift your thumb, then swipe down fast")
+                Text.LocKey.TutorialBlockTitle, Text.LocKey.TutorialBlockDetail)
         };
 
         private int _completedMask;

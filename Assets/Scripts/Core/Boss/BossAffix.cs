@@ -90,11 +90,11 @@ namespace BattleRunner.Core.Boss
         /// <summary>The word in front of the boss's name. Empty for an ordinary one.</summary>
         public static string Prefix(BossAffix affix) => affix switch
         {
-            BossAffix.Frenzied => "Frenzied",
-            BossAffix.Armoured => "Armoured",
-            BossAffix.Vampiric => "Vampiric",
-            BossAffix.Haunted => "Haunted",
-            BossAffix.Colossal => "Colossal",
+            BossAffix.Frenzied => Text.Loc.Get(Text.LocKey.AffixFrenzied),
+            BossAffix.Armoured => Text.Loc.Get(Text.LocKey.AffixArmoured),
+            BossAffix.Vampiric => Text.Loc.Get(Text.LocKey.AffixVampiric),
+            BossAffix.Haunted => Text.Loc.Get(Text.LocKey.AffixHaunted),
+            BossAffix.Colossal => Text.Loc.Get(Text.LocKey.AffixColossal),
             _ => string.Empty
         };
 
@@ -103,7 +103,11 @@ namespace BattleRunner.Core.Boss
         {
             string prefix = Prefix(affix);
             if (string.IsNullOrEmpty(prefix)) return bossName ?? string.Empty;
-            return string.IsNullOrEmpty(bossName) ? prefix : prefix + " " + bossName;
+            if (string.IsNullOrEmpty(bossName)) return prefix;
+            // A TEMPLATE, NOT A CONCATENATION. English and Russian put the adjective before the
+            // noun; Hebrew puts it after. "prefix + \" \" + bossName" is a rule about English
+            // word order wearing the costume of a rule about strings.
+            return Text.Loc.Format(Text.LocKey.AffixDecorate, prefix, bossName);
         }
 
         /// <summary>

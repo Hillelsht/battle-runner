@@ -1,5 +1,6 @@
 using System;
 using BattleRunner.Core.Stats;
+using BattleRunner.Core.Text;
 using BattleRunner.Core.World;
 
 namespace BattleRunner.Core.Heroes
@@ -63,8 +64,20 @@ namespace BattleRunner.Core.Heroes
     public readonly struct HeroProfile
     {
         public readonly HeroClass Id;
-        public readonly string Name;
-        public readonly string Tagline;
+
+        /// <summary>
+        /// The hero's name and tagline are KEYS, resolved on read.
+        ///
+        /// Properties rather than fields so every existing caller — the select screen, the stat
+        /// line, the loot header — keeps reading `.Name` and gets it in whatever language is on
+        /// screen, with no call site touched. A field holding resolved text would have to be
+        /// rebuilt on every language change, and the roster is a static table built once.
+        /// </summary>
+        public readonly LocKey NameKey;
+        public readonly LocKey TaglineKey;
+
+        public string Name => Loc.Get(NameKey);
+        public string Tagline => Loc.Get(TaglineKey);
         /// <summary>What the hero's own body is painted.</summary>
         public readonly Rgb Body;
         /// <summary>What their soldiers are painted. The army reads as theirs.</summary>
@@ -76,12 +89,12 @@ namespace BattleRunner.Core.Heroes
         public readonly int SoldierKind;
         public readonly StatModifier[] Stats;
 
-        public HeroProfile(HeroClass id, string name, string tagline, Rgb body, Rgb army,
+        public HeroProfile(HeroClass id, LocKey nameKey, LocKey taglineKey, Rgb body, Rgb army,
             Rgb glow, HeroSilhouette silhouette, int soldierKind, StatModifier[] stats)
         {
             Id = id;
-            Name = name;
-            Tagline = tagline;
+            NameKey = nameKey;
+            TaglineKey = taglineKey;
             Body = body;
             Army = army;
             Glow = glow;
@@ -121,8 +134,8 @@ namespace BattleRunner.Core.Heroes
 
         private static readonly HeroProfile[] Table =
         {
-            new HeroProfile(HeroClass.Warden, "WARDEN",
-                "Holds the line. Two shields, and a blocked ambush joins you.",
+            new HeroProfile(HeroClass.Warden, LocKey.HeroWardenName,
+                LocKey.HeroWardenTagline,
                 new Rgb(0.60f, 0.45f, 0.15f), new Rgb(0.22f, 0.32f, 0.78f),
                 new Rgb(1.10f, 0.75f, 0.20f),
                 // Broad and upright, with a crest. The only hero wider than he is tall in the
@@ -136,8 +149,8 @@ namespace BattleRunner.Core.Heroes
                     new StatModifier(StatIds.ShieldCharges, ModifierKind.Flat, 1f)
                 }),
 
-            new HeroProfile(HeroClass.Ashcaller, "ASHCALLER",
-                "Burns the road ahead. Two spells, and they reach further.",
+            new HeroProfile(HeroClass.Ashcaller, LocKey.HeroAshcallerName,
+                LocKey.HeroAshcallerTagline,
                 new Rgb(0.52f, 0.20f, 0.10f), new Rgb(0.85f, 0.32f, 0.12f),
                 new Rgb(1.70f, 0.55f, 0.18f),
                 // Tall, narrow, hooded, with the longest haft in the set — a staff that breaks
@@ -151,8 +164,8 @@ namespace BattleRunner.Core.Heroes
                     new StatModifier(StatIds.SpellCharges, ModifierKind.Flat, 1f)
                 }),
 
-            new HeroProfile(HeroClass.Houndmaster, "HOUNDMASTER",
-                "Two hounds at the flank. Every recruit gate pays more.",
+            new HeroProfile(HeroClass.Houndmaster, LocKey.HeroHoundmasterName,
+                LocKey.HeroHoundmasterTagline,
                 new Rgb(0.26f, 0.40f, 0.18f), new Rgb(0.34f, 0.62f, 0.26f),
                 new Rgb(0.60f, 1.30f, 0.45f),
                 // Crouched and low, and the only one with anything beside him.
@@ -165,8 +178,8 @@ namespace BattleRunner.Core.Heroes
                     new StatModifier(StatIds.RunSpeed, ModifierKind.Flat, 0.04f)
                 }),
 
-            new HeroProfile(HeroClass.Revenant, "REVENANT",
-                "The fallen come back. What you lose, you mostly get again.",
+            new HeroProfile(HeroClass.Revenant, LocKey.HeroRevenantName,
+                LocKey.HeroRevenantTagline,
                 new Rgb(0.44f, 0.42f, 0.50f), new Rgb(0.52f, 0.40f, 0.72f),
                 new Rgb(0.95f, 0.70f, 1.55f),
                 // Skeletal: tall, very narrow, stooped, with a broken crown.

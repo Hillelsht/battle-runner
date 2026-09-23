@@ -40,27 +40,28 @@ namespace BattleRunner.Core.Progression
         {
             public string Id { get; }
             public string StatId { get; }
-            public string DisplayName { get; }
+            public Text.LocKey NameKey { get; }
+            public string DisplayName => Text.Loc.Get(NameKey);
             /// <summary>Value of the FIRST rank; later ranks decay from here.</summary>
             public float PerRank { get; }
 
-            public Track(string id, string statId, string displayName, float perRank)
+            public Track(string id, string statId, Text.LocKey nameKey, float perRank)
             {
                 Id = id;
                 StatId = statId;
-                DisplayName = displayName;
+                NameKey = nameKey;
                 PerRank = perRank;
             }
         }
 
         private static readonly Track[] TrackTable =
         {
-            new Track("pg_might", StatIds.Damage, "Might", 4f),
-            new Track("pg_vigor", StatIds.Health, "Vigor", 22f),
-            new Track("pg_gates", StatIds.GateYield, "Gates", 0.02f),
-            new Track("pg_fortune", StatIds.Fortune, "Fortune", 0.04f),
-            new Track("pg_focus", StatIds.Cooldown, "Focus", 0.02f),
-            new Track("pg_speed", StatIds.RunSpeed, "Speed", 0.012f)
+            new Track("pg_might", StatIds.Damage, Text.LocKey.ParagonMight, 4f),
+            new Track("pg_vigor", StatIds.Health, Text.LocKey.ParagonVigor, 22f),
+            new Track("pg_gates", StatIds.GateYield, Text.LocKey.ParagonGates, 0.02f),
+            new Track("pg_fortune", StatIds.Fortune, Text.LocKey.ParagonFortune, 0.04f),
+            new Track("pg_focus", StatIds.Cooldown, Text.LocKey.ParagonFocus, 0.02f),
+            new Track("pg_speed", StatIds.RunSpeed, Text.LocKey.ParagonSpeed, 0.012f)
         };
 
         public static IReadOnlyList<Track> Tracks => TrackTable;
@@ -126,10 +127,11 @@ namespace BattleRunner.Core.Progression
             IReadOnlyDictionary<string, int> skillRanks,
             int unspentPoints)
         {
-            if (Find(trackId) == null) return "Unknown path";
-            if (!SkillTree.AnyKeystoneTaken(skillRanks)) return "Reach a keystone first";
+            if (Find(trackId) == null) return Text.Loc.Get(Text.LocKey.ParagonUnknownPath);
+            if (!SkillTree.AnyKeystoneTaken(skillRanks))
+                return Text.Loc.Get(Text.LocKey.ParagonNeedKeystone);
             int cost = NextRankCost(TotalRanks(paragonRanks));
-            if (unspentPoints < cost) return $"Costs {cost} points";
+            if (unspentPoints < cost) return Text.Loc.Count(Text.LocKey.ParagonCostsPoints, cost);
             return null;
         }
     }

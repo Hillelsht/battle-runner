@@ -35,7 +35,7 @@ namespace BattleRunner.Core.World
             // ---- 0 : the shipped look, kept as the baseline -----------------
             new WorldTheme
             {
-                DisplayName = "The Ashen Road",
+                NameKey = Text.LocKey.WorldAshenRoad,
                 RoadStone = new Rgb(0.310f, 0.295f, 0.285f),
                 RoadMortar = new Rgb(0.145f, 0.138f, 0.135f),
                 RoadDamp = new Rgb(0.300f, 0.330f, 0.440f),
@@ -126,7 +126,7 @@ namespace BattleRunner.Core.World
             // Nothing else in this table is that far from its neighbours on any axis.
             new WorldTheme
             {
-                DisplayName = "Thistlewood",
+                NameKey = Text.LocKey.WorldThistlewood,
                 // Warm dry flagstone, barely wet. Every other world's road is damp, which is
                 // a night-and-rain cue the eye reads before it reads hue.
                 RoadStone = new Rgb(0.560f, 0.520f, 0.450f),
@@ -254,7 +254,7 @@ namespace BattleRunner.Core.World
             // ---- 2 : cold, tight, and under something ----------------------
             new WorldTheme
             {
-                DisplayName = "The Sunken Crypt",
+                NameKey = Text.LocKey.WorldSunkenCrypt,
                 RoadStone = new Rgb(0.220f, 0.240f, 0.280f),
                 RoadMortar = new Rgb(0.100f, 0.110f, 0.130f),
                 RoadDamp = new Rgb(0.340f, 0.480f, 0.620f),
@@ -331,7 +331,7 @@ namespace BattleRunner.Core.World
             // ---- 3 : basalt, ash, and something burning under it -----------
             new WorldTheme
             {
-                DisplayName = "Ember Fields",
+                NameKey = Text.LocKey.WorldEmberFields,
                 RoadStone = new Rgb(0.200f, 0.170f, 0.160f),
                 RoadMortar = new Rgb(0.220f, 0.090f, 0.050f),   // cracks, not mortar
                 RoadDamp = new Rgb(0.550f, 0.250f, 0.120f),
@@ -402,7 +402,7 @@ namespace BattleRunner.Core.World
             // ---- 4 : pale, wide open, and very old --------------------------
             new WorldTheme
             {
-                DisplayName = "The Bone Wastes",
+                NameKey = Text.LocKey.WorldBoneWastes,
                 RoadStone = new Rgb(0.420f, 0.400f, 0.350f),
                 RoadMortar = new Rgb(0.200f, 0.190f, 0.160f),
                 RoadDamp = new Rgb(0.350f, 0.330f, 0.300f),
@@ -483,7 +483,7 @@ namespace BattleRunner.Core.World
             // ---- 5 : ice, and far too many stars ---------------------------
             new WorldTheme
             {
-                DisplayName = "The Frozen Reach",
+                NameKey = Text.LocKey.WorldFrozenReach,
                 RoadStone = new Rgb(0.360f, 0.420f, 0.480f),
                 RoadMortar = new Rgb(0.200f, 0.240f, 0.300f),
                 RoadDamp = new Rgb(0.550f, 0.700f, 0.880f),
@@ -554,7 +554,7 @@ namespace BattleRunner.Core.World
             // ---- 6 : red, close, and wet ------------------------------------
             new WorldTheme
             {
-                DisplayName = "The Blood Marsh",
+                NameKey = Text.LocKey.WorldBloodMarsh,
                 // Raised 45%. This was the darkest road of the eight at 0.189 luma, and it
                 // is the one world whose contrast no amount of structure could fix: with the
                 // stone that dark the grime, the joint and the tone all land inside a few
@@ -634,7 +634,7 @@ namespace BattleRunner.Core.World
             // ---- 7 : obsidian, gold and violet — the end of the road --------
             new WorldTheme
             {
-                DisplayName = "The Throne of Dust",
+                NameKey = Text.LocKey.WorldThroneOfDust,
                 RoadStone = new Rgb(0.215f, 0.205f, 0.235f),
                 RoadMortar = new Rgb(0.420f, 0.320f, 0.130f),   // gold in the seams, and bright
                 // enough to be gold: at 0.26/0.20/0.09 the gilding landed within 2%
