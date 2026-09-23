@@ -29,24 +29,65 @@ namespace BattleRunner.Meta.UI
         /// and it follows the Tap event above, added for the same reason: so a screen written
         /// later works without anybody remembering to make it.
         /// </summary>
-        private static readonly List<(Text Label, LocKey Key)> Keyed =
-            new List<(Text, LocKey)>(128);
+        /// <remarks>
+        /// The ANCHOR STORED IS THE ONE THE CALLER ASKED FOR, never the flipped one. `Flip` is
+        /// not an involution over a stored value the way it looks: re-flipping an
+        /// already-flipped anchor on a second language change would send it back. Keeping the
+        /// authored value means the current alignment is always `Flip(authored)` and switching
+        /// languages any number of times lands in the right place.
+        ///
+        /// Key is nullable because a label with text set at runtime still has to be re-ALIGNED
+        /// when the direction changes, even though nothing here knows what to write in it.
+        /// </remarks>
+        private static readonly List<(Text Label, LocKey? Key, TextAnchor Anchor)> Keyed =
+            new List<(Text, LocKey?, TextAnchor)>(256);
 
         /// <summary>
-        /// Rewrite every keyed label in the current language. Called when the language changes.
+        /// Placements that depend on reading direction, so they can be redone when it changes.
         ///
-        /// It does not reach labels whose text is set at runtime — the HUD's round marker, the
-        /// loot card, the talent cells. Those are rewritten by their own screen the next time it
-        /// is shown or refreshed, and the only screen visible when the language button is pressed
-        /// is the menu, which refreshes itself on the same tap.
+        /// A rect placed through `Mirror` or `MirrorSpan` resolved its position ONCE, against
+        /// whichever language was current when the screen was built. Without this, switching to
+        /// Hebrew reordered every string and left the two-column talent grid, the tab row,
+        /// ERASE against PLAY and the hero chips laid out left to right underneath them — text
+        /// running one way inside a layout running the other.
+        ///
+        /// Same static-list argument as <see cref="Keyed"/>: nothing is ever destroyed here.
+        /// </summary>
+        private static readonly List<System.Action> Directional = new List<System.Action>(32);
+
+        /// <summary>
+        /// Run a direction-dependent placement now, and again whenever the language changes.
+        ///
+        /// Callers wrap the placement itself rather than passing coordinates, so the lambda can
+        /// re-read `Mirror`/`MirrorSpan` and there is no second copy of the geometry to drift.
+        /// </summary>
+        public static void Directed(System.Action place)
+        {
+            if (place == null) return;
+            Directional.Add(place);
+            place();
+        }
+
+        /// <summary>
+        /// Rewrite every keyed label in the current language, re-align every label, and redo
+        /// every directional placement. Called when the language changes.
+        ///
+        /// It does not reach the CONTENT of labels whose text is set at runtime — the HUD's
+        /// round marker, the loot card, the talent cells. Those are rewritten by their own
+        /// screen the next time it is shown or refreshed; their alignment is handled here
+        /// because it does not depend on knowing what they say.
         /// </summary>
         public static void ReapplyText()
         {
             for (int i = 0; i < Keyed.Count; i++)
             {
-                (Text label, LocKey key) = Keyed[i];
-                if (label != null) label.text = Shape(Loc.Get(key));
+                (Text label, LocKey? key, TextAnchor anchor) = Keyed[i];
+                if (label == null) continue;
+                if (key.HasValue) label.text = Shape(Loc.Get(key.Value));
+                label.alignment = Flip(anchor);
             }
+
+            for (int i = 0; i < Directional.Count; i++) Directional[i]();
         }
 
         /// <summary>
@@ -329,7 +370,9 @@ namespace BattleRunner.Meta.UI
             text.resizeTextMinSize = Mathf.Max(10, Mathf.RoundToInt(size * 0.67f));
 
             go.GetComponent<Outline>().effectColor = Shadow;
-            if (key.HasValue) Keyed.Add((text, key.Value));
+            // EVERY label, not only the keyed ones: a label whose text its own screen owns
+            // still has to be re-aligned when the reading direction changes.
+            Keyed.Add((text, key, anchor));
             return text;
         }
 

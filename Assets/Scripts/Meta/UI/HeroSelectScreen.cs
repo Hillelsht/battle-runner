@@ -108,8 +108,9 @@ namespace BattleRunner.Meta.UI
                     hero.Army.B * 0.34f, 0.95f);
                 Button chip = UiFactory.ActionButton(root, $"Hero{i}", hero.Name, rest,
                     () => Select(index), labelSize: 23);
-                UiFactory.Place((RectTransform)chip.transform,
-                    UiFactory.Mirror(0.145f + 0.237f * i), 0.145f, 250f, 92f);
+                RectTransform chipRect = (RectTransform)chip.transform;
+                UiFactory.Directed(() => UiFactory.Place(chipRect,
+                    UiFactory.Mirror(0.145f + 0.237f * index), 0.145f, 250f, 92f));
                 Text label = chip.GetComponentInChildren<Text>();
                 _chips.Add(new Chip { Fill = chip.GetComponent<Image>(), Label = label, Rest = rest });
             }
@@ -120,11 +121,15 @@ namespace BattleRunner.Meta.UI
             // the attack, which is the one act that will not play on its own.
             Button fight = UiFactory.ActionButton(root, "Fight", Loc.Get(LocKey.HeroShowMe), UiFactory.InkSoft,
                 () => _onFight?.Invoke(), key: LocKey.HeroShowMe);
-            UiFactory.Place((RectTransform)fight.transform, UiFactory.Mirror(0.275f), 0.055f, 400f, 108f);
+            var fightRect = (RectTransform)fight.transform;
+            UiFactory.Directed(() =>
+                UiFactory.Place(fightRect, UiFactory.Mirror(0.275f), 0.055f, 400f, 108f));
 
             Button confirm = UiFactory.ActionButton(root, "Confirm", Loc.Get(LocKey.HeroBegin), UiFactory.Gold,
                 () => _onChoose?.Invoke(_selected), key: LocKey.HeroBegin);
-            UiFactory.Place((RectTransform)confirm.transform, UiFactory.Mirror(0.705f), 0.055f, 400f, 108f);
+            var confirmRect = (RectTransform)confirm.transform;
+            UiFactory.Directed(() =>
+                UiFactory.Place(confirmRect, UiFactory.Mirror(0.705f), 0.055f, 400f, 108f));
 
             Hide();
         }

@@ -19,7 +19,7 @@ arena the road opens into** → loot with Auto-Equip → stat points → save �
 | Camera | Rises with the army, so a million-man hero stops hiding the road |
 | Content | **4 playable characters**, 8 worlds (one in daylight, each with its own arch over the road), 6 levels, 6 bosses (6 archetypes) x 5 champion affixes = 30 fights, champions behind barricades that span the road, 15 gear items, 4 rarities, ~60 talents + endless paragon |
 | Art | Procedural meshes and code-built uGUI, 119 CC0 Kenney models in one 563 KB pack, 8 generated ground surfaces with normal maps, a boss arena that opens out of the road, a character-select stage the heroes are posed on, and one winged pony |
-| Tests | 534, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 535, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
@@ -1184,7 +1184,7 @@ The v0.4.0 screenshots confirmed the art pass landed — sky, stars, shadows, ro
 gates and UI frames all correct on device — and surfaced two bugs that were never about
 art: `Focus -0 %` on the menu and `+0.01 Focus` on the loot card. Both were units chosen
 from the ModifierKind rather than from the stat, plus a hard-coded minus sign in front of
-a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 534 tests today).
+a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 535 tests today).
 
 A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
 11 survived adversarial refutation. The headline three: the key light pointed the same way
@@ -1444,6 +1444,32 @@ the cell was built; the refresh that runs on every interaction only recoloured t
 change reached every other label in the game and left all 158 talent strings in the language the
 player had just left. Both are properties that read the table on each access, so re-reading them
 on refresh is the entire fix — the bug was that nobody did.
+
+**Then the layout did not follow the language.** Every direction-dependent placement resolved
+once, against whichever language was current when the screen was built — so switching to Hebrew
+reordered every string on screen and left the two-column talent grid, the tab row, the minus
+button, ERASE against PLAY, the hero chips and the HUD's SPELL and SHIELD laid out left to
+right underneath them. Text running one way inside a layout running the other.
+
+`UiFactory.Directed` takes the placement itself rather than a set of coordinates, runs it, and
+keeps it to run again on every language change — the same static-registry argument as the label
+list, and safe for the same reason: the eight screens are built once and never destroyed. Label
+alignment joins it, which means **every** label is registered now and not only the keyed ones:
+a label whose text its own screen owns still has to be re-aligned. The anchor stored is the one
+the caller asked for rather than the flipped one, because `Flip` applied to its own output sends
+an anchor back where it started on the second switch.
+
+Two faults surfaced while wiring it, neither of them about switching:
+
+- **PLAY and ERASE would have overlapped in Hebrew.** ERASE mirrors to 0.16 and PLAY did not
+  move off 0.42, which on a 1080-wide screen is a 560 px button centred at 453 and a 200 px one
+  centred at 173: about a hundred pixels of overlap, with ERASE taking PLAY's taps. That is the
+  failure this screen already carries a comment about, arrived at from the other side and in a
+  language where nobody would have guessed what the wrong button said.
+- **The pips rect is the only one in the game whose x span is not symmetric about the centre.**
+  It hugs one end of the talent cell, so the end it hugs has to move; the anchor flip alone would
+  have left the status line stranded in the middle of the cell with nothing holding it to an edge.
+  Every other span was checked and every other one mirrors onto itself.
 
 **What a regex edit does when it matches nothing is report success**, and three did. A
 `Boss` factory signature was matched on `string name, string displayName` when the parameter

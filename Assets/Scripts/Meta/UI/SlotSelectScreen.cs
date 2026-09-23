@@ -68,7 +68,10 @@ namespace BattleRunner.Meta.UI
 
                 Button erase = UiFactory.ActionButton(root, $"Erase{i}", EraseIdle,
                     new Color(0.30f, 0.12f, 0.12f), () => OnErasePressed(slot), labelSize: 26);
-                UiFactory.Place((RectTransform)erase.transform, UiFactory.Mirror(0.84f), y, 200f, 130f);
+                var eraseRect = (RectTransform)erase.transform;
+                float eraseY = y;
+                UiFactory.Directed(() =>
+                    UiFactory.Place(eraseRect, UiFactory.Mirror(0.84f), eraseY, 200f, 130f));
                 widget.Erase = erase;
                 widget.EraseLabel = erase.GetComponentInChildren<Text>();
 
@@ -109,9 +112,20 @@ namespace BattleRunner.Meta.UI
 
         private static float SlotY(int row) => 0.56f - row * 0.16f;
 
+        /// <summary>
+        /// PLAY, which shifts off centre to make room for ERASE and therefore has to mirror with
+        /// it. Without the Mirror here, Hebrew moved ERASE to 0.16 and left PLAY at 0.42: a
+        /// 560-wide button centred at 453 px against a 200-wide one centred at 173 px, which is
+        /// a hundred pixels of overlap and ERASE taking PLAY's taps -- the same failure this
+        /// screen already carries a comment about, arrived at from the other side.
+        ///
+        /// Mirror(0.5) is 0.5, so an empty slot's centred button is unaffected in any language.
+        /// Re-evaluated on every Refresh, so it follows a language change without being
+        /// registered as a directional placement.
+        /// </summary>
         private static void PlacePlay(SlotWidget widget, bool occupied) =>
-            UiFactory.Place(widget.PlayRect, occupied ? 0.42f : 0.5f, SlotY(widget.Row),
-                occupied ? 560f : 640f, 130f);
+            UiFactory.Place(widget.PlayRect, UiFactory.Mirror(occupied ? 0.42f : 0.5f),
+                SlotY(widget.Row), occupied ? 560f : 640f, 130f);
 
         /// <summary>Driven by the state so an armed erase can expire on its own.</summary>
         public void Tick(float deltaTime)

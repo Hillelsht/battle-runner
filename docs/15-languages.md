@@ -9,7 +9,8 @@ locale concept. Every user-facing word was a hardcoded English literal in C#. Th
 is that `Assets/Scenes/Main.unity` contains no text at all — the whole UI is built procedurally from
 `UiFactory` — so every string lived in a `.cs` file rather than scattered across prefabs.
 
-Counted before anything was designed: **~370–380 distinct translatable strings**, unevenly spread.
+Counted before anything was designed: ~370–380 distinct translatable strings, unevenly spread;
+**352 keys** once composed lines had been folded into templates and the duplicates removed.
 Around 172 of them are talent names and descriptions in one file, and seven of them have **no string
 literal to find** — `LootScreen` interpolated `item.Rarity` and `item.Slot` straight from
 `enum.ToString()`, so an extraction pass misses them silently.
@@ -37,7 +38,7 @@ lacked Hebrew is exactly the failure the built-in font would have handed us with
 `UiFactory.Label` set `horizontalOverflow = Overflow`, so long text neither wraps nor shrinks — it
 runs straight out past the bevelled frame of whatever button it is on. Fine while every string was
 English and hand-fitted; **Russian runs 10–30% longer** and would have walked out of every button in
-the game. 44 of 61 placements use `UiFactory.Place`, which mixes a normalized centre with a fixed
+the game. 45 of 65 placements use `UiFactory.Place`, which mixes a normalized centre with a fixed
 pixel width.
 
 Widening the buttons is the obvious fix and the wrong one. `SlotSelectScreen` records that exact bug
@@ -94,7 +95,7 @@ so 21 takes the same form as 1, 22 the same as 2, and 11–14 take the many-form
 
 ### The talent tree is half the table
 
-79 nodes, a name and a description each, plus branch names and refusals — 170 of the 238 keys.
+79 nodes, a name and a description each, plus branch names and refusals — 170 of the 352 keys.
 Every description was extracted from the source rather than transcribed, and **the digits in all
 158 translations were checked against the English before a single one was committed**. That check
 then became a permanent test, because these descriptions quote balance values that also exist as a
@@ -163,13 +164,41 @@ composing already-reversed fragments.
 ## Changing language without rebuilding the UI
 
 The eight screens are built once in `GameBootstrap.CreateUi` and toggled with `SetActive` for the
-rest of the process's life. Nothing is ever destroyed — which is what makes a **static registry of
-`(Text, LocKey)` pairs** safe here rather than a leak. `UiFactory.Label` remembers any label given a
-key; `ReapplyText` walks them.
+rest of the process's life. Nothing is ever destroyed — which is what makes a **static registry**
+safe here rather than a leak. `UiFactory.Label` remembers every label it builds as
+`(Text, LocKey?, TextAnchor)`; `ReapplyText` walks them.
 
-It does not reach labels whose text is set at runtime — the round marker, the loot card, the talent
-cells. Those are rewritten by their own screen the next time it is shown, and the only screen
-visible when the language button is pressed is the menu, which refreshes itself on the same tap.
+Every label, not only the keyed ones. A label whose text its own screen owns still has to be
+**re-aligned** when the reading direction changes, and the anchor recorded is the one the caller
+asked for rather than the flipped one — `Flip` applied to its own output sends an anchor back where
+it started on the second switch.
+
+`ReapplyText` does not reach the *content* of labels whose text is set at runtime: the round
+marker, the loot card, the talent cells. Those are rewritten by their own screen the next time it
+is shown, and the only screen visible when the language button is pressed is the menu, which
+refreshes itself on the same tap.
+
+### The layout has to follow the language too
+
+A placement that mirrors resolved its position **once**, against whichever language was current when
+the screen was built. Left alone, switching to Hebrew reorders every string on screen and leaves the
+talent grid's two columns, the tab row, the minus button, ERASE against PLAY, the hero chips and the
+HUD's SPELL and SHIELD running the other way underneath them.
+
+`UiFactory.Directed(Action)` takes the placement **itself** rather than a set of coordinates, runs
+it once, and keeps it to run again on every language change. Passing the lambda rather than the
+numbers means there is no second copy of the geometry to drift out of step with the first.
+
+Two faults surfaced while wiring it up, and neither was about switching:
+
+- **PLAY and ERASE would have overlapped in Hebrew.** ERASE mirrors to 0.16; PLAY did not move off
+  0.42. On a 1080-wide screen that is a 560 px button centred at 453 against a 200 px one centred at
+  173 — about a hundred pixels of overlap, with ERASE taking PLAY's taps. `SlotSelectScreen` already
+  carries a comment about that exact failure in English.
+- **The pips rect is the only x span in the game that is not symmetric about the centre.** It hugs
+  one end of the talent cell, so that end has to move. The anchor flip alone would have left the
+  status line stranded mid-cell with nothing holding it to an edge. Every other span was checked
+  and mirrors onto itself.
 
 The setting lives in `PlayerPrefs` under `ui.language`, beside `audio.enabled`, and the argument is
 `AudioDirector`'s own only stronger: `PlayerProfile` is per save **slot** and `GameContext.SaveProfile`

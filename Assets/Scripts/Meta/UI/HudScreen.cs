@@ -33,12 +33,14 @@ namespace BattleRunner.Meta.UI
             // Spell and shield swap sides in Hebrew, because they name the flick that reaches
             // them and a thumb finds the near edge first. The BAR below does not mirror: it is a
             // quantity draining, and one that emptied the other way reads as filling.
-            UiFactory.Place((RectTransform)_spellLabel.transform, UiFactory.Mirror(0.82f),
-                0.07f, 320f, 70f);
+            var spellRect = (RectTransform)_spellLabel.transform;
+            UiFactory.Directed(() =>
+                UiFactory.Place(spellRect, UiFactory.Mirror(0.82f), 0.07f, 320f, 70f));
 
             _shieldLabel = UiFactory.Label(root, "Shield", Loc.Format(LocKey.HudShieldReady, string.Empty), 34, UiFactory.Parchment);
-            UiFactory.Place((RectTransform)_shieldLabel.transform, UiFactory.Mirror(0.18f),
-                0.07f, 320f, 70f);
+            var shieldRect = (RectTransform)_shieldLabel.transform;
+            UiFactory.Directed(() =>
+                UiFactory.Place(shieldRect, UiFactory.Mirror(0.18f), 0.07f, 320f, 70f));
 
             RectTransform barBack = UiFactory.Panel(root, "BossBarBack", UiFactory.InkSoft);
             UiFactory.Place(barBack, 0.5f, 0.83f, 820f, 44f);

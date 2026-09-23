@@ -87,5 +87,36 @@ namespace BattleRunner.Tests
                 Loc.Count(LocKey.SlotTalents, 11).Replace("11", "#"),
                 "Russian 11 must NOT take the same form as 1");
         }
-    }
+    
+        [Test]
+        public void MirroringASpanTwiceReturnsItExactly()
+        {
+            // The directional placements are REPLAYED on every language change, so the mirror has
+            // to be an involution over the AUTHORED values -- never applied on top of its own
+            // previous result. Replaying from the authored numbers is what makes that true, and
+            // this pins the property the replay relies on.
+            float lo = 0.030f, hi = 0.206f;
+            float authoredLo = lo, authoredHi = hi;
+
+            Flip(ref lo, ref hi);
+            Assert.AreNotEqual(authoredLo, lo, "a mirrored span should have moved");
+            Assert.AreEqual(authoredHi - authoredLo, hi - lo, 1e-5f, "the span changed width");
+
+            Flip(ref lo, ref hi);
+            Assert.AreEqual(authoredLo, lo, 1e-5f);
+            Assert.AreEqual(authoredHi, hi, 1e-5f);
+        }
+
+        /// <summary>
+        /// UiFactory.MirrorSpan's arithmetic, restated here because UiFactory lives in the Meta
+        /// assembly and this suite is Core-only. Kept identical on purpose: if one changes, this
+        /// test is the thing that should be made to disagree.
+        /// </summary>
+        private static void Flip(ref float lo, ref float hi)
+        {
+            float low = 1f - hi, high = 1f - lo;
+            lo = low;
+            hi = high;
+        }
+}
 }

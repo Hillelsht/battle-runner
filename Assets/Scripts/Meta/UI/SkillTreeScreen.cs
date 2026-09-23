@@ -137,8 +137,9 @@ namespace BattleRunner.Meta.UI
 
             _respecButton = UiFactory.ActionButton(root, "Respec", RespecIdle,
                 new Color(0.30f, 0.12f, 0.12f), OnRespecPressed, labelSize: 28);
-            UiFactory.Place((RectTransform)_respecButton.transform, UiFactory.Mirror(0.24f), 0.055f,
-                340f, 108f);
+            var respecRect = (RectTransform)_respecButton.transform;
+            UiFactory.Directed(() =>
+                UiFactory.Place(respecRect, UiFactory.Mirror(0.24f), 0.055f, 340f, 108f));
             _respecLabel = _respecButton.GetComponentInChildren<Text>();
 
             Button continueBtn = UiFactory.ActionButton(root, "Continue", Loc.Get(LocKey.TreeContinue), UiFactory.Blood,
@@ -160,9 +161,13 @@ namespace BattleRunner.Meta.UI
                     Available, () => SelectTab(captured), labelSize: 20);
                 // The tab row runs the other way in Hebrew. Mirroring the SPAN rather than the
                 // centre, so the tabs keep their widths and their gutters.
-                float tabLo = 0.030f + i * 0.188f, tabHi = 0.206f + i * 0.188f;
-                UiFactory.MirrorSpan(ref tabLo, ref tabHi);
-                UiFactory.PlaceRegion((RectTransform)tab.transform, tabLo, 0.838f, tabHi, 0.888f);
+                var tabRect = (RectTransform)tab.transform;
+                UiFactory.Directed(() =>
+                {
+                    float tabLo = 0.030f + captured * 0.188f, tabHi = 0.206f + captured * 0.188f;
+                    UiFactory.MirrorSpan(ref tabLo, ref tabHi);
+                    UiFactory.PlaceRegion(tabRect, tabLo, 0.838f, tabHi, 0.888f);
+                });
                 _tabFills[i] = tab.GetComponent<Image>();
             }
         }
@@ -215,9 +220,15 @@ namespace BattleRunner.Meta.UI
             string captured = node.Id;
             Button button = UiFactory.ActionButton(content, $"Node_{node.Id}", node.DisplayName,
                 Locked, () => OnNodeTapped(captured), labelSize: NameSize);
-            // Column 0 is the left one, which is the right one in Hebrew.
-            float xMin = (column == 0) != Loc.IsRightToLeft ? 0.015f : 0.515f;
-            UiFactory.PlaceCell((RectTransform)button.transform, xMin, xMin + 0.470f, y, NodeHeight);
+            var cellRect = (RectTransform)button.transform;
+            int capturedColumn = column;
+            float cellY = y;
+            UiFactory.Directed(() =>
+            {
+                // Column 0 is the left one, which is the right one in Hebrew.
+                float xMin = (capturedColumn == 0) != Loc.IsRightToLeft ? 0.015f : 0.515f;
+                UiFactory.PlaceCell(cellRect, xMin, xMin + 0.470f, cellY, NodeHeight);
+            });
 
             var widget = new NodeWidget { NodeId = node.Id, Button = button };
             widget.Background = button.GetComponent<Image>();
@@ -239,15 +250,30 @@ namespace BattleRunner.Meta.UI
             widget.Pips = UiFactory.Label(button.transform, "Pips", string.Empty, 18, UiFactory.Gold,
                 TextAnchor.MiddleRight);
             widget.Pips.raycastTarget = false;
-            UiFactory.PlaceRegion((RectTransform)widget.Pips.transform, 0.30f, 0.02f, 0.94f, 0.19f);
+            // The only rect in the game whose x span is NOT symmetric about the centre: the pips
+            // hug one end of the cell, so the end they hug has to move. Flip() already turns the
+            // MiddleRight anchor into MiddleLeft, and on its own that would left-align the text
+            // inside a rect still starting at 0.30 -- the status line stranded in the middle of
+            // the cell rather than against its edge.
+            var pipsRect = (RectTransform)widget.Pips.transform;
+            UiFactory.Directed(() =>
+            {
+                float pipsLo = 0.30f, pipsHi = 0.94f;
+                UiFactory.MirrorSpan(ref pipsLo, ref pipsHi);
+                UiFactory.PlaceRegion(pipsRect, pipsLo, 0.02f, pipsHi, 0.19f);
+            });
 
             // Parented to the cell, so it draws above it and eats the tap that would
             // otherwise rank the node up.
             Button minus = UiFactory.ActionButton(button.transform, "Minus", "-",
                 new Color(0.30f, 0.12f, 0.12f), () => OnMinusTapped(captured), labelSize: 26);
-            float minusLo = 0.05f, minusHi = 0.26f;
-            UiFactory.MirrorSpan(ref minusLo, ref minusHi);
-            UiFactory.PlaceRegion((RectTransform)minus.transform, minusLo, 0.03f, minusHi, 0.20f);
+            var minusRect = (RectTransform)minus.transform;
+            UiFactory.Directed(() =>
+            {
+                float minusLo = 0.05f, minusHi = 0.26f;
+                UiFactory.MirrorSpan(ref minusLo, ref minusHi);
+                UiFactory.PlaceRegion(minusRect, minusLo, 0.03f, minusHi, 0.20f);
+            });
             widget.Minus = minus.gameObject;
 
             return widget;
