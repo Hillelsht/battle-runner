@@ -1293,6 +1293,133 @@ Every road dimension now derives from `CrowdMath.RoadHalfWidth`, all four lane e
 drawn, and a test sweeps the road asserting each lane claims exactly a third — so what
 the player sees is the same partition `LaneIndex` scores against.
 
+**The game speaks three languages.** English, Russian and Hebrew, with every word the
+player reads translated — hero names, world names, boss names and gear names included, so
+nothing on screen stays English when the language is not. The language is read from
+`Application.systemLanguage` on first launch and can be changed from the main menu at any
+time; each button label is written **in the language it selects**, so it is findable by
+someone who cannot read the one currently showing.
+
+**Every string was a literal in a `.cs` file, and that was the one piece of luck.**
+`Assets/Scenes/Main.unity` contains no text at all — the whole UI is built procedurally by
+`UiFactory` — so there was nothing to extract from serialized YAML. 352 strings moved
+behind `LocKey`, an enum rather than string keys, because a typo in 352 lookups is a
+runtime blank and the compiler should be the one to find it. `Loc` indexes three
+`string[]` tables by that enum; there is no dictionary, matching how the rest of Core
+avoids them under `JsonUtility`.
+
+**Seven of the strings had no literal to grep for.** `LootScreen` interpolated
+`item.Rarity` and `item.Slot` straight through `enum.ToString()`, so four rarities and
+three slots reached the player with nothing in the codebase an extraction pass could find.
+`LootNames` gives them keys. They are the reason the table's completeness is enforced by a
+test rather than by having looked carefully.
+
+**Six Core tests are what makes the table trustworthy**, and they are why it had to land in
+one commit rather than five. Every key appears exactly once per language; no entry is blank
+or whitespace-padded; every `{0}`-style placeholder in English survives into both
+translations; the Hebrew table contains no combining marks; the plural form counts are
+right; and **the digits in every translation match the digits in the English source as a
+multiset**. That last one is the guard for the 158 talent strings that bake balance numbers
+into prose — a Russian description that says 12% where English says 15% fails
+`dotnet test`, not a player's build.
+
+**Russian needs three plural forms and they are chosen on the last two digits.**
+`Plural.Form` returns 0 for 1, 21, 31 …, 1 for 2–4, 22–24 …, and 2 for everything else
+*including* 11–14, which take the many-form despite ending in 1–4. Four strings need it.
+Hebrew and English take two forms. Variants are authored in one entry separated by `|`.
+
+### Hebrew renders backwards unless something reorders it
+
+**Legacy `UnityEngine.UI.Text` performs no bidirectional reordering whatsoever.** Not
+partial, not configurable — there is no `isRightToLeft` at this layer (that is a TMP
+property). Hebrew assigned to a `Text` today draws in logical order, which is to say
+reversed. Nothing in Unity will do this for us, so `Core/Text/BiDi.cs` does it: a UAX #9
+implementation producing visual order, run locally at display time while everything stored
+stays logical.
+
+**The first implementation was wrong in a way that only a test caught.** Reversing the
+whole string and re-reversing the non-RTL runs — the obvious approach, and the one the plan
+described — turns `"שלום 42 world"` into `"42 world םולש"`. The correct answer is
+`"world 42 םולש"`. The reason is the space between `42` and `world`: under UAX #9's neutral
+resolution a **number counts as R**, so that space sits at the paragraph level and the two
+must not be reversed together. What ships assigns real embedding levels (RTL 1, Latin and
+digits 2, neutrals resolved by their neighbours) and applies rule L2, reversing contiguous
+runs highest level first.
+
+Three details are each a test because each is a visible bug otherwise:
+
+- **`+ - . , : / %` and NBSP belong to the number beside them**, not to the neutral run.
+  Treating them as neutral turns `"+3 עוצמה"` into `"3+ עוצמה"`. `StatFormat.Affix`
+  produces exactly that shape on every gear item, so it is not a corner case.
+- **`()`, `[]`, `<>` mirror on reversal**, or Hebrew parentheses point outward.
+- **No nikud anywhere in the table.** Reversing a string puts a combining mark before its
+  base character and the glyph breaks. Modern Hebrew UI is written without vowel points
+  regardless; the test enforces it so a later edit cannot reintroduce them.
+
+A fourth test runs all 352 Hebrew entries through the pass and asserts the output length
+equals the input length — reordering must never add or drop a character.
+
+**The menus mirror; the road does not.** `Loc.IsRightToLeft` drives `UiFactory.Mirror(x)`
+and an anchor flip, applied to the talent tree's two-column grid and tab row, ERASE/PLAY,
+RESPEC/CONTINUE, the HUD's SPELL and SHIELD, and the hero chips. Deliberately **not**
+mirrored: the three-lane road and everything on it, the gate and army labels, the boss
+health bar and the tutorial patience bar. Those are a physical space and two quantities,
+not reading order — and a bar that drains the other way reads as filling. `K`/`M`/`B`/`T`
+stay Latin for the same reason plus one more: they keep the three world-space labels
+script-free, and those are billboarded by facing *away* from the camera and render mirrored
+through `Cull Off`.
+
+### One font, and text that shrinks instead of spilling
+
+**The built-in font draws one alphabet.** `Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf")`
+fed every uGUI `Text` and all three world-space `TextMesh` labels, and this project has
+twice degraded content to stay inside it — the HUD pips and the tutorial's ASCII `^`/`v`
+arrows, both with comments saying a missing glyph renders as a box on device.
+
+**Arimo ships, and its coverage was measured rather than assumed.** `tooling/fetch_font.py`
+downloads it against a pinned sha256 and then **parses the font's own cmap** — formats 4
+and 12 — failing unless every required range is present: Hebrew alef–tav, geresh, Cyrillic
+including Ё/ё, and the typography already in the English copy (em dash, middle dot,
+apostrophe, bullet). 309 KB against a <150 MB budget. It is Arial-metric-compatible, which
+is what the built-in font already is, so English screens laid out by eye against fixed pixel
+widths move as little as possible. `FontImportSettings`, an `AssetPostprocessor`, asserts
+Dynamic render mode in code rather than trusting a hand-written `.meta`.
+
+**Russian runs 10–30% longer and nothing in this project wraps.** `UiFactory.Label` sets
+both overflow modes to `Overflow`, and there is no `ContentSizeFitter` or `LayoutGroup`
+anywhere; 44 of 61 placements mix a normalized centre with a fixed pixel width. Widening
+the tight buttons is the obvious fix and the wrong one — `SlotSelectScreen` carries a
+comment recording that exact bug already biting in English, where a 640 px button and a
+210 px one overlapped by 53 units and ERASE silently took PLAY's taps. So labels get
+`bestFit` with the **ceiling set to the authored size**: English fits already and therefore
+does not move, and only a longer translation shrinks, only as far as it must.
+
+That ceiling is also a trap, and it was nearly stepped in. `ActionButton` built its label at
+a hardcoded 40 pt and ten call sites assigned `fontSize` afterwards; with the ceiling left
+at 40, bestFit would have *grown* those ten labels and changed English on screens this work
+never intended to touch. `ActionButton` takes a `labelSize` now and those sites pass it.
+
+**The setting lives in `PlayerPrefs`, not the save file.** `AudioDirector` already argues
+this for the mute toggle — `PlayerProfile` is per **slot**, and `GameContext.SaveProfile`
+refuses to write while no slot is active. Language is the stronger case: it has to be legible
+on the slot-select screen, which runs before any slot exists. No schema bump, no migration.
+
+**What a regex edit does when it matches nothing is report success**, and three did. A
+`Boss` factory signature was matched on `string name, string displayName` when the parameter
+is `assetName`; a `MirrorSpan` helper was never added, leaving `SkillTreeScreen` holding an
+expression that compiles and means nothing; and a shell `&&` short-circuited on a `grep` that
+returned non-zero, so a key-registration pass never ran at all. Two of the three were
+invisible to `dotnet test`, because `BattleRunner.Core` has `noEngineReferences: true` and
+that suite compiles Core alone — Unity's EditMode run is the only place `Meta`, `Gameplay`
+and `Data` are compiled at all.
+
+**Still worth doing before players see it:** a native pass on the ~40 strings of flavour
+copy — gear names, hero taglines, boss names — which is where tone lives and where machine
+translation shows. And the talent descriptions still duplicate their balance numbers; the
+digits test catches a typo today but will not stop a future balance change from desyncing
+three languages. Feeding those 79 descriptions from the `StatModifier` beside them is the
+real fix.
+
 ---
 
 ## v0.1.2
