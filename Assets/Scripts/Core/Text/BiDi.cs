@@ -133,6 +133,85 @@ namespace BattleRunner.Core.Text
             return string.Join("\n", lines);
         }
 
+        /// <summary>
+        /// Break a paragraph into lines FIRST, then reorder each one.
+        ///
+        /// THE ORDER OF THE TWO OPERATIONS IS THE WHOLE POINT, and doing them the other way
+        /// round is silently wrong rather than obviously wrong. `VisualLines` only splits on
+        /// newlines that are already there; a label set to `HorizontalWrapMode.Wrap` is handed a
+        /// single reordered line and breaks it wherever it happens to fit, which is a position
+        /// that means nothing in logical order. Worked through, with a Hebrew phrase whose words
+        /// read A B C D from the right:
+        ///
+        ///     reorder, then wrap       wrap, then reorder
+        ///       D C                      B A
+        ///       B A                      D C
+        ///
+        /// Both look like Hebrew. The left one reads "C D A B" and is gibberish; the right one
+        /// reads "A B" then "C D", which is the sentence. Nothing about the first is detectable
+        /// by anyone who cannot read the language.
+        ///
+        /// Lines stay in logical order top to bottom — a right-to-left paragraph still stacks its
+        /// first line highest. Only the characters within a line move.
+        ///
+        /// A NO-OP WITHOUT HEBREW, so English and Russian keep whatever wrapping the component
+        /// was already doing and this cannot change a layout that already works.
+        ///
+        /// <paramref name="maxChars"/> is a budget in characters, because Core cannot measure a
+        /// font — it has `noEngineReferences: true` and no access to a glyph table. The caller
+        /// estimates it from the rect and the point size and should estimate LOW: too narrow
+        /// leaves short lines the component will not break again, while too wide hands it a line
+        /// it re-breaks, which is the bug this exists to prevent.
+        /// </summary>
+        public static string WrapVisual(string logical, int maxChars)
+        {
+            if (string.IsNullOrEmpty(logical) || !HasRtl(logical)) return logical;
+            if (maxChars < 1) return VisualLines(logical);
+
+            var outLines = new System.Collections.Generic.List<string>();
+            foreach (string paragraph in logical.Split('\n'))
+            {
+                // SLICED, NOT SPLIT AND REJOINED. Splitting on spaces and putting single spaces
+                // back silently collapses a run of them, and the table uses a double space as a
+                // spacing device -- "שלל כפול  (פרסומת)" is 18 characters and came back 17.
+                // Every break here consumes exactly one space and puts back exactly one newline,
+                // so the length is identical and every other character is untouched.
+                if (paragraph.Length == 0) { outLines.Add(string.Empty); continue; }
+
+                int start = 0;
+                while (start < paragraph.Length)
+                {
+                    if (paragraph.Length - start <= maxChars)
+                    {
+                        outLines.Add(paragraph.Substring(start));
+                        break;
+                    }
+
+                    int cut = -1;
+                    for (int j = start + maxChars; j > start; j--)
+                        if (paragraph[j] == ' ') { cut = j; break; }
+
+                    if (cut < 0)
+                    {
+                        // A word longer than the budget goes on a line of its own rather than
+                        // being cut in half. Splitting inside a word and reordering the halves
+                        // separately gives two fragments each backwards with respect to the other.
+                        int end = start + maxChars;
+                        while (end < paragraph.Length && paragraph[end] != ' ') end++;
+                        outLines.Add(paragraph.Substring(start, end - start));
+                        start = end < paragraph.Length ? end + 1 : end;
+                        continue;
+                    }
+
+                    outLines.Add(paragraph.Substring(start, cut - start));
+                    start = cut + 1;
+                }
+            }
+
+            for (int i = 0; i < outLines.Count; i++) outLines[i] = Visual(outLines[i]);
+            return string.Join("\n", outLines);
+        }
+
         /// <summary>True when the string contains anything that reads right to left.</summary>
         public static bool HasRtl(string text)
         {

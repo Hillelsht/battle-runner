@@ -117,6 +117,84 @@ namespace BattleRunner.Tests
         }
 
         [Test]
+        public void WrappingHappensBeforeReorderingAndNotAfter()
+        {
+            // Four Hebrew words. Read right to left the sentence is aleph, bet, gimel, dalet.
+            const string logical = "\u05D0\u05D0 \u05D1\u05D1 \u05D2\u05D2 \u05D3\u05D3";
+
+            // A budget that fits two words a line.
+            string wrapped = BiDi.WrapVisual(logical, 5);
+            string[] lines = wrapped.Split('\n');
+            Assert.AreEqual(2, lines.Length, "the budget should have produced two lines");
+
+            // Line one must hold the FIRST two words and line two the last two. Reordering the
+            // whole paragraph and letting a component break it afterwards puts the last two
+            // words on the first line, which is the bug.
+            Assert.AreEqual(BiDi.Visual("\u05D0\u05D0 \u05D1\u05D1"), lines[0]);
+            Assert.AreEqual(BiDi.Visual("\u05D2\u05D2 \u05D3\u05D3"), lines[1]);
+
+            // And the difference is real: doing it the wrong way round gives a different answer.
+            Assert.AreNotEqual(wrapped, BiDi.Visual(logical).Insert(5, "\n"),
+                "wrap-then-reorder and reorder-then-wrap must not agree, or the test proves nothing");
+        }
+
+        [Test]
+        public void WrappingLeavesTextWithNoHebrewCompletelyAlone()
+        {
+            // English and Russian already wrap correctly in the component, so this must not
+            // touch them — not even to normalise their spacing.
+            const string english = "A long enough English sentence to exceed any small budget";
+            Assert.AreEqual(english, BiDi.WrapVisual(english, 8));
+
+            const string russian = "Достаточно длинное русское предложение чтобы превысить бюджет";
+            Assert.AreEqual(russian, BiDi.WrapVisual(russian, 8));
+        }
+
+        [Test]
+        public void NoLineEverExceedsTheBudgetUnlessOneWordDoes()
+        {
+            // The real content, at the budget the talent cells use. A line over budget is a line
+            // the component will break again, which is what reordering cannot survive.
+            const int budget = 42;
+            foreach (LocKey key in System.Enum.GetValues(typeof(LocKey)))
+            {
+                string logical = Loc.In(Language.Hebrew, key);
+                if (!BiDi.HasRtl(logical)) continue;
+                foreach (string line in BiDi.WrapVisual(logical, budget).Split('\n'))
+                {
+                    if (line.Length <= budget) continue;
+                    // Only forgivable when the line is a single unbreakable word.
+                    Assert.IsFalse(line.Contains(" "),
+                        $"{key} produced an over-budget line with a break point in it: \"{line}\"");
+                }
+            }
+        }
+
+        [Test]
+        public void WrappingNeverLosesACharacterOfTheRealContent()
+        {
+            // Same guarantee as the unwrapped pass, now across the break points: the only
+            // characters that may appear or vanish are the spaces turned into newlines.
+            foreach (LocKey key in System.Enum.GetValues(typeof(LocKey)))
+            {
+                string logical = Loc.In(Language.Hebrew, key);
+                if (!BiDi.HasRtl(logical)) continue;
+                string wrapped = BiDi.WrapVisual(logical, 42);
+                Assert.AreEqual(logical.Length, wrapped.Length, $"{key} changed length when wrapped");
+                Assert.AreEqual(Count(logical, ' ') + Count(logical, '\n'),
+                    Count(wrapped, ' ') + Count(wrapped, '\n'),
+                    $"{key} gained or lost a separator");
+            }
+        }
+
+        private static int Count(string s, char c)
+        {
+            int n = 0;
+            foreach (char ch in s) if (ch == c) n++;
+            return n;
+        }
+
+        [Test]
         public void EveryHebrewStringInTheTableSurvivesTheTrip()
         {
             // Run the real content through it. The property that must hold for all 352 entries is

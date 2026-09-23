@@ -19,7 +19,7 @@ arena the road opens into** → loot with Auto-Equip → stat points → save �
 | Camera | Rises with the army, so a million-man hero stops hiding the road |
 | Content | **4 playable characters**, 8 worlds (one in daylight, each with its own arch over the road), 6 levels, 6 bosses (6 archetypes) x 5 champion affixes = 30 fights, champions behind barricades that span the road, 15 gear items, 4 rarities, ~60 talents + endless paragon |
 | Art | Procedural meshes and code-built uGUI, 119 CC0 Kenney models in one 563 KB pack, 8 generated ground surfaces with normal maps, a boss arena that opens out of the road, a character-select stage the heroes are posed on, and one winged pony |
-| Tests | 530, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 534, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
@@ -1184,7 +1184,7 @@ The v0.4.0 screenshots confirmed the art pass landed — sky, stars, shadows, ro
 gates and UI frames all correct on device — and surfaced two bugs that were never about
 art: `Focus -0 %` on the menu and `+0.01 Focus` on the loot card. Both were units chosen
 from the ModifierKind rather than from the stat, plus a hard-coded minus sign in front of
-a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 530 tests today).
+a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 534 tests today).
 
 A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
 11 survived adversarial refutation. The headline three: the key light pointed the same way
@@ -1413,6 +1413,37 @@ legacy Text drew `תירבע`. The control whose entire purpose is to get someon
 they cannot read, unreadable. `Languages.NativeNameVisual` reorders by the language each option
 *names*, and its test asserts the Hebrew option comes back **different** from the stored string —
 an equality test would have passed just as happily against the broken version.
+
+**The talent tree was wrong twice, and neither fault was in the table.** The two labels on a
+talent cell are the only ones in the game set to `HorizontalWrapMode.Wrap`, which the plan
+flagged as the hard case and then nothing was done about. `Shape` reordered the whole
+description into one visual line and handed it to a component that breaks lines wherever they
+stop fitting — a position chosen in visual order, meaning nothing in the sentence. Worked
+through, on a Hebrew phrase whose words read A B C D from the right:
+
+```
+reorder, then wrap        wrap, then reorder
+  D C                       B A
+  B A                       D C
+```
+
+Both look like Hebrew. The left one reads "C D A B". `BiDi.WrapVisual` breaks the lines first,
+in logical order, and reorders each one on its own; `UiFactory.SetTextWrapped` is what the two
+wrapping labels call instead of `SetText`. The budget is in characters, because Core has
+`noEngineReferences: true` and cannot measure a font — it is estimated from the rect and the
+point size, deliberately **narrow**, since a short line is left alone by the component and a
+long one is re-broken, which is the whole failure being prevented.
+
+The first implementation of that wrap lost a character, and its own test found it: splitting on
+spaces and rejoining with single ones collapses a run of them, and the table uses a double space
+as a spacing device — `שלל כפול  (פרסומת)` is 18 characters and came back 17. It slices the
+original string now, so every break consumes exactly one space and emits exactly one newline.
+
+**And a talent cell never changed language at all.** Its name and description were set once when
+the cell was built; the refresh that runs on every interaction only recoloured them. A language
+change reached every other label in the game and left all 158 talent strings in the language the
+player had just left. Both are properties that read the table on each access, so re-reading them
+on refresh is the entire fix — the bug was that nobody did.
 
 **What a regex edit does when it matches nothing is report success**, and three did. A
 `Boss` factory signature was matched on `string name, string displayName` when the parameter

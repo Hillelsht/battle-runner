@@ -66,6 +66,48 @@ namespace BattleRunner.Meta.UI
         }
 
         /// <summary>
+        /// Set the text of a label that WRAPS, breaking the lines here rather than letting the
+        /// component do it.
+        ///
+        /// `SetText` is wrong for a wrapping label and wrong in a way nobody who cannot read
+        /// Hebrew would ever notice. It reorders the whole string into one visual line; the
+        /// component, set to <see cref="HorizontalWrapMode.Wrap"/>, then breaks that line
+        /// wherever it stops fitting -- a position chosen in visual order, which corresponds to
+        /// nothing in the sentence. The result is fluent-looking Hebrew with its clauses dealt
+        /// out across the lines in the wrong order.
+        ///
+        /// So the breaking happens first, in logical order, and each finished line is reordered
+        /// on its own. English and Russian are not touched at all: <see cref="BiDi.WrapVisual"/>
+        /// returns them unchanged and the component keeps doing its own wrapping exactly as
+        /// before.
+        /// </summary>
+        /// <param name="maxChars">
+        /// How many characters fit on a line, estimated by the caller -- Core cannot measure a
+        /// font. Estimate LOW: short lines are left alone by the component, over-long ones are
+        /// re-broken, which is the failure this exists to prevent.
+        /// </param>
+        public static void SetTextWrapped(Text label, string text, int maxChars)
+        {
+            if (label == null) return;
+            label.text = Loc.IsRightToLeft ? BiDi.WrapVisual(text, maxChars) : text;
+        }
+
+        /// <summary>
+        /// Roughly how many characters of <paramref name="fontSize"/> fit across
+        /// <paramref name="widthPx"/>, for <see cref="SetTextWrapped"/>.
+        ///
+        /// 0.62 em per character is deliberately wider than Arimo's Hebrew actually averages
+        /// (nearer 0.55), which makes the answer too SMALL -- the safe direction, per the
+        /// parameter note above. It also leaves room for best-fit, which only ever shrinks the
+        /// font and so only ever fits more than this predicts.
+        ///
+        /// NOT VERIFIED ON A DEVICE. It is arithmetic over the reference resolution, and the
+        /// only real arbiter is a phone.
+        /// </summary>
+        public static int CharsPerLine(float widthPx, int fontSize) =>
+            Mathf.Max(1, Mathf.FloorToInt(widthPx / (fontSize * 0.62f)));
+
+        /// <summary>
         /// A normalized x, mirrored when the language reads right to left.
         ///
         /// For the dozen places that are genuinely directional — the talent tree's tab row and

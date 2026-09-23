@@ -69,6 +69,14 @@ namespace BattleRunner.Meta.UI
         private const float TierGap = 18f;
         private const float TrackHeight = 132f;
 
+        // A node cell's text column, in reference pixels, derived rather than guessed:
+        // the scroll region spans 0.025..0.975 of a 1080-wide canvas (1026), a cell is 0.470
+        // of that (482), and the two text labels inset to 0.06..0.94 of the cell (424).
+        // Only Hebrew uses these -- SetTextWrapped is a no-op in the other two languages.
+        private const float CellTextWidth = 424f;
+        private const int NameSize = 23;
+        private const int DescSize = 18;
+
         private static readonly Color Ranked = new Color(0.52f, 0.36f, 0.14f);
         private static readonly Color Maxed = new Color(0.86f, 0.62f, 0.22f);
         private static readonly Color Available = new Color(0.24f, 0.30f, 0.44f);
@@ -206,7 +214,7 @@ namespace BattleRunner.Meta.UI
         {
             string captured = node.Id;
             Button button = UiFactory.ActionButton(content, $"Node_{node.Id}", node.DisplayName,
-                Locked, () => OnNodeTapped(captured), labelSize: 23);
+                Locked, () => OnNodeTapped(captured), labelSize: NameSize);
             // Column 0 is the left one, which is the right one in Hebrew.
             float xMin = (column == 0) != Loc.IsRightToLeft ? 0.015f : 0.515f;
             UiFactory.PlaceCell((RectTransform)button.transform, xMin, xMin + 0.470f, y, NodeHeight);
@@ -221,7 +229,8 @@ namespace BattleRunner.Meta.UI
             widget.Name.verticalOverflow = VerticalWrapMode.Truncate;
             UiFactory.PlaceRegion((RectTransform)widget.Name.transform, 0.06f, 0.60f, 0.94f, 0.96f);
 
-            widget.Desc = UiFactory.Label(button.transform, "Desc", node.Description, 18, Color.white);
+            widget.Desc = UiFactory.Label(button.transform, "Desc", node.Description,
+                DescSize, Color.white);
             widget.Desc.horizontalOverflow = HorizontalWrapMode.Wrap;
             widget.Desc.verticalOverflow = VerticalWrapMode.Truncate;
             widget.Desc.raycastTarget = false;
@@ -398,6 +407,19 @@ namespace BattleRunner.Meta.UI
                 bool lit = rank > 0 || canTake;
                 widget.Name.color = lit ? Color.white : Dim;
                 widget.Desc.color = lit ? Color.white : Dim;
+
+                // RE-TEXTED, not merely recoloured. These two were set once at construction and
+                // never again, so a language change reached every other label in the game and
+                // left all 158 talent strings in the language the player had just left. Both
+                // properties read the table on each access, so re-reading them is the whole fix.
+                //
+                // And they go through SetTextWrapped because they are the only two labels in the
+                // game set to Wrap: the lines have to be broken before the Hebrew is reordered,
+                // or the component breaks the reordered line at a point that means nothing.
+                UiFactory.SetTextWrapped(widget.Name, node.DisplayName,
+                    UiFactory.CharsPerLine(CellTextWidth, NameSize));
+                UiFactory.SetTextWrapped(widget.Desc, node.Description,
+                    UiFactory.CharsPerLine(CellTextWidth, DescSize));
 
                 // The bottom line is the node's status, and what counts as status changes
                 // with state: ranks when it has some, what it is waiting for when it does
