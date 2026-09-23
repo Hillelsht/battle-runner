@@ -117,6 +117,92 @@ namespace BattleRunner.Tests
         }
 
         [Test]
+        public void EveryTemplateSurvivesBeingFilledAndReordered()
+        {
+            // THE BLIND SPOT THE TABLE TESTS HAVE BY CONSTRUCTION. They read entries; the player
+            // reads what Loc.Format makes out of them. A template is correct and its fragments
+            // are correct and the composed string can still be wrong -- that is exactly how the
+            // loot card's "<size=30>" got reordered into "<30=size>" with every table test green.
+            //
+            // So: fill every template that takes arguments, with plausible arguments of the kind
+            // the game passes, and put the result through the display path.
+            string[] fill =
+            {
+                "\u05E7\u05E1\u05D3\u05D4",   // a Hebrew word, as a name or a place
+                "\u05E0\u05D3\u05D9\u05E8",   // another, as a rarity or a rank
+                "\u05E8\u05D0\u05E9",          // a third, as a slot
+                "12",                             // a number, which reorders differently again
+            };
+
+            int checked_ = 0;
+            foreach (LocKey key in System.Enum.GetValues(typeof(LocKey)))
+            {
+                string template = Loc.In(Language.Hebrew, key);
+                int slots = SlotCount(template);
+                if (slots == 0) continue;
+                // Plural entries are picked between by Loc.Count, not formatted whole.
+                if (template.IndexOf(Loc.FormSeparator) >= 0) continue;
+
+                var args = new object[slots];
+                for (int i = 0; i < slots; i++) args[i] = fill[i % fill.Length];
+
+                string composed;
+                try { composed = string.Format(template, args); }
+                catch (System.FormatException e)
+                {
+                    Assert.Fail($"{key} is not a usable template: {e.Message}");
+                    return;
+                }
+
+                string visual = BiDi.VisualLines(composed);
+                checked_++;
+
+                Assert.AreEqual(composed.Length, visual.Length,
+                    $"{key} changed length once composed: \"{visual}\"");
+                Assert.IsFalse(visual.Contains("{") || visual.Contains("}"),
+                    $"{key} left a placeholder brace in the output: \"{visual}\"");
+
+                // Any markup in the composed string has to come out as markup.
+                Assert.AreEqual(Count(composed, '<'), Count(visual, '<'),
+                    $"{key} gained or lost an angle bracket: \"{visual}\"");
+                foreach (string tag in Tags(composed))
+                    Assert.IsTrue(visual.Contains(tag),
+                        $"{key} mangled the tag {tag}: \"{visual}\"");
+
+                // Every digit that went in comes back out.
+                foreach (char c in composed)
+                    if (char.IsDigit(c))
+                        Assert.IsTrue(visual.IndexOf(c) >= 0, $"{key} lost the digit {c}");
+            }
+
+            Assert.Greater(checked_, 0, "no templates were exercised, so this test proves nothing");
+        }
+
+        private static int SlotCount(string template)
+        {
+            int highest = -1;
+            for (int i = 0; i + 2 < template.Length; i++)
+                if (template[i] == '{' && char.IsDigit(template[i + 1]) && template[i + 2] == '}')
+                {
+                    int index = template[i + 1] - '0';
+                    if (index > highest) highest = index;
+                }
+            return highest + 1;
+        }
+
+        private static System.Collections.Generic.List<string> Tags(string s)
+        {
+            var found = new System.Collections.Generic.List<string>();
+            for (int i = 0; i < s.Length; i++)
+            {
+                if (s[i] != '<') continue;
+                int close = s.IndexOf('>', i + 1);
+                if (close > i && close - i <= 40) { found.Add(s.Substring(i, close - i + 1)); i = close; }
+            }
+            return found;
+        }
+
+        [Test]
         public void RichTextTagsComeOutTheSameWayTheyWentIn()
         {
             // uGUI markup went through the reordering like any other text, and the angle

@@ -19,7 +19,7 @@ arena the road opens into** → loot with Auto-Equip → stat points → save �
 | Camera | Rises with the army, so a million-man hero stops hiding the road |
 | Content | **4 playable characters**, 8 worlds (one in daylight, each with its own arch over the road), 6 levels, 6 bosses (6 archetypes) x 5 champion affixes = 30 fights, champions behind barricades that span the road, 15 gear items, 4 rarities, ~60 talents + endless paragon |
 | Art | Procedural meshes and code-built uGUI, 119 CC0 Kenney models in one 563 KB pack, 8 generated ground surfaces with normal maps, a boss arena that opens out of the road, a character-select stage the heroes are posed on, and one winged pony |
-| Tests | 538, green under both `dotnet test` and Unity's Test Runner |
+| Tests | 539, green under both `dotnet test` and Unity's Test Runner |
 | Android build | Automated: ARM64 / IL2CPP APK published to Releases |
 | Monetization | Rewarded-ad and IAP flows wired to **mock** services only |
 | Docs | Enforced — `tooling/check_docs.py` gates pushes locally and in CI |
@@ -1184,7 +1184,7 @@ The v0.4.0 screenshots confirmed the art pass landed — sky, stars, shadows, ro
 gates and UI frames all correct on device — and surfaced two bugs that were never about
 art: `Focus -0 %` on the menu and `+0.01 Focus` on the loot card. Both were units chosen
 from the ModifierKind rather than from the stat, plus a hard-coded minus sign in front of
-a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 538 tests today).
+a zero. `StatFormat` in Core is now the single source of truth, pinned by eight new cases (the suite went 140 -> 162; it is 539 tests today).
 
 A 30-agent diagnosis against the first device screenshots produced 24 findings, of which
 11 survived adversarial refutation. The headline three: the key light pointed the same way
@@ -1508,6 +1508,13 @@ for another.
 That one had gone unseen through every table test and both earlier bidi passes, because it only
 exists **after** `Loc.Format` has composed the template with its three fragments. Nothing that
 reads the table can see a string the table never contains.
+
+So the blind spot itself is now covered rather than the single bug that came out of it: a test
+fills **every** template that takes arguments with plausible Hebrew and numeric arguments, runs
+the result through the display path, and asserts the length is unchanged, no placeholder brace
+survived, every tag comes back whole and every digit is still there. It was checked against the
+old behaviour before being kept — it fails with `LootItemLine mangled the tag <size=30>`, which
+is the point of writing it.
 
 **What a regex edit does when it matches nothing is report success**, and three did. A
 `Boss` factory signature was matched on `string name, string displayName` when the parameter
