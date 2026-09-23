@@ -92,6 +92,19 @@ were a rule about counting. **Russian has three forms and picks between them on 
 so 21 takes the same form as 1, 22 the same as 2, and 11–14 take the many-form despite ending in 1–4.
 `Core/Text/Plural.cs` does this properly; the variants live in one entry separated by `|`.
 
+### The talent tree is half the table
+
+79 nodes, a name and a description each, plus branch names and refusals — 170 of the 238 keys.
+Every description was extracted from the source rather than transcribed, and **the digits in all
+158 translations were checked against the English before a single one was committed**. That check
+then became a permanent test, because these descriptions quote balance values that also exist as a
+`StatModifier` a few characters away: a translation reading *"Отряды стоят на 5% меньше"* beside a
+`-0.04` states a rule the game does not follow, and it is wrong only to the people who can read it.
+
+The duplication itself is not fixed here. The descriptions still carry their own numbers, so a
+future balance change needs all three languages edited together — the test catches a typo, not a
+desync. Feeding these from the `StatModifier` beside them is the real fix and is a clean follow-up.
+
 ### Word order is not a constant either
 
 `BossAffix.Decorate` was `prefix + " " + bossName`. **Hebrew puts the adjective after the noun**, so

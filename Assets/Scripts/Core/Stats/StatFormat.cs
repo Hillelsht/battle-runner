@@ -48,26 +48,26 @@ namespace BattleRunner.Core.Stats
         /// <summary>The name a player sees. Falls back to the raw id rather than throwing.</summary>
         public static string DisplayName(string statId)
         {
-            if (statId == StatIds.Damage) return "Might";
-            if (statId == StatIds.Health) return "Vigor";
-            if (statId == StatIds.Cooldown) return "Focus";
-            if (statId == StatIds.SpellPower) return "Spell";
-            if (statId == StatIds.GateYield) return "Gates";
-            if (statId == StatIds.RunSpeed) return "Speed";
-            if (statId == StatIds.EnemyResist) return "Resist";
-            if (statId == StatIds.ShieldDuration) return "Shield";
-            if (statId == StatIds.SpellCharges) return "Spell Charges";
-            if (statId == StatIds.ShieldCharges) return "Shield Charges";
-            if (statId == StatIds.Fortune) return "Fortune";
-            if (statId == StatIds.GateCrit) return "Gate Crit";
-            if (statId == StatIds.OverflowBank) return "Overflow";
-            if (statId == StatIds.ChainMultiply) return "Chain";
-            if (statId == StatIds.Magnetism) return "Magnetism";
-            if (statId == StatIds.PackShatter) return "Shatter";
-            if (statId == StatIds.SecondWind) return "Second Wind";
-            if (statId == StatIds.Execute) return "Execute";
-            if (statId == StatIds.SpellEcho) return "Echo";
-            if (statId == StatIds.ShieldReflect) return "Reflect";
+            if (statId == StatIds.Damage) return Text.Loc.Get(Text.LocKey.StatDamage);
+            if (statId == StatIds.Health) return Text.Loc.Get(Text.LocKey.StatHealth);
+            if (statId == StatIds.Cooldown) return Text.Loc.Get(Text.LocKey.StatCooldown);
+            if (statId == StatIds.SpellPower) return Text.Loc.Get(Text.LocKey.StatSpellPower);
+            if (statId == StatIds.GateYield) return Text.Loc.Get(Text.LocKey.StatGateYield);
+            if (statId == StatIds.RunSpeed) return Text.Loc.Get(Text.LocKey.StatRunSpeed);
+            if (statId == StatIds.EnemyResist) return Text.Loc.Get(Text.LocKey.StatEnemyResist);
+            if (statId == StatIds.ShieldDuration) return Text.Loc.Get(Text.LocKey.StatShieldDuration);
+            if (statId == StatIds.SpellCharges) return Text.Loc.Get(Text.LocKey.StatSpellCharges);
+            if (statId == StatIds.ShieldCharges) return Text.Loc.Get(Text.LocKey.StatShieldCharges);
+            if (statId == StatIds.Fortune) return Text.Loc.Get(Text.LocKey.StatFortune);
+            if (statId == StatIds.GateCrit) return Text.Loc.Get(Text.LocKey.StatGateCrit);
+            if (statId == StatIds.OverflowBank) return Text.Loc.Get(Text.LocKey.StatOverflowBank);
+            if (statId == StatIds.ChainMultiply) return Text.Loc.Get(Text.LocKey.StatChainMultiply);
+            if (statId == StatIds.Magnetism) return Text.Loc.Get(Text.LocKey.StatMagnetism);
+            if (statId == StatIds.PackShatter) return Text.Loc.Get(Text.LocKey.StatPackShatter);
+            if (statId == StatIds.SecondWind) return Text.Loc.Get(Text.LocKey.StatSecondWind);
+            if (statId == StatIds.Execute) return Text.Loc.Get(Text.LocKey.StatExecute);
+            if (statId == StatIds.SpellEcho) return Text.Loc.Get(Text.LocKey.StatSpellEcho);
+            if (statId == StatIds.ShieldReflect) return Text.Loc.Get(Text.LocKey.StatShieldReflect);
             return statId ?? "?";
         }
 
@@ -96,11 +96,13 @@ namespace BattleRunner.Core.Stats
                 // A Percent modifier is already a fraction of the total; a fraction-valued
                 // stat is already a fraction of 1. Either way, x100 is the display.
                 float percent = Snap(value * 100f, 0.05f);
-                return $"{(percent < 0f ? "-" : "+")}{Math.Abs(percent):0.#}% {name}";
+                return Text.Loc.Format(Text.LocKey.StatAffixPercent,
+                    percent < 0f ? "-" : "+", Math.Abs(percent).ToString("0.#", Culture), name);
             }
 
             float flat = Snap(value, 0.005f);
-            return $"{(flat < 0f ? "-" : "+")}{Math.Abs(flat):0.##} {name}";
+            return Text.Loc.Format(Text.LocKey.StatAffixFlat,
+                flat < 0f ? "-" : "+", Math.Abs(flat).ToString("0.##", Culture), name);
         }
 
         /// <summary>Convenience overload — the modifier already carries both halves.</summary>
@@ -121,9 +123,14 @@ namespace BattleRunner.Core.Stats
         public static string Total(string statId, float value)
         {
             string name = DisplayName(statId);
+            // A TEMPLATE RATHER THAN INTERPOLATION, because the two shapes this file produces
+            // put the name on opposite sides — Affix reads "+3 Might" and Total reads "Might 10"
+            // — and which side a language wants is not something either shape can assume.
             return IsFraction(statId)
-                ? $"{name} {Snap(value * 100f, 0.05f):0.#}%"
-                : $"{name} {Snap(value, 0.05f):0.#}";
+                ? Text.Loc.Format(Text.LocKey.StatTotalPercent, name,
+                    Snap(value * 100f, 0.05f).ToString("0.#", Culture))
+                : Text.Loc.Format(Text.LocKey.StatTotalFlat, name,
+                    Snap(value, 0.05f).ToString("0.#", Culture));
         }
 
         /// <summary>

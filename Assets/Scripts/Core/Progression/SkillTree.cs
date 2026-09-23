@@ -37,9 +37,20 @@ namespace BattleRunner.Core.Progression
         public int Tier { get; }
         public SkillKind Kind { get; }
         public int MaxRanks { get; }
-        public string DisplayName { get; }
+        /// <summary>
+        /// The name and the description are KEYS, resolved on read.
+        ///
+        /// Properties rather than stored strings so the talent screen, the refusal messages and
+        /// the stat summary all keep reading `.DisplayName` and get it in whatever language is
+        /// on screen. NodeTable is a static table built once; resolved text here would be baked
+        /// at construction and could never change again.
+        /// </summary>
+        public Text.LocKey NameKey { get; }
+        public Text.LocKey DescKey { get; }
+
+        public string DisplayName => Text.Loc.Get(NameKey);
         /// <summary>Reads per RANK for a minor, or the whole effect for a notable/keystone.</summary>
-        public string Description { get; }
+        public string Description => Text.Loc.Get(DescKey);
         /// <summary>Node in the same tier and branch this one locks out, if any.</summary>
         public string Excludes { get; }
         /// <summary>Applied once per rank taken.</summary>
@@ -48,7 +59,7 @@ namespace BattleRunner.Core.Progression
         public SkillBranch? RequiresAlso { get; }
 
         public SkillNode(string id, SkillBranch branch, int tier, SkillKind kind, int maxRanks,
-            string displayName, string description, string excludes,
+            Text.LocKey nameKey, Text.LocKey descKey, string excludes,
             SkillBranch? requiresAlso, params StatModifier[] perRank)
         {
             Id = id;
@@ -56,8 +67,8 @@ namespace BattleRunner.Core.Progression
             Tier = tier;
             Kind = kind;
             MaxRanks = Math.Max(1, maxRanks);
-            DisplayName = displayName;
-            Description = description;
+            NameKey = nameKey;
+            DescKey = descKey;
             Excludes = excludes;
             RequiresAlso = requiresAlso;
             PerRank = perRank ?? Array.Empty<StatModifier>();
@@ -101,19 +112,19 @@ namespace BattleRunner.Core.Progression
             new StatModifier(stat, ModifierKind.Percent, value);
 
         private static SkillNode Minor(string id, SkillBranch b, int tier, int ranks,
-            string name, string desc, params StatModifier[] perRank) =>
+            Text.LocKey name, Text.LocKey desc, params StatModifier[] perRank) =>
             new SkillNode(id, b, tier, SkillKind.Minor, ranks, name, desc, null, null, perRank);
 
         private static SkillNode Notable(string id, SkillBranch b, int tier,
-            string name, string desc, string excludes, params StatModifier[] perRank) =>
+            Text.LocKey name, Text.LocKey desc, string excludes, params StatModifier[] perRank) =>
             new SkillNode(id, b, tier, SkillKind.Notable, 1, name, desc, excludes, null, perRank);
 
         private static SkillNode Keystone(string id, SkillBranch b,
-            string name, string desc, string excludes, params StatModifier[] perRank) =>
+            Text.LocKey name, Text.LocKey desc, string excludes, params StatModifier[] perRank) =>
             new SkillNode(id, b, MaxTier, SkillKind.Keystone, 1, name, desc, excludes, null, perRank);
 
         private static SkillNode Hybrid(string id, SkillBranch primary, SkillBranch also, int tier,
-            string name, string desc, params StatModifier[] perRank) =>
+            Text.LocKey name, Text.LocKey desc, params StatModifier[] perRank) =>
             new SkillNode(id, SkillBranch.Crossroads, tier, SkillKind.Notable, 1, name, desc,
                 null, also, perRank);
 
@@ -124,238 +135,238 @@ namespace BattleRunner.Core.Progression
         private static readonly SkillNode[] NodeTable =
         {
             // ================= WARLORD — end the fight ==============================
-            Minor("wl_edge", SkillBranch.Warlord, 1, 5, "Keen Edge", "+3 Might",
+            Minor("wl_edge", SkillBranch.Warlord, 1, 5, Text.LocKey.TalentWlEdgeName, Text.LocKey.TalentWlEdgeDesc,
                 Flat(StatIds.Damage, 3f)),
-            Minor("wl_focus", SkillBranch.Warlord, 1, 5, "Cold Focus", "+3% Focus",
+            Minor("wl_focus", SkillBranch.Warlord, 1, 5, Text.LocKey.TalentWlFocusName, Text.LocKey.TalentWlFocusDesc,
                 Flat(StatIds.Cooldown, 0.03f)),
-            Minor("wl_spite", SkillBranch.Warlord, 1, 5, "Spite", "+6% spell damage",
+            Minor("wl_spite", SkillBranch.Warlord, 1, 5, Text.LocKey.TalentWlSpiteName, Text.LocKey.TalentWlSpiteDesc,
                 Flat(StatIds.SpellPower, 0.06f)),
 
-            Minor("wl_cleave", SkillBranch.Warlord, 2, 5, "Cleave", "+4% Might",
+            Minor("wl_cleave", SkillBranch.Warlord, 2, 5, Text.LocKey.TalentWlCleaveName, Text.LocKey.TalentWlCleaveDesc,
                 Pct(StatIds.Damage, 0.04f)),
-            Minor("wl_temper", SkillBranch.Warlord, 2, 5, "Temper", "+8% spell damage",
+            Minor("wl_temper", SkillBranch.Warlord, 2, 5, Text.LocKey.TalentWlTemperName, Text.LocKey.TalentWlTemperDesc,
                 Flat(StatIds.SpellPower, 0.08f)),
-            Notable("wl_echo", SkillBranch.Warlord, 2, "Echoing Word",
-                "12% chance the spell casts twice", "wl_lance|wl_quiver",
+            Notable("wl_echo", SkillBranch.Warlord, 2, Text.LocKey.TalentWlEchoName,
+                Text.LocKey.TalentWlEchoDesc, "wl_lance|wl_quiver",
                 Flat(StatIds.SpellEcho, 0.12f)),
-            Notable("wl_lance", SkillBranch.Warlord, 2, "Sunder",
-                "+22% spell damage, +6 Might", "wl_echo|wl_quiver",
+            Notable("wl_lance", SkillBranch.Warlord, 2, Text.LocKey.TalentWlLanceName,
+                Text.LocKey.TalentWlLanceDesc, "wl_echo|wl_quiver",
                 Flat(StatIds.SpellPower, 0.22f), Flat(StatIds.Damage, 6f)),
             // THE SPELL IS A MAGAZINE NOW, and this is the line that buys it. A second cast
             // matters most on the road, where the spell destroys red gates as well as packs
             // and a single chunk can put three ambushes in front of you at once.
-            Notable("wl_quiver", SkillBranch.Warlord, 2, "Full Quiver",
-                "Hold a second spell", "wl_echo|wl_lance",
+            Notable("wl_quiver", SkillBranch.Warlord, 2, Text.LocKey.TalentWlQuiverName,
+                Text.LocKey.TalentWlQuiverDesc, "wl_echo|wl_lance",
                 Flat(StatIds.SpellCharges, 1f)),
 
-            Minor("wl_grind", SkillBranch.Warlord, 3, 5, "Whetstone", "+5 Might",
+            Minor("wl_grind", SkillBranch.Warlord, 3, 5, Text.LocKey.TalentWlGrindName, Text.LocKey.TalentWlGrindDesc,
                 Flat(StatIds.Damage, 5f)),
-            Minor("wl_haste", SkillBranch.Warlord, 3, 5, "Quickened", "+4% Focus",
+            Minor("wl_haste", SkillBranch.Warlord, 3, 5, Text.LocKey.TalentWlHasteName, Text.LocKey.TalentWlHasteDesc,
                 Flat(StatIds.Cooldown, 0.04f)),
-            Minor("wl_wrath", SkillBranch.Warlord, 3, 4, "Wrath", "+5% Might",
+            Minor("wl_wrath", SkillBranch.Warlord, 3, 4, Text.LocKey.TalentWlWrathName, Text.LocKey.TalentWlWrathDesc,
                 Pct(StatIds.Damage, 0.05f)),
-            Notable("wl_execute", SkillBranch.Warlord, 3, "Executioner",
-                "A boss under 8% health dies outright", null,
+            Notable("wl_execute", SkillBranch.Warlord, 3, Text.LocKey.TalentWlExecuteName,
+                Text.LocKey.TalentWlExecuteDesc, null,
                 Flat(StatIds.Execute, 0.08f)),
 
-            Minor("wl_ruin", SkillBranch.Warlord, 4, 5, "Ruin", "+7 Might",
+            Minor("wl_ruin", SkillBranch.Warlord, 4, 5, Text.LocKey.TalentWlRuinName, Text.LocKey.TalentWlRuinDesc,
                 Flat(StatIds.Damage, 7f)),
-            Minor("wl_surge", SkillBranch.Warlord, 4, 5, "Surge", "+10% spell damage",
+            Minor("wl_surge", SkillBranch.Warlord, 4, 5, Text.LocKey.TalentWlSurgeName, Text.LocKey.TalentWlSurgeDesc,
                 Flat(StatIds.SpellPower, 0.10f)),
-            Notable("wl_reap", SkillBranch.Warlord, 4, "Reaper's Due",
-                "Execute threshold +7%", "wl_swift",
+            Notable("wl_reap", SkillBranch.Warlord, 4, Text.LocKey.TalentWlReapName,
+                Text.LocKey.TalentWlReapDesc, "wl_swift",
                 Flat(StatIds.Execute, 0.07f)),
-            Notable("wl_swift", SkillBranch.Warlord, 4, "Swiftness",
-                "+9% Focus, 10% spell echo", "wl_reap|wl_arsenal",
+            Notable("wl_swift", SkillBranch.Warlord, 4, Text.LocKey.TalentWlSwiftName,
+                Text.LocKey.TalentWlSwiftDesc, "wl_reap|wl_arsenal",
                 Flat(StatIds.Cooldown, 0.09f), Flat(StatIds.SpellEcho, 0.10f)),
-            Notable("wl_arsenal", SkillBranch.Warlord, 4, "Arsenal",
-                "Hold a third spell", "wl_reap|wl_swift",
+            Notable("wl_arsenal", SkillBranch.Warlord, 4, Text.LocKey.TalentWlArsenalName,
+                Text.LocKey.TalentWlArsenalDesc, "wl_reap|wl_swift",
                 Flat(StatIds.SpellCharges, 1f)),
 
-            Minor("wl_malice", SkillBranch.Warlord, 5, 5, "Malice", "+6% Might",
+            Minor("wl_malice", SkillBranch.Warlord, 5, 5, Text.LocKey.TalentWlMaliceName, Text.LocKey.TalentWlMaliceDesc,
                 Pct(StatIds.Damage, 0.06f)),
-            Minor("wl_venom", SkillBranch.Warlord, 5, 5, "Venom", "+12% spell damage",
+            Minor("wl_venom", SkillBranch.Warlord, 5, 5, Text.LocKey.TalentWlVenomName, Text.LocKey.TalentWlVenomDesc,
                 Flat(StatIds.SpellPower, 0.12f)),
-            Minor("wl_urgency", SkillBranch.Warlord, 5, 4, "Urgency", "+5% Focus",
+            Minor("wl_urgency", SkillBranch.Warlord, 5, 4, Text.LocKey.TalentWlUrgencyName, Text.LocKey.TalentWlUrgencyDesc,
                 Flat(StatIds.Cooldown, 0.05f)),
-            Notable("wl_carnage", SkillBranch.Warlord, 5, "Carnage",
-                "+14 Might and +20% spell damage", null,
+            Notable("wl_carnage", SkillBranch.Warlord, 5, Text.LocKey.TalentWlCarnageName,
+                Text.LocKey.TalentWlCarnageDesc, null,
                 Flat(StatIds.Damage, 14f), Flat(StatIds.SpellPower, 0.20f)),
 
-            Keystone("wl_annihilation", SkillBranch.Warlord, "ANNIHILATION",
-                "+40% Might, +60% spell damage", "wl_headsman|wl_tempest",
+            Keystone("wl_annihilation", SkillBranch.Warlord, Text.LocKey.TalentWlAnnihilationName,
+                Text.LocKey.TalentWlAnnihilationDesc, "wl_headsman|wl_tempest",
                 Pct(StatIds.Damage, 0.40f), Flat(StatIds.SpellPower, 0.60f)),
-            Keystone("wl_headsman", SkillBranch.Warlord, "THE HEADSMAN",
-                "Execute threshold +20%", "wl_annihilation|wl_tempest",
+            Keystone("wl_headsman", SkillBranch.Warlord, Text.LocKey.TalentWlHeadsmanName,
+                Text.LocKey.TalentWlHeadsmanDesc, "wl_annihilation|wl_tempest",
                 Flat(StatIds.Execute, 0.20f)),
-            Keystone("wl_tempest", SkillBranch.Warlord, "TEMPEST",
-                "Two more spells, 45% echo, +25% Focus", "wl_annihilation|wl_headsman",
+            Keystone("wl_tempest", SkillBranch.Warlord, Text.LocKey.TalentWlTempestName,
+                Text.LocKey.TalentWlTempestDesc, "wl_annihilation|wl_headsman",
                 Flat(StatIds.SpellEcho, 0.45f), Flat(StatIds.Cooldown, 0.25f),
                 Flat(StatIds.SpellCharges, 2f)),
 
             // ================= WARDEN — survive ====================================
-            Minor("wd_hide", SkillBranch.Warden, 1, 5, "Thick Hide", "+18 Vigor",
+            Minor("wd_hide", SkillBranch.Warden, 1, 5, Text.LocKey.TalentWdHideName, Text.LocKey.TalentWdHideDesc,
                 Flat(StatIds.Health, 18f)),
-            Minor("wd_guard", SkillBranch.Warden, 1, 5, "Guarded", "Packs cost 4% less",
+            Minor("wd_guard", SkillBranch.Warden, 1, 5, Text.LocKey.TalentWdGuardName, Text.LocKey.TalentWdGuardDesc,
                 Flat(StatIds.EnemyResist, 0.04f)),
-            Minor("wd_brace", SkillBranch.Warden, 1, 5, "Brace", "Shield holds 0.2s longer",
+            Minor("wd_brace", SkillBranch.Warden, 1, 5, Text.LocKey.TalentWdBraceName, Text.LocKey.TalentWdBraceDesc,
                 Flat(StatIds.ShieldDuration, 0.2f)),
 
-            Minor("wd_plate", SkillBranch.Warden, 2, 5, "Plated", "+4% Vigor",
+            Minor("wd_plate", SkillBranch.Warden, 2, 5, Text.LocKey.TalentWdPlateName, Text.LocKey.TalentWdPlateDesc,
                 Pct(StatIds.Health, 0.04f)),
-            Minor("wd_bramble", SkillBranch.Warden, 2, 5, "Bramble", "Packs cost 5% less",
+            Minor("wd_bramble", SkillBranch.Warden, 2, 5, Text.LocKey.TalentWdBrambleName, Text.LocKey.TalentWdBrambleDesc,
                 Flat(StatIds.EnemyResist, 0.05f)),
-            Notable("wd_shatter", SkillBranch.Warden, 2, "Shatterguard",
-                "14% chance a pack shatters and costs nothing", "wd_bulwark",
+            Notable("wd_shatter", SkillBranch.Warden, 2, Text.LocKey.TalentWdShatterName,
+                Text.LocKey.TalentWdShatterDesc, "wd_bulwark",
                 Flat(StatIds.PackShatter, 0.14f)),
             // THE SHIELD IS A MAGAZINE NOW, so how many raises you hold is a separate thing
             // to buy from how long each one lasts and how fast they return. One extra raise
             // at tier 2, a second at tier 4, a third on the keystone: three points across a
             // whole branch, because a charge is worth far more than a tenth of a second of
             // uptime and pricing them the same would make duration dead.
-            Notable("wd_doubleguard", SkillBranch.Warden, 2, "Doubleguard",
-                "Hold a second shield raise", "wd_bulwark|wd_shatter",
+            Notable("wd_doubleguard", SkillBranch.Warden, 2, Text.LocKey.TalentWdDoubleguardName,
+                Text.LocKey.TalentWdDoubleguardDesc, "wd_bulwark|wd_shatter",
                 Flat(StatIds.ShieldCharges, 1f)),
-            Notable("wd_bulwark", SkillBranch.Warden, 2, "Bulwark",
-                "Shield holds 1s longer, +30 Vigor", "wd_shatter",
+            Notable("wd_bulwark", SkillBranch.Warden, 2, Text.LocKey.TalentWdBulwarkName,
+                Text.LocKey.TalentWdBulwarkDesc, "wd_shatter",
                 Flat(StatIds.ShieldDuration, 1.0f), Flat(StatIds.Health, 30f)),
 
-            Minor("wd_stone", SkillBranch.Warden, 3, 5, "Stoneblood", "+24 Vigor",
+            Minor("wd_stone", SkillBranch.Warden, 3, 5, Text.LocKey.TalentWdStoneName, Text.LocKey.TalentWdStoneDesc,
                 Flat(StatIds.Health, 24f)),
-            Minor("wd_ward", SkillBranch.Warden, 3, 5, "Warded", "Shield holds 0.25s longer",
+            Minor("wd_ward", SkillBranch.Warden, 3, 5, Text.LocKey.TalentWdWardName, Text.LocKey.TalentWdWardDesc,
                 Flat(StatIds.ShieldDuration, 0.25f)),
-            Minor("wd_scar", SkillBranch.Warden, 3, 4, "Scarred", "Packs cost 5% less",
+            Minor("wd_scar", SkillBranch.Warden, 3, 4, Text.LocKey.TalentWdScarName, Text.LocKey.TalentWdScarDesc,
                 Flat(StatIds.EnemyResist, 0.05f)),
-            Notable("wd_reflect", SkillBranch.Warden, 3, "Riposte",
-                "A blocked blow returns 25% of it to the boss", null,
+            Notable("wd_reflect", SkillBranch.Warden, 3, Text.LocKey.TalentWdReflectName,
+                Text.LocKey.TalentWdReflectDesc, null,
                 Flat(StatIds.ShieldReflect, 0.25f)),
-            Minor("wd_ready", SkillBranch.Warden, 3, 5, "At the Ready", "Shields return 4% sooner",
+            Minor("wd_ready", SkillBranch.Warden, 3, 5, Text.LocKey.TalentWdReadyName, Text.LocKey.TalentWdReadyDesc,
                 Flat(StatIds.Cooldown, 0.04f)),
 
-            Minor("wd_bastion", SkillBranch.Warden, 4, 5, "Bastion", "+6% Vigor",
+            Minor("wd_bastion", SkillBranch.Warden, 4, 5, Text.LocKey.TalentWdBastionName, Text.LocKey.TalentWdBastionDesc,
                 Pct(StatIds.Health, 0.06f)),
-            Minor("wd_thorns", SkillBranch.Warden, 4, 5, "Thorns", "12% reflect",
+            Minor("wd_thorns", SkillBranch.Warden, 4, 5, Text.LocKey.TalentWdThornsName, Text.LocKey.TalentWdThornsDesc,
                 Flat(StatIds.ShieldReflect, 0.12f)),
-            Notable("wd_wind", SkillBranch.Warden, 4, "Second Wind",
-                "Once per run, death restores 30% of your army", "wd_aegis",
+            Notable("wd_wind", SkillBranch.Warden, 4, Text.LocKey.TalentWdWindName,
+                Text.LocKey.TalentWdWindDesc, "wd_aegis",
                 Flat(StatIds.SecondWind, 0.30f)),
-            Notable("wd_aegis", SkillBranch.Warden, 4, "Aegis",
-                "Shield holds 1.4s longer, 18% shatter", "wd_wind|wd_triguard",
+            Notable("wd_aegis", SkillBranch.Warden, 4, Text.LocKey.TalentWdAegisName,
+                Text.LocKey.TalentWdAegisDesc, "wd_wind|wd_triguard",
                 Flat(StatIds.ShieldDuration, 1.4f), Flat(StatIds.PackShatter, 0.18f)),
-            Notable("wd_triguard", SkillBranch.Warden, 4, "Triguard",
-                "Hold a third shield raise", "wd_wind|wd_aegis",
+            Notable("wd_triguard", SkillBranch.Warden, 4, Text.LocKey.TalentWdTriguardName,
+                Text.LocKey.TalentWdTriguardDesc, "wd_wind|wd_aegis",
                 Flat(StatIds.ShieldCharges, 1f)),
 
-            Minor("wd_iron", SkillBranch.Warden, 5, 5, "Ironbound", "+34 Vigor",
+            Minor("wd_iron", SkillBranch.Warden, 5, 5, Text.LocKey.TalentWdIronName, Text.LocKey.TalentWdIronDesc,
                 Flat(StatIds.Health, 34f)),
-            Minor("wd_deny", SkillBranch.Warden, 5, 5, "Denial", "Packs cost 6% less",
+            Minor("wd_deny", SkillBranch.Warden, 5, 5, Text.LocKey.TalentWdDenyName, Text.LocKey.TalentWdDenyDesc,
                 Flat(StatIds.EnemyResist, 0.06f)),
-            Minor("wd_shell", SkillBranch.Warden, 5, 4, "Shell", "10% shatter",
+            Minor("wd_shell", SkillBranch.Warden, 5, 4, Text.LocKey.TalentWdShellName, Text.LocKey.TalentWdShellDesc,
                 Flat(StatIds.PackShatter, 0.10f)),
-            Notable("wd_unbroken", SkillBranch.Warden, 5, "Unbroken",
-                "+70 Vigor, packs cost 12% less", null,
+            Notable("wd_unbroken", SkillBranch.Warden, 5, Text.LocKey.TalentWdUnbrokenName,
+                Text.LocKey.TalentWdUnbrokenDesc, null,
                 Flat(StatIds.Health, 70f), Flat(StatIds.EnemyResist, 0.12f)),
 
-            Keystone("wd_undying", SkillBranch.Warden, "UNDYING",
-                "+120 Vigor, second wind restores 55%", "wd_immovable|wd_mirror",
+            Keystone("wd_undying", SkillBranch.Warden, Text.LocKey.TalentWdUndyingName,
+                Text.LocKey.TalentWdUndyingDesc, "wd_immovable|wd_mirror",
                 Flat(StatIds.Health, 120f), Flat(StatIds.SecondWind, 0.55f)),
-            Keystone("wd_immovable", SkillBranch.Warden, "IMMOVABLE",
-                "Packs cost 40% less, 30% shatter", "wd_undying|wd_mirror",
+            Keystone("wd_immovable", SkillBranch.Warden, Text.LocKey.TalentWdImmovableName,
+                Text.LocKey.TalentWdImmovableDesc, "wd_undying|wd_mirror",
                 Flat(StatIds.EnemyResist, 0.40f), Flat(StatIds.PackShatter, 0.30f)),
             // The charge payoff is folded into an EXISTING keystone rather than added as a
             // fourth. Three mutually exclusive keystones per branch is a design rule with a
             // test on it, and quietly making it four to fit a new stat in would be changing
             // the shape of every build in the game to avoid an edit.
-            Keystone("wd_mirror", SkillBranch.Warden, "MIRROR OF THORNS",
-                "Two more shield raises, blocked blows return 90%", "wd_undying|wd_immovable",
+            Keystone("wd_mirror", SkillBranch.Warden, Text.LocKey.TalentWdMirrorName,
+                Text.LocKey.TalentWdMirrorDesc, "wd_undying|wd_immovable",
                 Flat(StatIds.ShieldReflect, 0.90f), Flat(StatIds.ShieldCharges, 2f)),
 
             // ================= ZEALOT — grow the army ==============================
-            Minor("zl_avarice", SkillBranch.Zealot, 1, 5, "Avarice", "+3% from every gate",
+            Minor("zl_avarice", SkillBranch.Zealot, 1, 5, Text.LocKey.TalentZlAvariceName, Text.LocKey.TalentZlAvariceDesc,
                 Flat(StatIds.GateYield, 0.03f)),
-            Minor("zl_stride", SkillBranch.Zealot, 1, 5, "Stride", "+2% speed",
+            Minor("zl_stride", SkillBranch.Zealot, 1, 5, Text.LocKey.TalentZlStrideName, Text.LocKey.TalentZlStrideDesc,
                 Flat(StatIds.RunSpeed, 0.02f)),
-            Minor("zl_luck", SkillBranch.Zealot, 1, 5, "Fortune", "+6% rare loot",
+            Minor("zl_luck", SkillBranch.Zealot, 1, 5, Text.LocKey.TalentZlLuckName, Text.LocKey.TalentZlLuckDesc,
                 Flat(StatIds.Fortune, 0.06f)),
 
-            Minor("zl_greed", SkillBranch.Zealot, 2, 5, "Greed", "+4% from every gate",
+            Minor("zl_greed", SkillBranch.Zealot, 2, 5, Text.LocKey.TalentZlGreedName, Text.LocKey.TalentZlGreedDesc,
                 Flat(StatIds.GateYield, 0.04f)),
-            Minor("zl_lodestone", SkillBranch.Zealot, 2, 5, "Lodestone",
-                "Gates reach 0.12 m wider", Flat(StatIds.Magnetism, 0.12f)),
-            Notable("zl_crit", SkillBranch.Zealot, 2, "Zealotry",
-                "10% chance a gate counts double", "zl_zeal",
+            Minor("zl_lodestone", SkillBranch.Zealot, 2, 5, Text.LocKey.TalentZlLodestoneName,
+                Text.LocKey.TalentZlLodestoneDesc, Flat(StatIds.Magnetism, 0.12f)),
+            Notable("zl_crit", SkillBranch.Zealot, 2, Text.LocKey.TalentZlCritName,
+                Text.LocKey.TalentZlCritDesc, "zl_zeal",
                 Flat(StatIds.GateCrit, 0.10f)),
-            Notable("zl_zeal", SkillBranch.Zealot, 2, "Zeal",
-                "+12% speed, +8% from gates", "zl_crit",
+            Notable("zl_zeal", SkillBranch.Zealot, 2, Text.LocKey.TalentZlZealName,
+                Text.LocKey.TalentZlZealDesc, "zl_crit",
                 Flat(StatIds.RunSpeed, 0.12f), Flat(StatIds.GateYield, 0.08f)),
 
-            Minor("zl_tithe", SkillBranch.Zealot, 3, 5, "Tithe", "+5% from every gate",
+            Minor("zl_tithe", SkillBranch.Zealot, 3, 5, Text.LocKey.TalentZlTitheName, Text.LocKey.TalentZlTitheDesc,
                 Flat(StatIds.GateYield, 0.05f)),
-            Minor("zl_omen", SkillBranch.Zealot, 3, 5, "Omen", "+8% rare loot",
+            Minor("zl_omen", SkillBranch.Zealot, 3, 5, Text.LocKey.TalentZlOmenName, Text.LocKey.TalentZlOmenDesc,
                 Flat(StatIds.Fortune, 0.08f)),
-            Minor("zl_fervour", SkillBranch.Zealot, 3, 4, "Fervour", "4% gate crit",
+            Minor("zl_fervour", SkillBranch.Zealot, 3, 4, Text.LocKey.TalentZlFervourName, Text.LocKey.TalentZlFervourDesc,
                 Flat(StatIds.GateCrit, 0.04f)),
-            Notable("zl_chain", SkillBranch.Zealot, 3, "Cascade",
-                "Each consecutive x gate adds 15% more", null,
+            Notable("zl_chain", SkillBranch.Zealot, 3, Text.LocKey.TalentZlChainName,
+                Text.LocKey.TalentZlChainDesc, null,
                 Flat(StatIds.ChainMultiply, 0.15f)),
 
-            Minor("zl_hunger", SkillBranch.Zealot, 4, 5, "Hunger", "+6% from every gate",
+            Minor("zl_hunger", SkillBranch.Zealot, 4, 5, Text.LocKey.TalentZlHungerName, Text.LocKey.TalentZlHungerDesc,
                 Flat(StatIds.GateYield, 0.06f)),
-            Minor("zl_pull", SkillBranch.Zealot, 4, 5, "Pull", "Gates reach 0.15 m wider",
+            Minor("zl_pull", SkillBranch.Zealot, 4, 5, Text.LocKey.TalentZlPullName, Text.LocKey.TalentZlPullDesc,
                 Flat(StatIds.Magnetism, 0.15f)),
-            Notable("zl_hoard", SkillBranch.Zealot, 4, "Hoard",
-                "Overflow past the cap returns 25% as boss damage", "zl_swarm",
+            Notable("zl_hoard", SkillBranch.Zealot, 4, Text.LocKey.TalentZlHoardName,
+                Text.LocKey.TalentZlHoardDesc, "zl_swarm",
                 Flat(StatIds.OverflowBank, 0.25f)),
-            Notable("zl_swarm", SkillBranch.Zealot, 4, "Swarm",
-                "+18% from gates, 12% gate crit", "zl_hoard",
+            Notable("zl_swarm", SkillBranch.Zealot, 4, Text.LocKey.TalentZlSwarmName,
+                Text.LocKey.TalentZlSwarmDesc, "zl_hoard",
                 Flat(StatIds.GateYield, 0.18f), Flat(StatIds.GateCrit, 0.12f)),
 
-            Minor("zl_rapture", SkillBranch.Zealot, 5, 5, "Rapture", "+7% from every gate",
+            Minor("zl_rapture", SkillBranch.Zealot, 5, 5, Text.LocKey.TalentZlRaptureName, Text.LocKey.TalentZlRaptureDesc,
                 Flat(StatIds.GateYield, 0.07f)),
-            Minor("zl_frenzy", SkillBranch.Zealot, 5, 5, "Frenzy", "+3% speed",
+            Minor("zl_frenzy", SkillBranch.Zealot, 5, 5, Text.LocKey.TalentZlFrenzyName, Text.LocKey.TalentZlFrenzyDesc,
                 Flat(StatIds.RunSpeed, 0.03f)),
-            Minor("zl_cascade", SkillBranch.Zealot, 5, 4, "Spiral", "+8% chain",
+            Minor("zl_cascade", SkillBranch.Zealot, 5, 4, Text.LocKey.TalentZlCascadeName, Text.LocKey.TalentZlCascadeDesc,
                 Flat(StatIds.ChainMultiply, 0.08f)),
-            Notable("zl_legion", SkillBranch.Zealot, 5, "Legion",
-                "+25% from gates, +20% rare loot", null,
+            Notable("zl_legion", SkillBranch.Zealot, 5, Text.LocKey.TalentZlLegionName,
+                Text.LocKey.TalentZlLegionDesc, null,
                 Flat(StatIds.GateYield, 0.25f), Flat(StatIds.Fortune, 0.20f)),
 
-            Keystone("zl_multiplication", SkillBranch.Zealot, "MULTIPLICATION",
-                "+55% from gates, 25% gate crit", "zl_avalanche|zl_covetous",
+            Keystone("zl_multiplication", SkillBranch.Zealot, Text.LocKey.TalentZlMultiplicationName,
+                Text.LocKey.TalentZlMultiplicationDesc, "zl_avalanche|zl_covetous",
                 Flat(StatIds.GateYield, 0.55f), Flat(StatIds.GateCrit, 0.25f)),
-            Keystone("zl_avalanche", SkillBranch.Zealot, "AVALANCHE",
-                "Chain +60%, gates reach 0.5 m wider", "zl_multiplication|zl_covetous",
+            Keystone("zl_avalanche", SkillBranch.Zealot, Text.LocKey.TalentZlAvalancheName,
+                Text.LocKey.TalentZlAvalancheDesc, "zl_multiplication|zl_covetous",
                 Flat(StatIds.ChainMultiply, 0.60f), Flat(StatIds.Magnetism, 0.5f)),
-            Keystone("zl_covetous", SkillBranch.Zealot, "COVETOUS",
-                "Overflow returns 90%, +60% rare loot", "zl_multiplication|zl_avalanche",
+            Keystone("zl_covetous", SkillBranch.Zealot, Text.LocKey.TalentZlCovetousName,
+                Text.LocKey.TalentZlCovetousDesc, "zl_multiplication|zl_avalanche",
                 Flat(StatIds.OverflowBank, 0.90f), Flat(StatIds.Fortune, 0.60f)),
 
             // ================= CROSSROADS — hybrids ================================
             // Gated on investment in TWO branches, so they reward committing rather than
             // dabbling. Tier here means "points needed in EACH of the two branches".
-            Hybrid("cr_warpriest", SkillBranch.Warlord, SkillBranch.Zealot, 2, "War Priest",
-                "+10 Might, +8% from gates",
+            Hybrid("cr_warpriest", SkillBranch.Warlord, SkillBranch.Zealot, 2, Text.LocKey.TalentCrWarpriestName,
+                Text.LocKey.TalentCrWarpriestDesc,
                 Flat(StatIds.Damage, 10f), Flat(StatIds.GateYield, 0.08f)),
-            Hybrid("cr_crusader", SkillBranch.Warlord, SkillBranch.Warden, 2, "Crusader",
-                "+40 Vigor, +12% spell damage",
+            Hybrid("cr_crusader", SkillBranch.Warlord, SkillBranch.Warden, 2, Text.LocKey.TalentCrCrusaderName,
+                Text.LocKey.TalentCrCrusaderDesc,
                 Flat(StatIds.Health, 40f), Flat(StatIds.SpellPower, 0.12f)),
-            Hybrid("cr_pilgrim", SkillBranch.Warden, SkillBranch.Zealot, 2, "Pilgrim",
-                "Packs cost 10% less, +6% speed",
+            Hybrid("cr_pilgrim", SkillBranch.Warden, SkillBranch.Zealot, 2, Text.LocKey.TalentCrPilgrimName,
+                Text.LocKey.TalentCrPilgrimDesc,
                 Flat(StatIds.EnemyResist, 0.10f), Flat(StatIds.RunSpeed, 0.06f)),
-            Hybrid("cr_martyr", SkillBranch.Warlord, SkillBranch.Warden, 4, "Martyr",
-                "Blocked blows return 30%, +12 Might",
+            Hybrid("cr_martyr", SkillBranch.Warlord, SkillBranch.Warden, 4, Text.LocKey.TalentCrMartyrName,
+                Text.LocKey.TalentCrMartyrDesc,
                 Flat(StatIds.ShieldReflect, 0.30f), Flat(StatIds.Damage, 12f)),
-            Hybrid("cr_prophet", SkillBranch.Warlord, SkillBranch.Zealot, 4, "Prophet",
-                "Overflow returns 30%, +18% spell damage",
+            Hybrid("cr_prophet", SkillBranch.Warlord, SkillBranch.Zealot, 4, Text.LocKey.TalentCrProphetName,
+                Text.LocKey.TalentCrProphetDesc,
                 Flat(StatIds.OverflowBank, 0.30f), Flat(StatIds.SpellPower, 0.18f)),
-            Hybrid("cr_shepherd", SkillBranch.Warden, SkillBranch.Zealot, 4, "Shepherd",
-                "18% shatter, +14% from gates",
+            Hybrid("cr_shepherd", SkillBranch.Warden, SkillBranch.Zealot, 4, Text.LocKey.TalentCrShepherdName,
+                Text.LocKey.TalentCrShepherdDesc,
                 Flat(StatIds.PackShatter, 0.18f), Flat(StatIds.GateYield, 0.14f)),
-            Hybrid("cr_apostle", SkillBranch.Warlord, SkillBranch.Zealot, 5, "Apostle",
-                "Execute +6%, chain +20%",
+            Hybrid("cr_apostle", SkillBranch.Warlord, SkillBranch.Zealot, 5, Text.LocKey.TalentCrApostleName,
+                Text.LocKey.TalentCrApostleDesc,
                 Flat(StatIds.Execute, 0.06f), Flat(StatIds.ChainMultiply, 0.20f)),
-            Hybrid("cr_paladin", SkillBranch.Warlord, SkillBranch.Warden, 5, "Paladin",
-                "+80 Vigor, +18 Might, shield holds 0.8s longer",
+            Hybrid("cr_paladin", SkillBranch.Warlord, SkillBranch.Warden, 5, Text.LocKey.TalentCrPaladinName,
+                Text.LocKey.TalentCrPaladinDesc,
                 Flat(StatIds.Health, 80f), Flat(StatIds.Damage, 18f),
                 Flat(StatIds.ShieldDuration, 0.8f))
         };
@@ -467,9 +478,10 @@ namespace BattleRunner.Core.Progression
             int unspentPoints)
         {
             SkillNode node = Find(nodeId);
-            if (node == null) return "Unknown talent";
-            if (RankOf(ranks, nodeId) >= node.MaxRanks) return "Fully ranked";
-            if (unspentPoints < PointCost) return "No points to spend";
+            if (node == null) return Text.Loc.Get(Text.LocKey.TalentUnknown);
+            if (RankOf(ranks, nodeId) >= node.MaxRanks)
+                return Text.Loc.Get(Text.LocKey.TalentFullyRanked);
+            if (unspentPoints < PointCost) return Text.Loc.Get(Text.LocKey.TalentNoPoints);
 
             // Exclusions are a bar-separated list so a keystone can rule out its two rivals.
             if (node.Excludes != null)
@@ -478,7 +490,8 @@ namespace BattleRunner.Core.Progression
                 {
                     if (RankOf(ranks, other) <= 0) continue;
                     SkillNode blocker = Find(other);
-                    return $"{(blocker != null ? blocker.DisplayName : other)} rules it out";
+                    return Text.Loc.Format(Text.LocKey.TalentRuledOut,
+                        blocker != null ? blocker.DisplayName : other);
                 }
             }
 
@@ -490,13 +503,13 @@ namespace BattleRunner.Core.Progression
                 SkillBranch also = node.RequiresAlso ?? SkillBranch.Warlord;
                 SkillBranch primary = PrimaryOf(node);
                 if (PointsIn(ranks, primary) < need || PointsIn(ranks, also) < need)
-                    return $"Needs {need} points in {Name(primary)} and {Name(also)}";
+                    return Text.Loc.Format(Text.LocKey.TalentNeedsBoth, need, Name(primary), Name(also));
                 return null;
             }
 
             int required = (node.Tier - 1) * TierUnlockCost;
             if (PointsBelowTier(ranks, node.Branch, node.Tier) < required)
-                return $"Needs {required} points in {Name(node.Branch)}";
+                return Text.Loc.Format(Text.LocKey.TalentNeedsBranch, required, Name(node.Branch));
 
             return null;
         }
@@ -516,8 +529,8 @@ namespace BattleRunner.Core.Progression
             IReadOnlyDictionary<string, int> ranks)
         {
             SkillNode node = Find(nodeId);
-            if (node == null) return "Unknown talent";
-            if (RankOf(ranks, nodeId) <= 0) return "Not learned";
+            if (node == null) return Text.Loc.Get(Text.LocKey.TalentUnknown);
+            if (RankOf(ranks, nodeId) <= 0) return Text.Loc.Get(Text.LocKey.TalentNotLearned);
             if (node.Branch == SkillBranch.Crossroads) return null;
 
             // The rank comes out of exactly one tier, so it can only ever starve something
@@ -550,7 +563,9 @@ namespace BattleRunner.Core.Progression
                 if (blocker == null || held.Tier > blocker.Tier) blocker = held;
             }
 
-            return blocker == null ? null : $"Unlearn {blocker.DisplayName} first";
+            return blocker == null
+                ? null
+                : Text.Loc.Format(Text.LocKey.TalentUnlearnFirst, blocker.DisplayName);
         }
 
         public static bool CanUnlearn(string nodeId, IReadOnlyDictionary<string, int> ranks) =>
@@ -590,10 +605,10 @@ namespace BattleRunner.Core.Progression
 
         public static string Name(SkillBranch branch) => branch switch
         {
-            SkillBranch.Warlord => "Warlord",
-            SkillBranch.Warden => "Warden",
-            SkillBranch.Zealot => "Zealot",
-            _ => "Crossroads"
+            SkillBranch.Warlord => Text.Loc.Get(Text.LocKey.BranchWarlord),
+            SkillBranch.Warden => Text.Loc.Get(Text.LocKey.BranchWarden),
+            SkillBranch.Zealot => Text.Loc.Get(Text.LocKey.BranchZealot),
+            _ => Text.Loc.Get(Text.LocKey.BranchCrossroads)
         };
     }
 }
