@@ -153,11 +153,8 @@ namespace BattleRunner.Meta.UI
                 // The tab row runs the other way in Hebrew. Mirroring the SPAN rather than the
                 // centre, so the tabs keep their widths and their gutters.
                 float tabLo = 0.030f + i * 0.188f, tabHi = 0.206f + i * 0.188f;
-                UiFactory.PlaceRegion((RectTransform)tab.transform,
-                    UiFactory.Mirror(Mathf.Max(tabLo, tabHi)) == tabLo ? tabLo : Mathf.Min(
-                        UiFactory.Mirror(tabLo), UiFactory.Mirror(tabHi)),
-                    0.838f,
-                    Mathf.Max(UiFactory.Mirror(tabLo), UiFactory.Mirror(tabHi)), 0.888f);
+                UiFactory.MirrorSpan(ref tabLo, ref tabHi);
+                UiFactory.PlaceRegion((RectTransform)tab.transform, tabLo, 0.838f, tabHi, 0.888f);
                 _tabFills[i] = tab.GetComponent<Image>();
             }
         }
@@ -239,9 +236,9 @@ namespace BattleRunner.Meta.UI
             // otherwise rank the node up.
             Button minus = UiFactory.ActionButton(button.transform, "Minus", "-",
                 new Color(0.30f, 0.12f, 0.12f), () => OnMinusTapped(captured), labelSize: 26);
-            UiFactory.PlaceRegion((RectTransform)minus.transform,
-                Loc.IsRightToLeft ? 0.74f : 0.05f, 0.03f,
-                Loc.IsRightToLeft ? 0.95f : 0.26f, 0.20f);
+            float minusLo = 0.05f, minusHi = 0.26f;
+            UiFactory.MirrorSpan(ref minusLo, ref minusHi);
+            UiFactory.PlaceRegion((RectTransform)minus.transform, minusLo, 0.03f, minusHi, 0.20f);
             widget.Minus = minus.gameObject;
 
             return widget;

@@ -194,7 +194,7 @@ namespace BattleRunner.Data.Definitions
             };
         }
 
-        private static BossDefinition Boss(string assetName, string displayName,
+        private static BossDefinition Boss(string assetName, LocKey displayName,
             BossArchetype archetype, float baseHp, float growth, float interval,
             float telegraph, float hitFraction, Color tint, Color telegraphColor)
         {

@@ -57,7 +57,7 @@ namespace BattleRunner.Meta.UI
         /// that assigns .text goes through here; it is a no-op in English and Russian.
         /// </summary>
         public static string Shape(string text) =>
-            Loc.IsRightToLeft ? Core.Text.BiDi.VisualLines(text) : text;
+            Loc.IsRightToLeft ? BiDi.VisualLines(text) : text;
 
         /// <summary>Set a label's text, reordering it for the language first.</summary>
         public static void SetText(Text label, string text)
@@ -74,6 +74,19 @@ namespace BattleRunner.Meta.UI
         /// and a bar that empties the other way reads as filling.
         /// </summary>
         public static float Mirror(float x) => Loc.IsRightToLeft ? 1f - x : x;
+
+        /// <summary>
+        /// A normalized SPAN, mirrored. Both edges move AND swap places, so the thing keeps its
+        /// width and its gutter. Mirroring the two edges independently and leaving them in the
+        /// old order gives a rect with negative width, which draws as nothing at all.
+        /// </summary>
+        public static void MirrorSpan(ref float lo, ref float hi)
+        {
+            if (!Loc.IsRightToLeft) return;
+            float low = 1f - hi, high = 1f - lo;
+            lo = low;
+            hi = high;
+        }
 
         /// <summary>An alignment, flipped when the language reads right to left.</summary>
         public static TextAnchor Flip(TextAnchor anchor)
