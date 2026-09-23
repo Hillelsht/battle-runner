@@ -1325,7 +1325,7 @@ into prose — a Russian description that says 12% where English says 15% fails
 
 **Russian needs three plural forms and they are chosen on the last two digits.**
 `Plural.Form` returns 0 for 1, 21, 31 …, 1 for 2–4, 22–24 …, and 2 for everything else
-*including* 11–14, which take the many-form despite ending in 1–4. Four strings need it.
+*including* 11–14, which take the many-form despite ending in 1–4. Five strings need it.
 Hebrew and English take two forms. Variants are authored in one entry separated by `|`.
 
 ### Hebrew renders backwards unless something reorders it
@@ -1380,14 +1380,14 @@ arrows, both with comments saying a missing glyph renders as a box on device.
 downloads it against a pinned sha256 and then **parses the font's own cmap** — formats 4
 and 12 — failing unless every required range is present: Hebrew alef–tav, geresh, Cyrillic
 including Ё/ё, and the typography already in the English copy (em dash, middle dot,
-apostrophe, bullet). 309 KB against a <150 MB budget. It is Arial-metric-compatible, which
+apostrophe, bullet). 316 KB against a <150 MB budget. It is Arial-metric-compatible, which
 is what the built-in font already is, so English screens laid out by eye against fixed pixel
 widths move as little as possible. `FontImportSettings`, an `AssetPostprocessor`, asserts
 Dynamic render mode in code rather than trusting a hand-written `.meta`.
 
 **Russian runs 10–30% longer and nothing in this project wraps.** `UiFactory.Label` sets
 both overflow modes to `Overflow`, and there is no `ContentSizeFitter` or `LayoutGroup`
-anywhere; 44 of 61 placements mix a normalized centre with a fixed pixel width. Widening
+anywhere; 45 of 65 placements mix a normalized centre with a fixed pixel width. Widening
 the tight buttons is the obvious fix and the wrong one — `SlotSelectScreen` carries a
 comment recording that exact bug already biting in English, where a 640 px button and a
 210 px one overlapped by 53 units and ERASE silently took PLAY's taps. So labels get
